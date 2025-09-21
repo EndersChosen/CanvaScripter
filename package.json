@@ -1,0 +1,81 @@
+{
+  "name": "canvascripter",
+  "version": "1.0.1",
+  "description": "Provides a UI for some common Canvas support Scripts.",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:forge": "electron-forge start",
+    "test": "node test-runner.js",
+    "test:unit": "node tests/unit.test.js",
+    "test:integration": "echo 'Run window.runTests() in the developer console of the running app'",
+    "test:security": "npm audit --audit-level=moderate",
+    "test:all": "npm run test:unit && npm run test:security",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "build": "electron-builder",
+    "audit": "npm audit --audit-level=moderate",
+    "audit:prod": "npm audit --omit=dev --audit-level=moderate",
+    "update:manifest-version": "node scripts/update-manifest-version.js --manifests ../../CanvaTweaks/manifest.json",
+    "bump": "node scripts/update-manifest-version.js --bump --manifests ../../CanvaTweaks/manifest.json",
+    "watch:version": "node scripts/update-manifest-version.js --watch --manifests ../../CanvaTweaks/manifest.json"
+  },
+  "build": {
+    "appId": "com.canvatools.canvascripter",
+    "asar": true,
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!dist.zip",
+      "!out/**",
+      "!**/*.har",
+      "!**/*.csv",
+      "!**/*.map"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.icns"
+    }
+  },
+  "author": "Caleb Kruger",
+  "license": "MIT",
+  "devDependencies": {
+    "@electron-forge/cli": "^6.4.2",
+    "@electron-forge/maker-deb": "^6.4.2",
+    "@electron-forge/maker-rpm": "^6.4.2",
+    "@electron-forge/maker-squirrel": "^6.4.2",
+    "@electron-forge/maker-zip": "^6.4.2",
+    "@electron-forge/plugin-auto-unpack-natives": "^6.4.2",
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0",
+    "chokidar": "^3.6.0"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "axios": "^1.7.0",
+    "bootstrap": "^5.3.0",
+    "dotenv": "^16.4.0",
+    "electron-squirrel-startup": "^1.0.0",
+    "jszip": "^3.10.1"
+  },
+  "overrides": {
+    "form-data": "^4.0.4",
+    "tmp": "^0.2.4"
+  }
+}
