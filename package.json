@@ -15,10 +15,7 @@
     "make": "electron-forge make",
     "build": "electron-builder",
     "audit": "npm audit --audit-level=moderate",
-    "audit:prod": "npm audit --omit=dev --audit-level=moderate",
-    "update:manifest-version": "node scripts/update-manifest-version.js --manifests ../../CanvaTweaks/manifest.json",
-    "bump": "node scripts/update-manifest-version.js --bump --manifests ../../CanvaTweaks/manifest.json",
-    "watch:version": "node scripts/update-manifest-version.js --watch --manifests ../../CanvaTweaks/manifest.json"
+    "audit:prod": "npm audit --omit=dev --audit-level=moderate"
   },
   "build": {
     "appId": "com.canvatools.canvascripter",

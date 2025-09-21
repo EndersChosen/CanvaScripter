@@ -9,7 +9,8 @@ const {
     dialog,
     clipboard,
     shell,
-    Menu
+    Menu,
+    nativeTheme
 } = require('electron');
 //const axios = require('axios');
 const convos = require('../shared/canvas-api/conversations');
@@ -424,7 +425,8 @@ const createWindow = () => {
             contextIsolation: true,
             sandbox: false,
             preload: path.join(__dirname, './preload.js')
-        }
+        },
+        titleBarStyle: 'hiddenInset'
     })
 
     // Hide DevTools on startup; uncomment to open automatically during development
@@ -3609,7 +3611,7 @@ app.whenReady().then(() => {
             },
             { type: 'separator' },
             {
-                label: 'Inspect Element',
+                label: 'Inspect',
                 click: () => {
                     // Open DevTools honoring override mode; otherwise let Chromium remember last
                     const override = getDevToolsOverrideMode();
