@@ -6,8 +6,11 @@ function hideEndpoints(e) {
     // Hide all endpoint forms when switching between different requests
     const endpointContent = document.querySelector('#endpoint-content');
     if (endpointContent) {
-        // Clear the content area
-        endpointContent.innerHTML = '';
+        // Instead of clearing content, hide all existing forms
+        const allForms = endpointContent.querySelectorAll('form, div[id$="-form"]');
+        allForms.forEach(form => {
+            form.hidden = true;
+        });
 
         // Remove active state from all sidebar buttons
         const activeButtons = document.querySelectorAll('.list-group-item.active');
@@ -17,6 +20,122 @@ function hideEndpoints(e) {
         if (e && e.target) {
             e.target.classList.add('active');
         }
+    }
+}
+
+function errorHandler(error, progressInfo, container = null) {
+    console.error(error);
+
+    // Extract status code from error message
+    const statusCode = error.message.match(/(?<=status code )[0-9]+/);
+    const statusNum = statusCode ? parseInt(statusCode[0]) : null;
+
+    // Detect network errors
+    const isNetworkError = !statusNum && (
+        error.message.includes('ENOTFOUND') ||
+        error.message.includes('ECONNREFUSED') ||
+        error.message.includes('ECONNRESET') ||
+        error.message.includes('ETIMEDOUT') ||
+        error.message.includes('network error') ||
+        error.message.includes('getaddrinfo')
+    );
+
+    let errorTitle = 'Request Failed';
+    let errorInfo = '';
+
+    if (isNetworkError) {
+        errorTitle = 'Network Connection Error';
+        if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
+            errorInfo = 'Cannot reach the server. Check your Canvas domain - make sure it\'s spelled correctly and doesn\'t include "https://" (e.g., use "myschool.instructure.com" not "https://myschool.instructure.com").';
+        } else if (error.message.includes('ECONNREFUSED')) {
+            errorInfo = 'Connection refused by server. The Canvas domain may be incorrect or the server may be down.';
+        } else if (error.message.includes('ETIMEDOUT')) {
+            errorInfo = 'Connection timed out. Check your internet connection or try again later.';
+        } else {
+            errorInfo = 'Network error occurred. Check your internet connection and Canvas domain.';
+        }
+    } else if (statusNum) {
+        errorTitle = `HTTP Error ${statusNum}`;
+        switch (statusNum) {
+            case 400:
+                errorInfo = 'Bad request. Check that all required fields are filled out correctly.';
+                break;
+            case 401:
+                errorInfo = 'Authentication failed. Check your API token - it may be invalid or expired.';
+                if (document.querySelector('#user-id')) {
+                    errorInfo += ' Also verify the User ID is correct.';
+                }
+                break;
+            case 403:
+                errorInfo = 'Access forbidden. You may not have permission for this action, or you may be hitting rate limits. Wait a moment and try again.';
+                break;
+            case 404:
+                errorInfo = 'Resource not found. Check your inputs to make sure they exist and you have access to it.';
+                break;
+            case 422:
+                errorInfo = 'Validation error. One or more fields contain invalid data. Check your input values.';
+                break;
+            case 429:
+                errorInfo = 'Too many requests. You\'re being rate limited. Wait a few minutes before trying again.';
+                break;
+            case 500:
+                errorInfo = 'Internal server error. This is a Canvas server issue - try again in a few minutes.';
+                break;
+            case 502:
+                errorInfo = 'Bad gateway. Canvas servers may be experiencing issues. Try again later.';
+                break;
+            case 503:
+                errorInfo = 'Service unavailable. Canvas may be down for maintenance. Check Canvas status and try again later.';
+                break;
+            case 504:
+                errorInfo = 'Gateway timeout. The request took too long. Try again or reduce the number of items being processed.';
+                break;
+            default:
+                errorInfo = `Unexpected HTTP error (${statusNum}). If this persists, contact your Canvas administrator or technical support.`;
+                break;
+        }
+    } else {
+        errorTitle = 'Unknown Error';
+        errorInfo = 'An unexpected error occurred. Check the console for more details, or contact technical support if this persists.';
+    }
+
+    // Extract the most relevant part of the error message
+    const lastIndex = error.message.lastIndexOf(':');
+    const errorMessage = lastIndex > 0 ? error.message.slice(lastIndex + 1).trim() : error.message;
+
+    // If a container is provided, create a professional error card
+    if (container) {
+        const errorCardId = `error-card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        const errorCard = document.createElement('div');
+        errorCard.className = 'card mt-3';
+        errorCard.innerHTML = `
+            <div class="card-header">
+                <h6 class="mb-0 text-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${errorTitle}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger mb-0" role="alert">
+                    <p class="mb-2"><strong>Error:</strong> <code>${errorMessage}</code></p>
+                    <p class="mb-0">${errorInfo}</p>
+                </div>
+            </div>
+        `;
+
+        // Clear progress info and append to container
+        if (progressInfo) progressInfo.innerHTML = '';
+        container.appendChild(errorCard);
+    } else {
+        // Fallback to the original method for backward compatibility
+        progressInfo.innerHTML += `
+            <div class="alert alert-danger" role="alert">
+                <h6 class="alert-heading mb-2">${errorTitle}</h6>
+                <p class="mb-2"><strong>Error:</strong> <code>${errorMessage}</code></p>
+                <p class="mb-0">${errorInfo}</p>
+            </div>
+        `;
     }
 }
 

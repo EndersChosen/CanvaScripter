@@ -39,8 +39,6 @@ async function commChannelTemplate(e) {
 function checkComm(e) {
     hideEndpoints(e);
 
-    // const eHeader = document.createElement('div');
-    // eHeader.innerHTML = `<h3>${e.target.id}</h3>`;
     const eContent = document.querySelector('#endpoint-content');
     let checkSuppressionListForm = eContent.querySelector('#check-suppressionlist-form');
 
@@ -582,10 +580,6 @@ function resetComm(e) {
     let resetCommForm = eContent.querySelector('#reset-comm-form');
 
     if (!resetCommForm) {
-        // const resetCommHeader = document.createElement('div');
-        // resetCommHeader.id = 'reset-comm-header';
-        // resetCommHeader.innerHTML = `<h3>Reset Communication Channels</h3>`;
-
         resetCommForm = document.createElement('form');
         resetCommForm.id = 'reset-comm-form';
         resetCommForm.innerHTML = `
@@ -907,6 +901,35 @@ function resetComm(e) {
                     } else {
                         patternContainer.innerHTML += `<p>No emails were found on the suppression list.</p>`;
                     }
+
+                    // Collect failed emails for download
+                    const failedEmails = [];
+                    response.forEach(item => {
+                        if (item?.bounce?.error || item?.suppression?.error) {
+                            const email = item?.email || 'unknown';
+                            const bounceError = item?.bounce?.error ? `Bounce: ${JSON.stringify(item.bounce.error)}` : '';
+                            const suppressionError = item?.suppression?.error ? `Suppression: ${JSON.stringify(item.suppression.error)}` : '';
+                            const errors = [bounceError, suppressionError].filter(Boolean).join('; ');
+                            failedEmails.push({ email, errors });
+                        }
+                    });
+
+                    // Add download link for failed emails if any exist
+                    if (failedEmails.length > 0 && window.utilities?.createDownloadLink) {
+                        const failedCSV = ['Email Address,Errors'].concat(
+                            failedEmails.map(item => `${item.email},"${item.errors}"`)
+                        );
+                        const failedLink = window.utilities.createDownloadLink(
+                            failedCSV,
+                            'pattern_reset_failed_emails.csv',
+                            '📥 Download Failed Reset Emails'
+                        );
+                        const failedContainer = document.createElement('div');
+                        failedContainer.style.marginTop = '15px';
+                        failedContainer.innerHTML = `<h6>Failed Resets</h6><p>${failedEmails.length} email(s) failed to reset properly.</p>`;
+                        failedContainer.appendChild(failedLink);
+                        patternContainer.appendChild(failedContainer);
+                    }
                 }
             } catch (error) {
                 progresDiv.hidden = true;
@@ -1065,6 +1088,25 @@ function resetComm(e) {
                 } else {
                     uploadContainer.innerHTML += `Cleared ${totalBounceReset} email(s) from bounce list.`;
                 }
+
+                // Add download link for bounce failures if any exist
+                if (errorBounce.length > 0 && window.utilities?.createDownloadLink) {
+                    const bounceFailedEmails = errorBounce.map(item => {
+                        const email = item?.value?.email || item?.email || 'unknown';
+                        const error = item?.value?.bounce?.error ? JSON.stringify(item.value.bounce.error) : 'Unknown bounce error';
+                        return `${email},"Bounce: ${error}"`;
+                    });
+                    const bounceFailedCSV = ['Email Address,Errors'].concat(bounceFailedEmails);
+                    const bounceFailedLink = window.utilities.createDownloadLink(
+                        bounceFailedCSV,
+                        'bounce_reset_failed_emails.csv',
+                        '📥 Download Bounce Reset Failures'
+                    );
+                    const bounceFailedContainer = document.createElement('div');
+                    bounceFailedContainer.style.marginTop = '10px';
+                    bounceFailedContainer.appendChild(bounceFailedLink);
+                    uploadContainer.appendChild(bounceFailedContainer);
+                }
                 uploadContainer.innerHTML += '<h5 class="mt-3">Suppression</h5>'
                 // errorSuppressed.forEach(email => {
                 //     errorHandler(email.value.suppression.error, uploadContainer);
@@ -1109,6 +1151,166 @@ function resetComm(e) {
                         notRemovedContainer.appendChild(notRemovedLink);
                         uploadContainer.appendChild(notRemovedContainer);
                     }
+                }
+
+                // Add comprehensive failed emails download combining all failure types
+                const allFailedEmails = [];
+                const failedEmailsForReprocessing = [];
+
+                // Add bounce failures
+                if (response.combinedResults?.details?.bounceResults?.failed) {
+                    response.combinedResults.details.bounceResults.failed.forEach(item => {
+                        const email = item?.value?.email || item?.email || 'unknown';
+                        const error = item?.value?.bounce?.error ? JSON.stringify(item.value.bounce.error) : 'Bounce reset failed';
+                        allFailedEmails.push({ email, error: `Bounce: ${error}` });
+                        failedEmailsForReprocessing.push(email);
+                    });
+                }
+
+                // Add suppression failures (not removed)
+                if (response.combinedResults?.details?.suppressionResults?.notRemovedEmails) {
+                    response.combinedResults.details.suppressionResults.notRemovedEmails.forEach(email => {
+                        allFailedEmails.push({ email, error: 'Suppression: Could not be removed from suppression list' });
+                        failedEmailsForReprocessing.push(email);
+                    });
+                }
+
+                // Create comprehensive failed emails download if any failures exist
+                if (allFailedEmails.length > 0 && window.utilities?.createDownloadLink) {
+                    const allFailedCSV = ['Email Address,Failure Type'].concat(
+                        allFailedEmails.map(item => `${item.email},"${item.error}"`)
+                    );
+                    const allFailedLink = window.utilities.createDownloadLink(
+                        allFailedCSV,
+                        'all_failed_reset_emails.csv',
+                        '📥 Download All Failed Reset Emails'
+                    );
+                    const allFailedContainer = document.createElement('div');
+                    allFailedContainer.style.marginTop = '15px';
+                    allFailedContainer.innerHTML = `<h6>All Failed Resets</h6><p>${allFailedEmails.length} email(s) failed to reset or remove properly.</p>`;
+                    allFailedContainer.appendChild(allFailedLink);
+
+                    // Add reprocess button for failed emails
+                    const reprocessBtn = document.createElement('button');
+                    reprocessBtn.className = 'btn btn-warning ms-2';
+                    reprocessBtn.textContent = '🔄 Reprocess Failed Emails';
+                    reprocessBtn.title = 'Attempt to reset the failed emails again';
+
+                    reprocessBtn.addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const confirmReprocess = confirm(`Are you sure you want to reprocess ${failedEmailsForReprocessing.length} failed email(s)? This will attempt to reset them again.`);
+                        if (!confirmReprocess) return;
+
+                        // Disable the reprocess button during operation
+                        reprocessBtn.disabled = true;
+                        reprocessBtn.textContent = '🔄 Processing...';
+
+                        // Create a new file contents structure with just the failed emails
+                        const failedEmailsContent = [...new Set(failedEmailsForReprocessing)]; // Remove duplicates
+
+                        const reprocessRequestData = {
+                            domain,
+                            token,
+                            region: regionVal,
+                            fileContents: failedEmailsContent,
+                            ext: 'array' // Indicate this is an array of emails
+                        };
+
+                        try {
+                            // Show progress for reprocessing
+                            progresDiv.hidden = false;
+                            resetProgressBar();
+                            progressBar.parentElement.hidden = false;
+                            progressInfo.textContent = `Reprocessing ${failedEmailsContent.length} failed emails...`;
+
+                            const reprocessResponse = await window.axios.resetEmails(reprocessRequestData);
+                            progresDiv.hidden = true;
+
+                            // Create a new container for reprocess results
+                            const reprocessContainer = document.createElement('div');
+                            reprocessContainer.style.marginTop = '15px';
+                            reprocessContainer.style.padding = '10px';
+                            reprocessContainer.style.border = '2px solid #ffc107';
+                            reprocessContainer.style.borderRadius = '5px';
+                            reprocessContainer.style.backgroundColor = '#fff3cd';
+
+                            const reprocessTotalProcessed = reprocessResponse.combinedResults.summary.totalEmailsProcessed || 0;
+                            const reprocessBounceReset = reprocessResponse.combinedResults.summary.bounceListResets || 0;
+                            const reprocessAWSReset = reprocessResponse.combinedResults.summary.suppressionListRemoved || 0;
+                            const reprocessSuppressionNotFound = reprocessResponse.combinedResults.summary.suppressionListNotFound || 0;
+                            const reprocessSuppressionNotRemoved = reprocessResponse.combinedResults.summary.suppressionListNotRemoved || 0;
+
+                            reprocessContainer.innerHTML = `<h6 style="color: #856404;">Reprocess Results</h6>`;
+                            reprocessContainer.innerHTML += `<p><strong>Reprocessed:</strong> ${reprocessTotalProcessed} email(s)</p>`;
+
+                            if (reprocessBounceReset > 0) {
+                                reprocessContainer.innerHTML += `<p><strong>✅ Bounce List:</strong> Successfully cleared ${reprocessBounceReset} email(s)</p>`;
+                            }
+                            if (reprocessAWSReset > 0) {
+                                reprocessContainer.innerHTML += `<p><strong>✅ Suppression List:</strong> Successfully removed ${reprocessAWSReset} email(s)</p>`;
+                            }
+                            if (reprocessSuppressionNotFound > 0) {
+                                reprocessContainer.innerHTML += `<p><strong>ℹ️ Suppression List:</strong> ${reprocessSuppressionNotFound} email(s) not found (may have been removed in previous attempt)</p>`;
+                            }
+                            if (reprocessSuppressionNotRemoved > 0) {
+                                reprocessContainer.innerHTML += `<p><strong>❌ Suppression List:</strong> ${reprocessSuppressionNotRemoved} email(s) still could not be removed</p>`;
+                            }
+
+                            // Check if any emails still failed after reprocessing
+                            const stillFailedEmails = [];
+                            if (reprocessResponse.combinedResults?.details?.bounceResults?.failed) {
+                                reprocessResponse.combinedResults.details.bounceResults.failed.forEach(item => {
+                                    const email = item?.value?.email || item?.email || 'unknown';
+                                    stillFailedEmails.push(email);
+                                });
+                            }
+                            if (reprocessResponse.combinedResults?.details?.suppressionResults?.notRemovedEmails) {
+                                reprocessResponse.combinedResults.details.suppressionResults.notRemovedEmails.forEach(email => {
+                                    stillFailedEmails.push(email);
+                                });
+                            }
+
+                            if (stillFailedEmails.length > 0) {
+                                reprocessContainer.innerHTML += `<p><strong>⚠️ Still Failed:</strong> ${stillFailedEmails.length} email(s) continue to fail after reprocessing</p>`;
+
+                                // Provide download for emails that still failed
+                                if (window.utilities?.createDownloadLink) {
+                                    const stillFailedCSV = ['Email Address'].concat([...new Set(stillFailedEmails)]);
+                                    const stillFailedLink = window.utilities.createDownloadLink(
+                                        stillFailedCSV,
+                                        'still_failed_emails_after_reprocess.csv',
+                                        '📥 Download Still Failed Emails'
+                                    );
+                                    const stillFailedDiv = document.createElement('div');
+                                    stillFailedDiv.style.marginTop = '10px';
+                                    stillFailedDiv.appendChild(stillFailedLink);
+                                    reprocessContainer.appendChild(stillFailedDiv);
+                                }
+                            } else {
+                                reprocessContainer.innerHTML += `<p><strong>🎉 Success:</strong> All previously failed emails have been successfully processed!</p>`;
+                            }
+
+                            uploadContainer.appendChild(reprocessContainer);
+
+                        } catch (reprocessError) {
+                            progresDiv.hidden = true;
+                            const errorContainer = document.createElement('div');
+                            errorContainer.style.marginTop = '15px';
+                            errorContainer.style.color = 'red';
+                            errorContainer.innerHTML = `<p><strong>Error during reprocessing:</strong> ${reprocessError.message}</p>`;
+                            uploadContainer.appendChild(errorContainer);
+                        } finally {
+                            // Re-enable the reprocess button
+                            reprocessBtn.disabled = false;
+                            reprocessBtn.textContent = '🔄 Reprocess Failed Emails';
+                            resetProgressBar();
+                        }
+                    });
+
+                    allFailedContainer.appendChild(reprocessBtn);
+                    uploadContainer.appendChild(allFailedContainer);
                 }
             } catch (error) {
                 if (String(error.message || error).toLowerCase().includes('cancelled')) {

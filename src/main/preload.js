@@ -321,6 +321,11 @@ contextBridge.exposeInMainWorld('axios', {
 
         return await ipcRenderer.invoke('axios:deleteModules', data);
     },
+    deleteGradingStandards: async (data) => {
+        console.log('preload.js > deleteGradingStandards');
+
+        return await ipcRenderer.invoke('axios:deleteGradingStandards', data);
+    },
     createModules: async (data) => {
         console.log('preload.js > createModules');
 

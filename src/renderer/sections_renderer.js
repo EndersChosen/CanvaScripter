@@ -1,5 +1,7 @@
 // sections_renderer.js - UI for creating Sections
 function sectionsTemplate(e) {
+  hideEndpoints(e);
+
   const eContent = document.querySelector('#endpoint-content');
   let form = eContent.querySelector('#create-sections-form');
   if (!form) {
@@ -87,7 +89,6 @@ function sectionsTemplate(e) {
                 <div class="card-body" id="response"></div>
             </div>
         `;
-    eContent.innerHTML = '';
     eContent.append(form);
   }
   form.hidden = false;

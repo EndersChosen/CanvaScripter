@@ -1,5 +1,7 @@
 // pages_renderer.js - UI for creating Pages
 function pagesTemplate(e) {
+  hideEndpoints(e);
+
   const eContent = document.querySelector('#endpoint-content');
   let form = eContent.querySelector('#create-pages-form');
   if (!form) {
@@ -114,7 +116,6 @@ function pagesTemplate(e) {
                 <div class="card-body" id="response"></div>
             </div>
         `;
-    eContent.innerHTML = '';
     eContent.append(form);
   }
   form.hidden = false;

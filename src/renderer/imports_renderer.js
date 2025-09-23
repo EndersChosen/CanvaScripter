@@ -56,6 +56,7 @@ async function deleteImportedContent(e) {
                             </div>
                         </div>
 
+                        <div id="imports-list-container" class="mt-3"></div>
                         <div id="imports-response-container" class="mt-3"></div>
                 `;
         eContent.append(form);
@@ -71,6 +72,7 @@ async function deleteImportedContent(e) {
     const spinner = progressDiv.querySelector('.spinner-border');
     const progressInfo = form.querySelector('#imports-progress-info');
     const responseContainer = form.querySelector('#imports-response-container');
+    const listContainer = form.querySelector('#imports-list-container');
 
     courseID.addEventListener('input', () => {
         const valid = /^(\d+)$/.test(courseID.value.trim());
@@ -109,10 +111,44 @@ async function deleteImportedContent(e) {
             if (spinner) spinner.hidden = true;
         } catch (error) {
             errorHandler(error, progressInfo);
-            // If likely invalid Import ID, show imports list prompt
-            if ((error.message || '').includes('Import ID may be invalid')) {
-                responseContainer.innerHTML = `<div class="alert alert-warning">Could not load import ${import_id}. Click "List Imports" to see recent import IDs for this course.</div>`;
-            }
+
+            // Handle specific error types and display them in the response container
+            // if (error.message && error.message.includes('403')) {
+            //     responseContainer.innerHTML = `<div class="alert alert-danger">
+            //         <h6>Access Denied (403)</h6>
+            //         <p>You don't have permission to access the imported content for this course or import.</p>
+            //         <p><strong>Possible reasons:</strong></p>
+            //         <ul>
+            //             <li>You may not have admin access to this course</li>
+            //             <li>The course ID might be invalid</li>
+            //             <li>The import ID might not exist or belong to a different course</li>
+            //             <li>Your Canvas token may not have sufficient permissions</li>
+            //         </ul>
+            //         <p><em>Error details: ${error.message}</em></p>
+            //     </div>`;
+            // } else if (error.message && error.message.includes('404')) {
+            //     responseContainer.innerHTML = `<div class="alert alert-warning">
+            //         <h6>Not Found (404)</h6>
+            //         <p>The course ID or import ID could not be found.</p>
+            //         <p>Please verify that:</p>
+            //         <ul>
+            //             <li>The course ID is correct</li>
+            //             <li>The import ID exists for this course</li>
+            //         </ul>
+            //         <p>Click "List Imports" to see recent import IDs for this course.</p>
+            //     </div>`;
+            // } else if ((error.message || '').includes('Import ID may be invalid')) {
+            //     responseContainer.innerHTML = `<div class="alert alert-warning">Could not load import ${import_id}. Click "List Imports" to see recent import IDs for this course.</div>`;
+            // } else {
+            //     // Generic error display
+            //     responseContainer.innerHTML = `<div class="alert alert-danger">
+            //         <h6>Error Loading Import Content</h6>
+            //         <p>An error occurred while trying to load the imported content:</p>
+            //         <p><strong>${error.message || 'Unknown error occurred'}</strong></p>
+            //         <p>Please check your course ID, import ID, and try again.</p>
+            //     </div>`;
+            // }
+
             if (spinner) spinner.hidden = true;
             hasError = true;
         } finally {
@@ -121,39 +157,144 @@ async function deleteImportedContent(e) {
 
         if (hasError) return;
 
-        // If folders exist, fetch metadata to detect root folders and exclude them from deletion/counts
+        // Process the imported_assets from the actual response structure
+        console.log('Full response received:', assets); // Debug log
+
+        // Extract imported_assets from the nested response structure
+        // Try multiple possible locations for imported_assets
+        let importedAssets = null;
+
+        if (assets.imported_assets) {
+            // Direct access (some responses)
+            importedAssets = assets.imported_assets;
+            console.log('Found imported_assets at root level');
+        } else if (assets.audit_info?.migration_settings?.imported_assets) {
+            // Nested access (most common in Canvas responses)
+            importedAssets = assets.audit_info.migration_settings.imported_assets;
+            console.log('Found imported_assets in audit_info.migration_settings');
+        } else {
+            // Fallback - no imported assets found
+            importedAssets = {};
+            console.log('No imported_assets found in response');
+        }
+
+        console.log('Imported assets:', importedAssets); // Debug log        // Function to count items from comma-separated string or array
+        const countItems = (value) => {
+            if (!value) return 0;
+            if (Array.isArray(value)) return value.length;
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                return trimmed === '' ? 0 : trimmed.split(',').filter(id => id.trim()).length;
+            }
+            return 0;
+        };
+
+        // Map Canvas imported_assets keys to our display names and count the items
+        const assetTypeMapping = {
+            'Attachment': { key: 'attachments', label: 'Attachments' },
+            'Assignment': { key: 'assignments', label: 'Assignments' },
+            'AssignmentGroup': { key: 'assignmentGroups', label: 'Assignment Groups' },
+            'Quizzes::Quiz': { key: 'quizzes', label: 'Quizzes (Classic)' },
+            'WikiPage': { key: 'pages', label: 'Pages' },
+            'ContextModule': { key: 'modules', label: 'Modules' },
+            'DiscussionTopic': { key: 'discussions', label: 'Discussions' },
+            'Announcement': { key: 'announcements', label: 'Announcements' },
+            'CalendarEvent': { key: 'calendarEvents', label: 'Calendar Events' },
+            'Rubric': { key: 'rubrics', label: 'Rubrics' },
+            'LearningOutcome': { key: 'outcomes', label: 'Outcomes' },
+            'Folder': { key: 'folders', label: 'Folders' },
+            'ContentTag': { key: 'contentTags', label: 'Content Tags' },
+            'AssessmentQuestionBank': { key: 'questionBanks', label: 'Question Banks' },
+            'GradingStandard': { key: 'gradingStandards', label: 'Grading Standards' }
+        };
+
+        // Build counts object from actual imported_assets
+        const counts = {};
+
+        // Initialize all possible counts to 0
+        Object.values(assetTypeMapping).forEach(mapping => {
+            counts[mapping.key] = 0;
+        });
+
+        // Process each type found in imported_assets
+        Object.entries(importedAssets).forEach(([canvasType, items]) => {
+            const mapping = assetTypeMapping[canvasType];
+            if (mapping) {
+                counts[mapping.key] = countItems(items);
+                console.log(`${canvasType} (${mapping.label}): ${counts[mapping.key]} items`); // Debug log
+            } else {
+                console.log(`Unknown asset type: ${canvasType} with items:`, items); // Debug log for unmapped types
+            }
+        });
+
+        // Handle folders separately if they need root folder filtering
         let rootFolderIds = [];
-        if (assets.folders && assets.folders.length > 0) {
+        if (counts.folders > 0 && importedAssets.Folder) {
             try {
-                const meta = await window.axios.getFoldersMeta({ domain, token, folders: assets.folders });
+                // Convert comma-separated folder IDs to array
+                const folderIds = typeof importedAssets.Folder === 'string'
+                    ? importedAssets.Folder.split(',').map(id => id.trim()).filter(id => id)
+                    : (Array.isArray(importedAssets.Folder) ? importedAssets.Folder : []);
+
+                const meta = await window.axios.getFoldersMeta({ domain, token, folders: folderIds });
                 rootFolderIds = meta.filter(m => m.isRoot).map(m => String(m.id));
+
+                // Update folder count excluding root folders
+                const nonRootFolders = folderIds.filter(id => !rootFolderIds.includes(String(id)));
+                counts.folders = nonRootFolders.length;
+                console.log(`Folders after filtering roots: ${counts.folders}`); // Debug log
             } catch (e) {
                 console.warn('Folder metadata lookup failed, proceeding without root filter.', e?.message || e);
             }
         }
 
-        // Filter out root folders from the actionable list
-        const nonRootFolders = (assets.folders || []).filter(id => !rootFolderIds.includes(String(id)));
-
-        const counts = {
-            attachments: assets.attachments.length,
-            folders: nonRootFolders.length,
-            outcomes: assets.outcomes.length,
-            rubrics: assets.rubrics.length,
-            assignmentGroups: assets.assignmentGroups.length,
-            assignments: assets.assignments.length,
-            quizzes: assets.quizzes.length,
-            announcements: assets.announcements.length,
-            discussions: assets.discussions.length,
-            pages: assets.pages.length,
-            modules: assets.modules.length,
-            calendarEvents: assets.calendarEvents.length
-        };
-
         const totalAll = Object.values(counts).reduce((a, b) => a + b, 0);
+        console.log('Total imported items:', totalAll); // Debug log
+
+        // Transform imported_assets into the format expected by delete operations
+        // Convert comma-separated strings to arrays of IDs
+        const transformedAssets = {};
+
+        Object.entries(importedAssets).forEach(([canvasType, items]) => {
+            const mapping = assetTypeMapping[canvasType];
+            if (mapping && items) {
+                let itemArray;
+                if (typeof items === 'string') {
+                    itemArray = items.split(',').map(id => id.trim()).filter(id => id);
+                } else if (Array.isArray(items)) {
+                    itemArray = items;
+                } else {
+                    itemArray = [];
+                }
+
+                // Store in the format expected by delete operations
+                if (mapping.key === 'folders') {
+                    // Filter out root folders for delete operations
+                    transformedAssets.folders = itemArray.filter(id => !rootFolderIds.includes(String(id)));
+                } else {
+                    transformedAssets[mapping.key] = itemArray;
+                }
+            }
+        });
+
+        // Ensure all expected properties exist as arrays (for compatibility with existing delete code)
+        const expectedProps = ['assignments', 'attachments', 'discussions', 'quizzes', 'modules', 'pages',
+            'rubrics', 'assignmentGroups', 'announcements', 'calendarEvents', 'outcomes', 'folders',
+            'questionBanks', 'gradingStandards'];
+        expectedProps.forEach(prop => {
+            if (!transformedAssets[prop]) {
+                transformedAssets[prop] = [];
+            }
+        });
+
+        // Replace the assets object with our transformed version
+        assets = { ...assets, ...transformedAssets };
+
+        console.log('Transformed assets for delete operations:', assets); // Debug log
+
         if (totalAll === 0) {
             // If only root folders were found (and excluded), still show the card so users can see why
-            const onlyRootFolders = (assets.folders?.length || 0) > 0 && rootFolderIds.length === assets.folders.length;
+            const onlyRootFolders = (importedAssets.Folder) && rootFolderIds.length > 0;
             if (!onlyRootFolders) {
                 responseContainer.innerHTML = `<div class="alert alert-info">No imported assets found for this import.</div>`;
                 return;
@@ -203,7 +344,7 @@ async function deleteImportedContent(e) {
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <span>Imported content found</span>
                                 <div class="d-flex align-items-center gap-2">
-                                    <span id="imports-total" class="text-muted small">Total: 0</span>
+                                    <span id="imports-total" class="text-muted small">Total: ${totalAll}</span>
                                     <div class="btn-group btn-group-sm" role="group">
                                         <button type="button" id="imports-select-all" class="btn btn-outline-secondary">Select all</button>
                                         <button type="button" id="imports-select-none" class="btn btn-outline-secondary">None</button>
@@ -236,17 +377,24 @@ async function deleteImportedContent(e) {
                 id: 'outcomes', label: 'Outcomes', count: counts.outcomes
             }, {
                 id: 'calendar-events', label: 'Calendar Events', count: counts.calendarEvents
-            }].map(it => `
+            }, {
+                id: 'question-banks', label: 'Question Banks', count: counts.questionBanks
+            }, {
+                id: 'content-tags', label: 'Content Tags', count: counts.contentTags
+            }, {
+                id: 'grading-standards', label: 'Grading Standards', count: counts.gradingStandards
+            }].filter(it => it.count > 0).map(it => `
                                                     <div class=\"col-sm-6 col-lg-4\">
-                                                                                                                <button type=\"button\" id=\"btn-${it.id}\" data-key=\"${it.id}\" class=\"btn btn-outline-secondary w-100 d-flex justify-content-between align-items-center toggle-tile ${it.count ? '' : 'disabled'}\" ${it.count ? '' : 'disabled'} aria-pressed=\"false\">
+                                                                                                                <button type=\"button\" id=\"btn-${it.id}\" data-key=\"${it.id}\" class=\"btn btn-outline-secondary w-100 d-flex justify-content-between align-items-center toggle-tile\" aria-pressed=\"false\">
                                                             <span>${it.label}</span>
                                                                                                                     <span class=\"badge bg-secondary\">${it.count}</span>
                                                         </button>
                                                     </div>`).join('')}
                                 </div>
+                                ${totalAll === 0 ? '<div class="alert alert-info mt-3">No deletable content found in this import.</div>' : ''}
                                 <div class="d-flex justify-content-end gap-2 mt-3">
                                     <button id="imports-cancel-btn" type="button" class="btn btn-secondary">Cancel</button>
-                                    <button id="imports-remove-btn" type="button" class="btn btn-danger">Delete</button>
+                                    <button id="imports-remove-btn" type="button" class="btn btn-danger" ${totalAll === 0 ? 'disabled' : ''}>Delete</button>
                                 </div>
                             </div>
                         </div>
@@ -327,6 +475,7 @@ async function deleteImportedContent(e) {
             // Hide progress UI on cancel
             progressDiv.hidden = true;
             if (spinner) spinner.hidden = true;
+            // Keep the list container visible so user can still reference import IDs
         });
 
         removeBtn.addEventListener('click', async (e3) => {
@@ -347,6 +496,9 @@ async function deleteImportedContent(e) {
                 pages: isOn('pages') && counts.pages > 0,
                 modules: isOn('modules') && counts.modules > 0,
                 calendarEvents: isOn('calendar-events') && counts.calendarEvents > 0,
+                questionBanks: isOn('question-banks') && counts.questionBanks > 0,
+                contentTags: isOn('content-tags') && counts.contentTags > 0,
+                gradingStandards: isOn('grading-standards') && counts.gradingStandards > 0,
             };
 
             if (!Object.values(selections).some(Boolean)) {
@@ -442,6 +594,18 @@ async function deleteImportedContent(e) {
                     if (responseM) batchResults.push(responseM);
                 }
 
+                // Grading Standards
+                if (selections.gradingStandards) {
+                    const payloadGS = {
+                        domain,
+                        token,
+                        course_id,
+                        grading_standards: assets.gradingStandards.map(id => ({ id }))
+                    };
+                    const responseGS = await window.axios.deleteGradingStandards(payloadGS);
+                    if (responseGS) batchResults.push(responseGS);
+                }
+
                 // Note: The following types are detected but not yet wired to delete APIs in this app:
                 // Attachments, Outcomes, Rubrics, Assignment Groups (bulk delete), Announcements, Pages, Calendar Events
                 // We can implement these in a follow-up.
@@ -478,6 +642,7 @@ async function deleteImportedContent(e) {
         e2.preventDefault();
         e2.stopPropagation();
 
+        // Clear main response container but keep list container
         responseContainer.innerHTML = '';
         progressDiv.hidden = false;
         progressBar.parentElement.hidden = true;
@@ -492,27 +657,151 @@ async function deleteImportedContent(e) {
             const imports = await window.axios.listContentMigrations({ domain, token, course_id });
             progressInfo.innerHTML = 'Done';
             if (spinner) spinner.hidden = true;
+
             if (!imports || imports.length === 0) {
-                responseContainer.innerHTML = '<div class="alert alert-info">No imports found for this course.</div>';
+                listContainer.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">Recent Imports</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info mb-0">No imports found for this course.</div>
+                        </div>
+                    </div>`;
                 return;
             }
+
             const rows = imports.map(m => {
                 const id = m.id ?? m.ID ?? m._id;
-                const type = m.migration_type || m.workflow_state || 'import';
-                const started = m.started_at || m.created_at || '';
-                return `<tr><td>${id}</td><td>${type}</td><td>${started}</td></tr>`;
+                const type = m.migration_type_title || m.migration_type || m.workflow_state || 'import';
+                const status = m.workflow_state || '';
+                const created = m.created_at || m.started_at || '';
+                const userId = m.user_id || m.audit_info?.user_id || '';
+                const sourceCourseId = m.settings?.source_course_id || m.audit_info?.source_course_id || '';
+
+                const statusBadge = status ?
+                    `<span class="badge bg-${status === 'completed' ? 'success' : status === 'failed' ? 'danger' : 'secondary'}">${status}</span>` : '';
+
+                // Create clickable links for user ID and course ID
+                const userIdLink = userId ?
+                    `<a href="#" class="text-decoration-none user-link" data-user-id="${userId}" title="Open user profile in new tab">${userId}</a>` :
+                    '';
+                const courseIdLink = sourceCourseId ?
+                    `<a href="#" class="text-decoration-none course-link" data-course-id="${sourceCourseId}" title="Open course in new tab">${sourceCourseId}</a>` :
+                    '';
+
+                return `
+                    <tr data-import-id="${id}">
+                        <td><strong><span class="import-id-clickable" style="cursor: pointer;" title="Click to use this Import ID">${id}</span></strong></td>
+                        <td>${userIdLink}</td>
+                        <td>${courseIdLink}</td>
+                        <td>${type}</td>
+                        <td>${statusBadge}</td>
+                        <td class="text-muted small">${created}</td>
+                    </tr>`;
             }).join('');
-            responseContainer.innerHTML = `
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped">
-                        <thead><tr><th>Import ID</th><th>Type/State</th><th>Started</th></tr></thead>
-                        <tbody>${rows}</tbody>
-                    </table>
-                    <div class="form-text">Copy an Import ID from above and paste it into the Import ID field.</div>
+
+            listContainer.innerHTML = `
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">Recent Imports</h6>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#imports-list-collapse" aria-expanded="true" aria-controls="imports-list-collapse">
+                            <i class="collapse-icon">−</i>
+                        </button>
+                    </div>
+                    <div class="collapse show" id="imports-list-collapse">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0" id="imports-table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Import ID</th>
+                                            <th>User ID</th>
+                                            <th>Source Course</th>
+                                            <th>Type</th>
+                                            <th>Status</th>
+                                            <th>Created</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${rows}</tbody>
+                                </table>
+                            </div>
+                            <div class="form-text mt-2">
+                                <i class="text-primary">💡 Tips:</i> Click on <strong>Import ID</strong> to fill the form field above. Click on <strong>User ID</strong> or <strong>Source Course</strong> to open them in a new browser tab.
+                            </div>
+                        </div>
+                    </div>
                 </div>`;
+
+            // Add collapse icon toggle functionality
+            const collapseElement = listContainer.querySelector('#imports-list-collapse');
+            const collapseIcon = listContainer.querySelector('.collapse-icon');
+
+            collapseElement.addEventListener('show.bs.collapse', () => {
+                collapseIcon.textContent = '−';
+            });
+
+            collapseElement.addEventListener('hide.bs.collapse', () => {
+                collapseIcon.textContent = '+';
+            });
+
+            // Add click event delegation for import rows
+            const importsTable = listContainer.querySelector('#imports-table');
+            importsTable.addEventListener('click', (event) => {
+                event.preventDefault();
+
+                // Handle User ID link clicks
+                if (event.target.classList.contains('user-link')) {
+                    const userId = event.target.getAttribute('data-user-id');
+                    const domain = document.querySelector('#domain').value.trim();
+                    if (userId && domain) {
+                        const userUrl = `https://${domain}/users/${userId}`;
+                        window.shell.openExternal(userUrl);
+                    }
+                    return;
+                }
+
+                // Handle Course ID link clicks
+                if (event.target.classList.contains('course-link')) {
+                    const courseId = event.target.getAttribute('data-course-id');
+                    const domain = document.querySelector('#domain').value.trim();
+                    if (courseId && domain) {
+                        const courseUrl = `https://${domain}/courses/${courseId}`;
+                        window.shell.openExternal(courseUrl);
+                    }
+                    return;
+                }
+
+                // Handle Import ID clicks (fill form field)
+                if (event.target.classList.contains('import-id-clickable')) {
+                    const row = event.target.closest('tr[data-import-id]');
+                    if (row) {
+                        const importId = row.getAttribute('data-import-id');
+                        importID.value = importId;
+                        importID.dispatchEvent(new Event('input'));
+
+                        // Visual feedback - highlight the selected row briefly
+                        row.style.backgroundColor = '#d4edda';
+                        setTimeout(() => {
+                            row.style.backgroundColor = '';
+                        }, 500);
+                    }
+                    return;
+                }
+            });
+
         } catch (err) {
             errorHandler(err, progressInfo);
             if (spinner) spinner.hidden = true;
+            listContainer.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0 text-danger">Error Loading Imports</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-danger mb-0">${err.message || 'Failed to load imports'}</div>
+                    </div>
+                </div>`;
         }
     });
 }
