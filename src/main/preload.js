@@ -482,6 +482,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     fetchAuthProviders: async (domain, token, accountId) => {
         return await ipcRenderer.invoke('sis:fetchAuthProviders', domain, token, accountId);
     },
+    searchUsers: async (domain, token, searchTerm) => {
+        return await ipcRenderer.invoke('users:search', domain, token, searchTerm);
+    },
+    searchAccounts: async (domain, token, searchTerm) => {
+        return await ipcRenderer.invoke('accounts:search', domain, token, searchTerm);
+    },
+    searchTerms: async (domain, token, searchTerm) => {
+        return await ipcRenderer.invoke('terms:search', domain, token, searchTerm);
+    },
     onPageViewsProgress: (callback) => {
         ipcRenderer.on('page-views-progress', callback);
     },

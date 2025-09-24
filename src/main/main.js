@@ -17,7 +17,9 @@ const convos = require('../shared/canvas-api/conversations');
 const csvExporter = require('../shared/csvExporter');
 const assignmentGroups = require('../shared/canvas-api/assignment_groups');
 const assignments = require('../shared/canvas-api/assignments');
-const { getPageViews, createUsers, enrollUser, addUsers, getCommChannels, updateNotifications } = require('../shared/canvas-api/users');
+const { getPageViews, createUsers, enrollUser, addUsers, getCommChannels, updateNotifications, searchUsers } = require('../shared/canvas-api/users');
+const { searchAccounts } = require('../shared/canvas-api/accounts');
+const { searchTerms } = require('../shared/canvas-api/terms');
 const { send } = require('process');
 const { deleteRequester, waitFunc } = require('../shared/utilities');
 const { batchHandler } = require('../shared/batchHandler');
@@ -912,6 +914,57 @@ function registerSisIpcHandlers() {
             return { success: true, files: createdFiles.map(f => path.basename(f)), zipPath };
         } catch (error) {
             throw new Error(`Error creating multi SIS files: ${error.message}`);
+        }
+    });
+
+    // User search IPC handler
+    ipcMain.handle('users:search', async (event, domain, token, searchTerm) => {
+        console.log('main.js > users:search IPC handler');
+        try {
+            // Set up axios defaults for the request
+            const axios = require('axios');
+            axios.defaults.baseURL = `https://${domain}/api/v1`;
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+            const users = await searchUsers(searchTerm, ['email']);
+            return { success: true, users };
+        } catch (error) {
+            console.error('Error searching users:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Account search IPC handler
+    ipcMain.handle('accounts:search', async (event, domain, token, searchTerm) => {
+        console.log('main.js > accounts:search IPC handler');
+        try {
+            // Set up axios defaults for the request
+            const axios = require('axios');
+            axios.defaults.baseURL = `https://${domain}/api/v1`;
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+            const accounts = await searchAccounts(searchTerm);
+            return { success: true, accounts };
+        } catch (error) {
+            console.error('Error searching accounts:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Terms search IPC handler
+    ipcMain.handle('terms:search', async (event, domain, token, searchTerm) => {
+        console.log('main.js > terms:search IPC handler');
+        try {
+            // Set up axios defaults for the request
+            const axios = require('axios');
+            axios.defaults.baseURL = `https://${domain}/api/v1`;
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+            const terms = await searchTerms(searchTerm);
+            return { success: true, terms };
+        } catch (error) {
+            console.error('Error searching terms:', error);
+            return { success: false, error: error.message };
         }
     });
 }

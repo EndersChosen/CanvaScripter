@@ -36,7 +36,7 @@ function generateDate(daysFromNow = 0) {
 
 // CSV Generators
 function generateUsersCSV(rowCount, emailDomain = '@school.edu', authProviderId = '', userOptions = {}) {
-    const headers = 'user_id,login_id,authentication_provider_id,password,first_name,last_name,short_name,email,status,integration_id';
+    const headers = 'user_id,login_id,authentication_provider_id,password,ssha_password,first_name,last_name,full_name,sortable_name,short_name,email,status,integration_id,pronouns,declared_user_type,canvas_password_notification,home_account';
     const rows = [headers];
 
     const statuses = ['active', 'suspended', 'deleted'];
@@ -45,18 +45,28 @@ function generateUsersCSV(rowCount, emailDomain = '@school.edu', authProviderId 
         // Use specific values if provided, otherwise generate random ones
         const { firstName, lastName } = generateRandomName();
 
-        const userId = userOptions.specificUserId || generateRandomId('U', 6);
-        const loginId = userOptions.specificLoginId || `${firstName.toLowerCase()}${lastName.toLowerCase()}${Math.floor(Math.random() * 100)}`;
-        const authProviderIdToUse = userOptions.specificAuthProviderId || authProviderId;
-        const password = userOptions.specificPassword || 'temppass123';
-        const firstNameToUse = userOptions.specificFirstName || firstName;
-        const lastNameToUse = userOptions.specificLastName || lastName;
-        const shortName = userOptions.specificShortName || `${firstNameToUse} ${lastNameToUse.charAt(0)}.`;
-        const email = userOptions.specificEmail || generateRandomEmail(firstNameToUse, lastNameToUse, emailDomain);
-        const status = userOptions.specificStatus || 'active';
-        const integrationId = userOptions.specificIntegrationId || '';
+        const userId = 'specificUserId' in userOptions ? userOptions.specificUserId : generateRandomId('U', 6);
+        const loginId = 'specificLoginId' in userOptions ? userOptions.specificLoginId : `${firstName.toLowerCase()}${lastName.toLowerCase()}${Math.floor(Math.random() * 100)}`;
+        const authProviderIdToUse = 'specificAuthProviderId' in userOptions ? userOptions.specificAuthProviderId : authProviderId;
+        const password = 'specificPassword' in userOptions ? userOptions.specificPassword : 'temppass123';
+        const sshaPassword = 'specificSshaPassword' in userOptions ? userOptions.specificSshaPassword : '';
 
-        const row = `${userId},${loginId},${authProviderIdToUse},${password},${firstNameToUse},${lastNameToUse},${shortName},${email},${status},${integrationId}`;
+        // For first/last name, email - check if explicitly provided, if so use them (even if blank), otherwise generate random
+        const firstNameToUse = 'specificFirstName' in userOptions ? userOptions.specificFirstName : firstName;
+        const lastNameToUse = 'specificLastName' in userOptions ? userOptions.specificLastName : lastName;
+        const fullName = 'specificFullName' in userOptions ? userOptions.specificFullName : `${firstNameToUse} ${lastNameToUse}`;
+        const sortableName = 'specificSortableName' in userOptions ? userOptions.specificSortableName : `${lastNameToUse}, ${firstNameToUse}`;
+        const shortName = 'specificShortName' in userOptions ? userOptions.specificShortName : `${firstNameToUse} ${lastNameToUse.charAt(0)}.`;
+        const email = 'specificEmail' in userOptions ? userOptions.specificEmail : generateRandomEmail(firstNameToUse, lastNameToUse, emailDomain);
+
+        const status = 'specificStatus' in userOptions ? userOptions.specificStatus : 'active';
+        const integrationId = 'specificIntegrationId' in userOptions ? userOptions.specificIntegrationId : '';
+        const pronouns = 'specificPronouns' in userOptions ? userOptions.specificPronouns : '';
+        const declaredUserType = 'specificDeclaredUserType' in userOptions ? userOptions.specificDeclaredUserType : '';
+        const canvasPasswordNotification = 'specificCanvasPasswordNotification' in userOptions ? userOptions.specificCanvasPasswordNotification : '';
+        const homeAccount = 'specificHomeAccount' in userOptions ? userOptions.specificHomeAccount : '';
+
+        const row = `${userId},${loginId},${authProviderIdToUse},${password},${sshaPassword},${firstNameToUse},${lastNameToUse},${fullName},${sortableName},${shortName},${email},${status},${integrationId},${pronouns},${declaredUserType},${canvasPasswordNotification},${homeAccount}`;
         rows.push(row);
     }
 
@@ -93,12 +103,34 @@ function generateAccountsCSV(rowCount, accountOptions = {}) {
 }
 
 function generateTermsCSV(rowCount, termOptions = {}) {
-    const headers = 'term_id,name,status,start_date,end_date,integration_id';
+    const headers = 'term_id,name,status,start_date,end_date,integration_id,date_override_enrollment_type';
     const rows = [headers];
 
     const seasons = ['Fall', 'Spring', 'Summer', 'Winter'];
     const currentYear = new Date().getFullYear();
 
+    // Check if we have override data from a terms search
+    if (termOptions._termOverrideCount && termOptions._termBaseData) {
+        const baseData = termOptions._termBaseData;
+
+        // Add base term row (without enrollment type override)
+        const baseRow = `${baseData.term_id || ''},${baseData.name || ''},${baseData.status || 'active'},${baseData.start_date || ''},${baseData.end_date || ''},${baseData.integration_id || ''},`;
+        rows.push(baseRow);
+
+        // Add override rows
+        for (let i = 0; i < termOptions._termOverrideCount; i++) {
+            const enrollmentType = termOptions[`specificOverride${i}EnrollmentType`] || '';
+            const overrideStartDate = termOptions[`specificOverride${i}StartDate`] || '';
+            const overrideEndDate = termOptions[`specificOverride${i}EndDate`] || '';
+
+            const overrideRow = `${baseData.term_id || ''},${baseData.name || ''},${baseData.status || 'active'},${overrideStartDate},${overrideEndDate},${baseData.integration_id || ''},${enrollmentType}`;
+            rows.push(overrideRow);
+        }
+
+        return rows.join('\n');
+    }
+
+    // Default behavior for regular term generation
     for (let i = 0; i < rowCount; i++) {
         // Use specific values if provided, otherwise generate random ones
         const termId = termOptions.specificTermId || generateRandomId('T', 4);
@@ -134,7 +166,8 @@ function generateTermsCSV(rowCount, termOptions = {}) {
 
         const status = termOptions.specificStatus || 'active';
         const integrationId = termOptions.specificIntegrationId || '';
-        const row = `${termId},${name},${status},${startDate},${endDate},${integrationId}`;
+        const dateOverrideEnrollmentType = termOptions.specificDateOverrideEnrollmentType || '';
+        const row = `${termId},${name},${status},${startDate},${endDate},${integrationId},${dateOverrideEnrollmentType}`;
         rows.push(row);
     }
 

@@ -1,77 +1,51 @@
-console.log('inside accounts.js')
-
 const axios = require('axios');
-const { errorCheck } = require('./utilities');
+const { errorCheck } = require('../utilities.js');
 
-// const accounts = [
-//     215
-// ]
-
-// const num = 212;
-const accounts = [];
-
-// endpoint = 'https://<domain>/api/v1/accounts/<id>?account[sis_account_id]'
-// endpoint = 'https://ecpi.instructure.com/api/v1/accounts/'
-endpoint = 'https://domain.instructure.com/api/v1/accounts/';
-
-(async () => {
-    const failedAccounts = [];
-    for (let account of accounts) {
-        const axiosConfig = {
-            method: 'PUT',
-            url: endpoint + account,
-            headers: {
-                'Authorization': token,
-                'Content-Type': 'application/json'
-            },
-            data: {
-                "account": {
-                    "sis_account_id": account.toString()
+// Search accounts using GraphQL query
+async function searchAccounts(searchTerm) {
+    try {
+        const graphqlQuery = {
+            query: `
+                query MyQuery($account_id: ID!) {
+                    account(id: $account_id) {
+                        sisId
+                        name
+                        parentAccountsConnection(first: 1) {
+                            nodes {
+                                sisId
+                            }
+                        }
+                    }
                 }
+            `,
+            variables: {
+                account_id: searchTerm
             }
         };
 
-        try {
-            const request = async () => {
-                return await axios(axiosConfig);
-            };
-            const response = await errorCheck(request);
-            // console.log('The response is ', response);
-        } catch (error) {
-            failedAccounts.push(account);
-            console.log('Failed to updated ', error);
-        }
-    }
-    console.log(failedAccounts);
-
-    const reFailed = [];
-    console.log('Retrying failed accounts...');
-    for (let failed of failedAccounts) {
-        const axiosConfig = {
-            method: 'PUT',
-            url: endpoint + failed,
-            headers: {
-                'Authorization': token,
-                'Content-Type': 'application/json'
-            },
-            data: {
-                "account": {
-                    "sis_account_id": `${failed.toString()}_${failed.toString()}`
+        const request = async () => {
+            // For GraphQL, we need to override the base URL since it uses /api/graphql instead of /api/v1
+            const graphqlUrl = axios.defaults.baseURL.replace('/api/v1', '/api/graphql');
+            return await axios.post(graphqlUrl, graphqlQuery, {
+                headers: {
+                    'Content-Type': 'application/json'
                 }
-            }
+            });
         };
 
-        try {
-            const request = async () => {
-                return await axios(axiosConfig);
-            };
-            const response = await errorCheck(request);
-            // console.log('The response is ', response.data);
-        } catch (error) {
-            reFailed.push(account);
-            console.log('Failed to updated ', error);
-        }
-    }
+        const response = await errorCheck(request);
 
-    console.log(reFailed);
-})();
+        if (response.data.data && response.data.data.account) {
+            return [response.data.data.account]; // Return as array to match expected format
+        } else {
+            throw new Error('Account not found');
+        }
+    } catch (error) {
+        console.error('Error searching accounts:', error);
+        throw error;
+    }
+}
+
+module.exports = {
+    searchAccounts
+};

@@ -1284,6 +1284,23 @@ async function getCommChannels(
 //     console.log('done');
 // })();
 
+// Search users in the account
+async function searchUsers(searchTerm, include = ['email']) {
+    const includeParams = include.map(item => `include[]=${item}`).join('&');
+    const url = `/accounts/self/users?search_term=${encodeURIComponent(searchTerm)}&${includeParams}`;
+
+    try {
+        const request = async () => {
+            return await axios.get(url);
+        };
+        const response = await errorCheck(request);
+        return response.data;
+    } catch (error) {
+        console.error('Error searching users:', error);
+        throw error;
+    }
+}
+
 module.exports = {
-    addUsers, createUsers, enrollUser, getPageViews, getCommChannels, updateNotifications
+    addUsers, createUsers, enrollUser, getPageViews, getCommChannels, updateNotifications, searchUsers
 };

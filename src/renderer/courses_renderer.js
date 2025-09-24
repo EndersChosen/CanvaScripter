@@ -852,6 +852,7 @@ async function createSupportCourse(e) {
             quizQuestionsPanel.hidden = true;
             if (addQuestionsSwitch) addQuestionsSwitch.checked = false;
         } else {
+            // For any other content type, hide both quiz question panels
             quizQuestionsToggle.hidden = true;
             quizQuestionsPanel.hidden = true;
             if (addQuestionsSwitch) addQuestionsSwitch.checked = false;
@@ -963,6 +964,12 @@ async function createSupportCourse(e) {
         const initKey = contentTypeSel.value;
         syncPublishSwitchState(initKey);
         toggleQuizQuestionsVisibility(initKey);
+
+        // Ensure New Quizzes panel is hidden initially unless "newQuizzes" is selected
+        if (initKey !== 'newQuizzes') {
+            newQQuestionsPanel.hidden = true;
+            if (addNewQQuestionsSwitch) addNewQQuestionsSwitch.checked = false;
+        }
         // Keep the map updated if user toggles publish for the current type
         contentPublishSwitch.addEventListener('change', () => {
             const key = contentTypeSel.value;

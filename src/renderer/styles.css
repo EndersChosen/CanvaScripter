@@ -224,3 +224,51 @@ header .input-group-text {
 header .input-group .form-floating {
     flex: 1 1 auto;
 }
+
+/* Minimalist and subtle scrollbar styles */
+/* For Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+    transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: rgba(0, 0, 0, 0.35);
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* For Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+/* Optional: Make scrollbars even more subtle in light areas */
+.card-body ::-webkit-scrollbar-thumb,
+.table-responsive ::-webkit-scrollbar-thumb,
+#sidebar ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.card-body ::-webkit-scrollbar-thumb:hover,
+.table-responsive ::-webkit-scrollbar-thumb:hover,
+#sidebar ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.2);
+}
