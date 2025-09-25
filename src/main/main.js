@@ -55,6 +55,7 @@ const grading_standards = require('../shared/canvas-api/grading_standards');
 const discussions = require('../shared/canvas-api/discussions');
 const pages = require('../shared/canvas-api/pages');
 const sections = require('../shared/canvas-api/sections');
+const enrollments = require('../shared/canvas-api/enrollments');
 const sisImports = require('../shared/canvas-api/sis_imports');
 const imports = require('../shared/canvas-api/imports');
 const groupCategories = require('../shared/canvas-api/group_categories');
@@ -964,6 +965,46 @@ function registerSisIpcHandlers() {
             return { success: true, terms };
         } catch (error) {
             console.error('Error searching terms:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Sections search IPC handler
+    ipcMain.handle('sections:search', async (event, domain, token, searchTerm) => {
+        console.log('main.js > sections:search IPC handler');
+        try {
+            const result = await sections.searchSection(domain, token, searchTerm);
+            return result;
+        } catch (error) {
+            console.error('Error searching sections:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Enrollments search IPC handler
+    ipcMain.handle('enrollments:search', async (event, domain, token, searchTerm, searchType) => {
+        console.log('main.js > enrollments:search IPC handler');
+        try {
+            let result;
+
+            // Determine which search function to use based on searchType
+            switch (searchType) {
+                case 'user':
+                    result = await enrollments.getUserEnrollments(domain, token, searchTerm);
+                    break;
+                case 'course':
+                    result = await enrollments.getCourseEnrollments(domain, token, searchTerm);
+                    break;
+                case 'section':
+                    result = await enrollments.getSectionEnrollments(domain, token, searchTerm);
+                    break;
+                default:
+                    return { success: false, error: 'Invalid search type. Use user, course, or section.' };
+            }
+
+            return result;
+        } catch (error) {
+            console.error('Error searching enrollments:', error);
             return { success: false, error: error.message };
         }
     });
@@ -2846,6 +2887,8 @@ app.whenReady().then(() => {
     });
 
     ipcMain.handle('axios:checkUnconfirmedEmails', async (event, data) => {
+        console.log('main.js > axios:checkUnconfirmedEmails');
+
         try {
             const response = await checkUnconfirmedEmails(data); //returns a data stream to write to file
             const filePath = getFileLocation('unconfirmed_emails.csv')

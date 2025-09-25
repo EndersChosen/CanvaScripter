@@ -2,6 +2,7 @@
 // const config = require('./config');
 // const users = require('./users');
 const { getAPIData } = require('../utilities');
+const axios = require('axios');
 // const questionAsker = require('../questionAsker');
 // const pagination = require('../pagination');
 
@@ -138,6 +139,262 @@ async function apiRunner(url) {
 
 // })();
 
+// GraphQL function to get user enrollments
+async function getUserEnrollments(domain, token, userId) {
+    const query = `
+        query myQuery {
+            legacyNode(_id: "${userId}", type: User) {
+                ... on User {
+                    sisId
+                    integrationId
+                    enrollments(excludeConcluded: false) {
+                        course {
+                            sisId
+                        }
+                        associatedUser {
+                            sisId
+                        }
+                        enrollmentState
+                        section {
+                            sisId
+                        }
+                        type
+                        limitPrivilegesToCourseSection
+                        role {
+                            _id
+                        }
+                        endAt
+                        startAt
+                    }
+                }
+            }
+        }
+    `;
+
+    const config = {
+        method: 'post',
+        url: `https://${domain}/api/graphql`,
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        data: { query }
+    };
+
+    try {
+        const response = await axios(config);
+        const enrollments = [];
+
+        if (response.data?.data?.legacyNode?.enrollments) {
+            const user = response.data.data.legacyNode;
+            user.enrollments.forEach(enrollment => {
+                enrollments.push({
+                    user_id: user.sisId || '',
+                    integration_id: user.integrationId || '',
+                    course_id: enrollment.course?.sisId || '',
+                    associated_user_id: enrollment.associatedUser?.sisId || '',
+                    status: enrollment.enrollmentState || '',
+                    section_id: enrollment.section?.sisId || '',
+                    role_id: enrollment.role?._id || '',
+                    end_date: enrollment.endAt || '',
+                    start_date: enrollment.startAt || '',
+                    limit_section_privileges: enrollment.limitPrivilegesToCourseSection || false
+                });
+            });
+        }
+
+        return { success: true, enrollments, searchType: 'user' };
+    } catch (error) {
+        console.error('User enrollments search error:', error);
+        throw {
+            success: false,
+            error: error.message || 'Failed to fetch user enrollments',
+            status: error.response?.status || error.status,
+            code: error.code
+        };
+    }
+}
+
+// GraphQL function to get course enrollments
+async function getCourseEnrollments(domain, token, courseId) {
+    const query = `
+        query myQuery {
+            course(id: "${courseId}") {
+                sisId
+                enrollmentsConnection(
+                    first: 100
+                    after: ""
+                    filter: {states: [deleted, active, inactive, completed]}
+                ) {
+                    pageInfo {
+                        hasNextPage
+                        endCursor
+                    }
+                    edges {
+                        node {
+                            enrollmentState
+                            sisSectionId
+                            startAt
+                            endAt
+                            limitPrivilegesToCourseSection
+                            role {
+                                _id
+                            }
+                            user {
+                                sisId
+                                integrationId
+                            }
+                            section {
+                                sisId
+                            }
+                            associatedUser {
+                                sisId
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    `;
+
+    const config = {
+        method: 'post',
+        url: `https://${domain}/api/graphql`,
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        data: { query }
+    };
+
+    try {
+        const response = await axios(config);
+        const enrollments = [];
+
+        if (response.data?.data?.course?.enrollmentsConnection?.edges) {
+            const course = response.data.data.course;
+            course.enrollmentsConnection.edges.forEach(edge => {
+                const enrollment = edge.node;
+                enrollments.push({
+                    course_id: course.sisId || '',
+                    user_id: enrollment.user?.sisId || '',
+                    role_id: enrollment.role?._id || '',
+                    section_id: enrollment.section?.sisId || '',
+                    status: enrollment.enrollmentState || '',
+                    integration_id: enrollment.user?.integrationId || '',
+                    start_date: enrollment.startAt || '',
+                    end_date: enrollment.endAt || '',
+                    associated_user_id: enrollment.associatedUser?.sisId || '',
+                    limit_section_privileges: enrollment.limitPrivilegesToCourseSection || false
+                });
+            });
+        }
+
+        return { success: true, enrollments, searchType: 'course' };
+    } catch (error) {
+        console.error('Course enrollments search error:', error);
+        throw {
+            success: false,
+            error: error.message || 'Failed to fetch course enrollments',
+            status: error.response?.status || error.status,
+            code: error.code
+        };
+    }
+}
+
+// GraphQL function to get section enrollments
+async function getSectionEnrollments(domain, token, sectionId) {
+    const query = `
+        query myQuery {
+            legacyNode(_id: "${sectionId}", type: Section) {
+                ... on Section {
+                    allStudents(after: "", first: 100) {
+                        edges {
+                            node {
+                                sisId
+                                enrollments {
+                                    course {
+                                        sisId
+                                    }
+                                    user {
+                                        sisId
+                                        integrationId
+                                    }
+                                    limitPrivilegesToCourseSection
+                                    enrollmentState
+                                    endAt
+                                    startAt
+                                    role {
+                                        _id
+                                    }
+                                    associatedUser {
+                                        sisId
+                                    }
+                                }
+                            }
+                        }
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                    }
+                    sisId
+                }
+            }
+        }
+    `;
+
+    const config = {
+        method: 'post',
+        url: `https://${domain}/api/graphql`,
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        data: { query }
+    };
+
+    try {
+        const response = await axios(config);
+        const enrollments = [];
+
+        if (response.data?.data?.legacyNode?.allStudents?.edges) {
+            const section = response.data.data.legacyNode;
+            section.allStudents.edges.forEach(edge => {
+                const student = edge.node;
+                student.enrollments.forEach(enrollment => {
+                    enrollments.push({
+                        section_id: section.sisId || '',
+                        user_id: student.sisId || '',
+                        course_id: enrollment.course?.sisId || '',
+                        role_id: enrollment.role?._id || '',
+                        status: enrollment.enrollmentState || '',
+                        integration_id: enrollment.user?.integrationId || '',
+                        start_date: enrollment.startAt || '',
+                        end_date: enrollment.endAt || '',
+                        associated_user_id: enrollment.associatedUser?.sisId || '',
+                        limit_section_privileges: enrollment.limitPrivilegesToCourseSection || false
+                    });
+                });
+            });
+        }
+
+        return { success: true, enrollments, searchType: 'section' };
+    } catch (error) {
+        console.error('Section enrollments search error:', error);
+        throw {
+            success: false,
+            error: error.message || 'Failed to fetch section enrollments',
+            status: error.response?.status || error.status,
+            code: error.code
+        };
+    }
+}
+
 module.exports = {
-    enrollUser, getEnrollments
+    enrollUser,
+    getEnrollments,
+    getUserEnrollments,
+    getCourseEnrollments,
+    getSectionEnrollments
 };

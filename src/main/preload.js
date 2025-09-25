@@ -366,6 +366,10 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('preload.js > getCommChannels');
 
         return await ipcRenderer.invoke('axios:getCommChannels', data);
+    },
+    getCourseInfo: async (data) => {
+        console.log('preload.js > getCourseInfo');
+        return await ipcRenderer.invoke('axios:getCourseInfo', data);
     }
 });
 
@@ -490,6 +494,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     searchTerms: async (domain, token, searchTerm) => {
         return await ipcRenderer.invoke('terms:search', domain, token, searchTerm);
+    },
+    searchSections: async (domain, token, searchTerm) => {
+        return await ipcRenderer.invoke('sections:search', domain, token, searchTerm);
+    },
+    searchEnrollments: async (domain, token, searchTerm, searchType) => {
+        return await ipcRenderer.invoke('enrollments:search', domain, token, searchTerm, searchType);
     },
     onPageViewsProgress: (callback) => {
         ipcRenderer.on('page-views-progress', callback);

@@ -180,6 +180,24 @@ async function createSingleSISFile(e) {
                                     
                                     <label for="terms-search-input" class="form-label small fw-bold">Search Terms</label>
                                     <input type="text" id="terms-search-input" class="form-control form-control-sm" placeholder="Enter Canvas Term ID" style="display: none;">
+                                    
+                                    <label for="courses-search-input" class="form-label small fw-bold">Search Courses</label>
+                                    <input type="text" id="courses-search-input" class="form-control form-control-sm" placeholder="Enter Canvas Course ID" style="display: none;">
+                                    
+                                    <label for="sections-search-input" class="form-label small fw-bold">Search Sections</label>
+                                    <input type="text" id="sections-search-input" class="form-control form-control-sm" placeholder="Enter Canvas Section ID" style="display: none;">
+                                    
+                                    <label for="enrollments-search-input" class="form-label small fw-bold">Search Enrollments</label>
+                                    <div style="display: none;" id="enrollments-search-container">
+                                        <div class="input-group mb-2">
+                                            <select id="enrollments-search-type" class="form-select form-select-sm">
+                                                <option value="user">User ID</option>
+                                                <option value="course">Course ID</option>
+                                                <option value="section">Section ID</option>
+                                            </select>
+                                            <input type="text" id="enrollments-search-input" class="form-control form-control-sm" placeholder="Enter ID to search enrollments">
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="col-md-6 d-flex align-items-end gap-2">
                                     <button type="button" class="btn btn-outline-primary btn-sm" id="search-users-btn" style="display: none;">
@@ -190,6 +208,15 @@ async function createSingleSISFile(e) {
                                     </button>
                                     <button type="button" class="btn btn-outline-primary btn-sm" id="search-terms-btn" style="display: none;">
                                         <i class="fas fa-search"></i> Search Terms
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="search-courses-btn" style="display: none;">
+                                        <i class="fas fa-search"></i> Search Courses
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="search-sections-btn" style="display: none;">
+                                        <i class="fas fa-search"></i> Search Sections
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="search-enrollments-btn" style="display: none;">
+                                        <i class="fas fa-search"></i> Search Enrollments
                                     </button>
                                     <button type="button" class="btn btn-outline-secondary btn-sm" id="randomize-fields-btn">
                                         <i class="fas fa-random"></i> Randomize
@@ -208,6 +235,34 @@ async function createSingleSISFile(e) {
                             </div>
                             <div id="terms-search-error-container" class="mt-3" style="display: none;">
                                 <!-- Terms search error cards will be displayed here -->
+                            </div>
+                            <div id="courses-search-error-container" class="mt-3" style="display: none;">
+                                <!-- Courses search error cards will be displayed here -->
+                            </div>
+                            <div id="sections-search-error-container" class="mt-3" style="display: none;">
+                                <!-- Sections search error cards will be displayed here -->
+                            </div>
+                            <div id="enrollments-search-error-container" class="mt-3" style="display: none;">
+                                <!-- Enrollments search error cards will be displayed here -->
+                            </div>
+                            <!-- Enrollments search results container -->
+                            <div id="enrollments-search-results-container" class="mt-3" style="display: none;">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-users me-2"></i>
+                                            Enrollment Results
+                                        </h6>
+                                        <button type="button" class="btn btn-success btn-sm" id="generate-enrollments-csv-btn">
+                                            <i class="fas fa-file-csv me-1"></i> Generate CSV
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="enrollments-results-list">
+                                            <!-- Dynamic enrollment results will be inserted here -->
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -796,50 +851,83 @@ async function createSingleSISFile(e) {
                 }
             }
 
+            const searchCoursesBtn = document.getElementById('search-courses-btn');
+            const searchCoursesInput = document.getElementById('courses-search-input');
+            if (searchCoursesBtn && searchCoursesInput) {
+                const isCoursesType = (fileType === 'courses');
+                searchCoursesBtn.style.display = isCoursesType ? 'inline-block' : 'none';
+                searchCoursesInput.style.display = isCoursesType ? 'block' : 'none';
+                if (searchCoursesInput.parentElement) {
+                    searchCoursesInput.parentElement.querySelector('label[for="courses-search-input"]').style.display = isCoursesType ? 'block' : 'none';
+                }
+            }
+
+            const searchSectionsBtn = document.getElementById('search-sections-btn');
+            const searchSectionsInput = document.getElementById('sections-search-input');
+            if (searchSectionsBtn && searchSectionsInput) {
+                const isSectionsType = (fileType === 'sections');
+                searchSectionsBtn.style.display = isSectionsType ? 'inline-block' : 'none';
+                searchSectionsInput.style.display = isSectionsType ? 'block' : 'none';
+                if (searchSectionsInput.parentElement) {
+                    searchSectionsInput.parentElement.querySelector('label[for="sections-search-input"]').style.display = isSectionsType ? 'block' : 'none';
+                }
+            }
+
+            const searchEnrollmentsBtn = document.getElementById('search-enrollments-btn');
+            const searchEnrollmentsContainer = document.getElementById('enrollments-search-container');
+            if (searchEnrollmentsBtn && searchEnrollmentsContainer) {
+                const isEnrollmentsType = (fileType === 'enrollments');
+                searchEnrollmentsBtn.style.display = isEnrollmentsType ? 'inline-block' : 'none';
+                searchEnrollmentsContainer.style.display = isEnrollmentsType ? 'block' : 'none';
+                if (searchEnrollmentsContainer.parentElement) {
+                    searchEnrollmentsContainer.parentElement.querySelector('label[for="enrollments-search-input"]').style.display = isEnrollmentsType ? 'block' : 'none';
+                }
+            }
+
             // Define field options for each CSV type (based on official Canvas documentation)
             const fieldOptions = {
                 'users': [
-                    { value: 'user_id', label: 'User ID', placeholder: 'e.g., U123456' },
-                    { value: 'login_id', label: 'Login ID', placeholder: 'e.g., jsmith' },
-                    { value: 'authentication_provider_id', label: 'Auth Provider ID', placeholder: 'e.g., google' },
+                    { value: 'user_id', label: 'User ID', placeholder: 'SIS User ID' },
+                    { value: 'login_id', label: 'Login ID', placeholder: 'username' },
+                    { value: 'authentication_provider_id', label: 'Auth Provider ID', placeholder: 'e.g., saml' },
                     { value: 'password', label: 'Password', placeholder: 'Leave empty for auto-generation' },
                     { value: 'ssha_password', label: 'SSHA Password', placeholder: 'Leave empty for auto-generation' },
-                    { value: 'first_name', label: 'First Name', placeholder: 'e.g., John' },
-                    { value: 'last_name', label: 'Last Name', placeholder: 'e.g., Doe' },
-                    { value: 'full_name', label: 'Full Name', placeholder: 'e.g., John Doe' },
-                    { value: 'sortable_name', label: 'Sortable Name', placeholder: 'e.g., Doe, John' },
-                    { value: 'short_name', label: 'Short Name', placeholder: 'e.g., John' },
-                    { value: 'email', label: 'Email', placeholder: 'e.g., john.doe@instructure.com' },
+                    { value: 'first_name', label: 'First Name', placeholder: 'first name' },
+                    { value: 'last_name', label: 'Last Name', placeholder: 'last name' },
+                    { value: 'full_name', label: 'Full Name', placeholder: 'full name' },
+                    { value: 'sortable_name', label: 'Sortable Name', placeholder: 'sortable name' },
+                    { value: 'short_name', label: 'Short Name', placeholder: 'short name' },
+                    { value: 'email', label: 'Email', placeholder: 'email' },
                     { value: 'status', label: 'Status', placeholder: 'active, deleted, suspended' },
-                    { value: 'integration_id', label: 'Integration ID', placeholder: 'e.g., SIS_USER_123' },
+                    { value: 'integration_id', label: 'Integration ID', placeholder: 'integration ID' },
                     { value: 'pronouns', label: 'Pronouns', placeholder: 'e.g., they/them' },
                     { value: 'declared_user_type', label: 'Declared User Type', placeholder: 'e.g., teacher, student' },
                     { value: 'canvas_password_notification', label: 'Canvas Password Notification', placeholder: 'true, false' },
-                    { value: 'home_account', label: 'Home Account', placeholder: 'e.g., account_id' }
+                    { value: 'home_account', label: 'Home Account', placeholder: 'true, false' }
                 ],
                 'accounts': [
-                    { value: 'account_id', label: 'Account ID', placeholder: 'e.g., A001' },
-                    { value: 'parent_account_id', label: 'Parent Account ID', placeholder: 'e.g., A001' },
-                    { value: 'name', label: 'Account Name', placeholder: 'e.g., Mathematics Department' },
+                    { value: 'account_id', label: 'Account ID', placeholder: 'account SIS ID' },
+                    { value: 'parent_account_id', label: 'Parent Account ID', placeholder: 'parent account SIS ID' },
+                    { value: 'name', label: 'Account Name', placeholder: 'account name' },
                     { value: 'status', label: 'Status', placeholder: 'active, deleted' }
                 ],
                 'terms': [
-                    { value: 'term_id', label: 'Term ID', placeholder: 'e.g., T001' },
-                    { value: 'name', label: 'Term Name', placeholder: 'e.g., Fall 2024' },
+                    { value: 'term_id', label: 'Term ID', placeholder: 'term sis ID' },
+                    { value: 'name', label: 'Term Name', placeholder: 'term name' },
                     { value: 'status', label: 'Status', placeholder: 'active, deleted' },
-                    { value: 'integration_id', label: 'Integration ID', placeholder: 'e.g., SIS_TERM_123' },
+                    { value: 'integration_id', label: 'Integration ID', placeholder: 'integration ID' },
                     { value: 'date_override_enrollment_type', label: 'Date Override Enrollment Type', placeholder: 'StudentEnrollment, TeacherEnrollment, TaEnrollment, DesignerEnrollment' },
                     { value: 'start_date', label: 'Start Date', placeholder: 'e.g., 2013-1-03 00:00:00' },
                     { value: 'end_date', label: 'End Date', placeholder: 'e.g., 2013-05-03 00:00:00-06:00' }
                 ],
                 'courses': [
-                    { value: 'course_id', label: 'Course ID', placeholder: 'e.g., E411208' },
-                    { value: 'short_name', label: 'Short Name', placeholder: 'e.g., ENG115' },
-                    { value: 'long_name', label: 'Long Name', placeholder: 'e.g., English 115: Intro to English' },
-                    { value: 'account_id', label: 'Account ID', placeholder: 'e.g., A002' },
-                    { value: 'term_id', label: 'Term ID', placeholder: 'e.g., Fall2011' },
+                    { value: 'course_id', label: 'Course ID', placeholder: 'course SIS ID' },
+                    { value: 'short_name', label: 'Short Name', placeholder: 'course code' },
+                    { value: 'long_name', label: 'Long Name', placeholder: 'course name' },
+                    { value: 'account_id', label: 'Account ID', placeholder: 'account SIS ID' },
+                    { value: 'term_id', label: 'Term ID', placeholder: 'term SIS ID' },
                     { value: 'status', label: 'Status', placeholder: 'active, deleted, completed, published' },
-                    { value: 'integration_id', label: 'Integration ID', placeholder: 'e.g., SIS_COURSE_123' },
+                    { value: 'integration_id', label: 'Integration ID', placeholder: 'integration ID' },
                     { value: 'start_date', label: 'Start Date', placeholder: 'e.g., 2013-01-03 00:00:00' },
                     { value: 'end_date', label: 'End Date', placeholder: 'e.g., 2013-05-03 00:00:00-06:00' },
                     { value: 'course_format', label: 'Course Format', placeholder: 'on_campus, online, blended' },
@@ -849,104 +937,104 @@ async function createSingleSISFile(e) {
                     { value: 'friendly_name', label: 'Friendly Name', placeholder: 'Elementary-friendly course name' }
                 ],
                 'sections': [
-                    { value: 'section_id', label: 'Section ID', placeholder: 'e.g., S001' },
-                    { value: 'course_id', label: 'Course ID', placeholder: 'e.g., E411208' },
-                    { value: 'name', label: 'Section Name', placeholder: 'e.g., Section 1' },
+                    { value: 'section_id', label: 'Section ID', placeholder: 'section SIS ID' },
+                    { value: 'course_id', label: 'Course ID', placeholder: 'course SIS ID' },
+                    { value: 'name', label: 'Section Name', placeholder: 'section name' },
                     { value: 'status', label: 'Status', placeholder: 'active, deleted, completed' },
                     { value: 'start_date', label: 'Start Date', placeholder: 'e.g., 2013-1-03 00:00:00' },
                     { value: 'end_date', label: 'End Date', placeholder: 'e.g., 2013-05-03 00:00:00-06:00' },
-                    { value: 'integration_id', label: 'Integration ID', placeholder: 'e.g., SIS_SEC_123' }
+                    { value: 'integration_id', label: 'Integration ID', placeholder: 'integration ID' }
                 ],
                 'enrollments': [
-                    { value: 'course_id', label: 'Course ID', placeholder: 'e.g., E411208' },
-                    { value: 'user_id', label: 'User ID', placeholder: 'e.g., 01103' },
+                    { value: 'course_id', label: 'Course ID', placeholder: 'course SIS ID' },
+                    { value: 'user_id', label: 'User ID', placeholder: 'user SIS ID' },
                     { value: 'role', label: 'Role', placeholder: 'student, teacher, ta, observer, designer' },
-                    { value: 'section_id', label: 'Section ID', placeholder: 'e.g., 1B' },
+                    { value: 'section_id', label: 'Section ID', placeholder: 'section SIS ID' },
                     { value: 'status', label: 'Status', placeholder: 'active, deleted, completed, inactive' },
-                    { value: 'user_integration_id', label: 'User Integration ID', placeholder: 'e.g., SIS_USER_123' },
-                    { value: 'role_id', label: 'Role ID', placeholder: 'e.g., CUSTOM_ROLE_123' },
+                    { value: 'user_integration_id', label: 'User Integration ID', placeholder: 'user integration ID' },
+                    { value: 'role_id', label: 'Role ID', placeholder: 'role ID' },
                     { value: 'root_account', label: 'Root Account', placeholder: 'e.g., school.instructure.com' },
                     { value: 'start_date', label: 'Start Date', placeholder: 'e.g., 2013-1-03 00:00:00' },
                     { value: 'end_date', label: 'End Date', placeholder: 'e.g., 2013-05-03 00:00:00-06:00' },
-                    { value: 'associated_user_id', label: 'Associated User ID', placeholder: 'e.g., observer parent user' },
+                    { value: 'associated_user_id', label: 'Associated User ID', placeholder: 'associated user SIS ID' },
                     { value: 'limit_section_privileges', label: 'Limit Section Privileges', placeholder: 'true, false' },
                     { value: 'notify', label: 'Notify', placeholder: 'true, false' },
-                    { value: 'temporary_enrollment_source_user_id', label: 'Temporary Enrollment Source User ID', placeholder: 'Provider user ID for temporary enrollment' }
+                    { value: 'temporary_enrollment_source_user_id', label: 'Temporary Enrollment Source User ID', placeholder: 'Provider user SIS ID for temporary enrollment' }
                 ],
                 'group_categories': [
-                    { value: 'group_category_id', label: 'Group Category ID', placeholder: 'e.g., GC08' },
-                    { value: 'account_id', label: 'Account ID', placeholder: 'e.g., A001' },
-                    { value: 'course_id', label: 'Course ID', placeholder: 'e.g., course123' },
+                    { value: 'group_category_id', label: 'Group Category ID', placeholder: 'group category ID' },
+                    { value: 'account_id', label: 'Account ID', placeholder: 'account SIS ID' },
+                    { value: 'course_id', label: 'Course ID', placeholder: 'course SIS ID' },
                     { value: 'category_name', label: 'Category Name', placeholder: 'e.g., First Group Category' },
                     { value: 'status', label: 'Status', placeholder: 'active, deleted' }
                 ],
                 'groups': [
-                    { value: 'group_id', label: 'Group ID', placeholder: 'e.g., G411208' },
-                    { value: 'group_category_id', label: 'Group Category ID', placeholder: 'e.g., GC08' },
-                    { value: 'account_id', label: 'Account ID', placeholder: 'e.g., A001' },
-                    { value: 'course_id', label: 'Course ID', placeholder: 'e.g., course123' },
-                    { value: 'name', label: 'Group Name', placeholder: 'e.g., Group1' },
+                    { value: 'group_id', label: 'Group ID', placeholder: 'group SIS ID' },
+                    { value: 'group_category_id', label: 'Group Category ID', placeholder: 'group category ID' },
+                    { value: 'account_id', label: 'Account ID', placeholder: 'account SIS ID' },
+                    { value: 'course_id', label: 'Course ID', placeholder: 'course SIS ID' },
+                    { value: 'name', label: 'Group Name', placeholder: 'group name' },
                     { value: 'status', label: 'Status', placeholder: 'available, closed, completed, deleted' }
                 ],
                 'group_memberships': [
-                    { value: 'group_id', label: 'Group ID', placeholder: 'e.g., G411208' },
-                    { value: 'user_id', label: 'User ID', placeholder: 'e.g., U001' },
+                    { value: 'group_id', label: 'Group ID', placeholder: 'group SIS ID' },
+                    { value: 'user_id', label: 'User ID', placeholder: 'user SIS ID' },
                     { value: 'status', label: 'Status', placeholder: 'accepted, deleted' }
                 ],
                 'admins': [
-                    { value: 'user_id', label: 'User ID', placeholder: 'e.g., E411208' },
-                    { value: 'account_id', label: 'Account ID', placeholder: 'e.g., 01103' },
+                    { value: 'user_id', label: 'User ID', placeholder: 'user SIS ID' },
+                    { value: 'account_id', label: 'Account ID', placeholder: 'account SIS ID' },
                     { value: 'role', label: 'Role', placeholder: 'e.g., AccountAdmin' },
-                    { value: 'role_id', label: 'Role ID', placeholder: 'e.g., custom_role_id' },
+                    { value: 'role_id', label: 'Role ID', placeholder: 'role ID' },
                     { value: 'status', label: 'Status', placeholder: 'active, deleted' },
-                    { value: 'root_account', label: 'Root Account', placeholder: 'Domain of account to search for user' }
+                    { value: 'root_account', label: 'Root Account', placeholder: 'Domain of account to search for user, e.g., school.instructure.com' }
                 ],
                 'logins': [
-                    { value: 'user_id', label: 'User ID', placeholder: 'e.g., 01103' },
-                    { value: 'integration_id', label: 'Integration ID', placeholder: 'Secondary unique identifier' },
-                    { value: 'login_id', label: 'Login ID', placeholder: 'e.g., bsmith01' },
+                    { value: 'user_id', label: 'User ID', placeholder: 'user SIS ID' },
+                    { value: 'integration_id', label: 'Integration ID', placeholder: 'integration ID' },
+                    { value: 'login_id', label: 'Login ID', placeholder: 'login ID/username' },
                     { value: 'password', label: 'Password', placeholder: 'Leave empty for auto-generation' },
                     { value: 'ssha_password', label: 'SSHA Password', placeholder: 'Pre-hashed SSHA password' },
-                    { value: 'authentication_provider_id', label: 'Auth Provider ID', placeholder: 'e.g., google' },
-                    { value: 'existing_user_id', label: 'Existing User ID', placeholder: 'e.g., existing_123' },
-                    { value: 'existing_integration_id', label: 'Existing Integration ID', placeholder: 'e.g., existing_int_123' },
-                    { value: 'existing_canvas_user_id', label: 'Existing Canvas User ID', placeholder: 'e.g., 98' },
-                    { value: 'root_account', label: 'Root Account', placeholder: 'Domain of account to search for user' },
-                    { value: 'email', label: 'Email', placeholder: 'e.g., bob.smith@instructure.com' }
+                    { value: 'authentication_provider_id', label: 'Auth Provider ID', placeholder: 'e.g., saml' },
+                    { value: 'existing_user_id', label: 'Existing User ID', placeholder: 'e.g., existing user SIS ID' },
+                    { value: 'existing_integration_id', label: 'Existing Integration ID', placeholder: 'e.g., existing user integration ID' },
+                    { value: 'existing_canvas_user_id', label: 'Existing Canvas User ID', placeholder: 'e.g., canvas user ID' },
+                    { value: 'root_account', label: 'Root Account', placeholder: 'Domain of account to search for user, e.g., school.instructure.com' },
+                    { value: 'email', label: 'Email', placeholder: 'user email' }
                 ],
                 'xlists': [
-                    { value: 'xlist_course_id', label: 'Cross-list Course ID', placeholder: 'e.g., E411208' },
-                    { value: 'section_id', label: 'Section ID', placeholder: 'e.g., 1B' },
+                    { value: 'xlist_course_id', label: 'Cross-list Course ID', placeholder: 'course SIS ID' },
+                    { value: 'section_id', label: 'Section ID', placeholder: 'section SIS ID' },
                     { value: 'status', label: 'Status', placeholder: 'active, deleted' }
                 ],
                 'user_observers': [
-                    { value: 'observer_id', label: 'Observer ID', placeholder: 'e.g., u411208' },
-                    { value: 'student_id', label: 'Student ID', placeholder: 'e.g., u411222' },
+                    { value: 'observer_id', label: 'Observer ID', placeholder: 'observer SIS ID' },
+                    { value: 'student_id', label: 'Student ID', placeholder: 'student SIS ID' },
                     { value: 'status', label: 'Status', placeholder: 'active, deleted' }
                 ],
                 'change_sis_id': [
-                    { value: 'old_id', label: 'Old ID', placeholder: 'e.g., u001' },
-                    { value: 'new_id', label: 'New ID', placeholder: 'e.g., u001a' },
-                    { value: 'old_integration_id', label: 'Old Integration ID', placeholder: 'e.g., integration01' },
-                    { value: 'new_integration_id', label: 'New Integration ID', placeholder: 'e.g., int01' },
+                    { value: 'old_id', label: 'Old ID', placeholder: 'old/current SIS ID' },
+                    { value: 'new_id', label: 'New ID', placeholder: 'new SIS ID' },
+                    { value: 'old_integration_id', label: 'Old Integration ID', placeholder: 'old/current integration ID' },
+                    { value: 'new_integration_id', label: 'New Integration ID', placeholder: 'new integration ID' },
                     { value: 'type', label: 'Type', placeholder: 'user, course, section, account, term' }
                 ],
                 'differentiation_tag_sets': [
-                    { value: 'tag_set_id', label: 'Tag Set ID', placeholder: 'e.g., TS08' },
-                    { value: 'course_id', label: 'Course ID', placeholder: 'e.g., C001' },
+                    { value: 'tag_set_id', label: 'Tag Set ID', placeholder: 'tag set SIS ID' },
+                    { value: 'course_id', label: 'Course ID', placeholder: 'course SIS ID' },
                     { value: 'set_name', label: 'Set Name', placeholder: 'e.g., First Tag Set' },
                     { value: 'status', label: 'Status', placeholder: 'active, deleted' }
                 ],
                 'differentiation_tags': [
-                    { value: 'tag_id', label: 'Tag ID', placeholder: 'e.g., T01' },
-                    { value: 'tag_set_id', label: 'Tag Set ID', placeholder: 'e.g., TS08' },
-                    { value: 'course_id', label: 'Course ID', placeholder: 'e.g., C001' },
+                    { value: 'tag_id', label: 'Tag ID', placeholder: 'tag SIS ID' },
+                    { value: 'tag_set_id', label: 'Tag Set ID', placeholder: 'tag set SIS ID' },
+                    { value: 'course_id', label: 'Course ID', placeholder: 'course SIS ID' },
                     { value: 'name', label: 'Tag Name', placeholder: 'e.g., Tag1' },
                     { value: 'status', label: 'Status', placeholder: 'available, deleted' }
                 ],
                 'differentiation_tag_membership': [
-                    { value: 'tag_id', label: 'Tag ID', placeholder: 'e.g., T01' },
-                    { value: 'user_id', label: 'User ID', placeholder: 'e.g., U001' },
+                    { value: 'tag_id', label: 'Tag ID', placeholder: 'tag SIS ID' },
+                    { value: 'user_id', label: 'User ID', placeholder: 'user SIS ID' },
                     { value: 'status', label: 'Status', placeholder: 'accepted, deleted' }
                 ]
             };
@@ -1359,6 +1447,164 @@ async function createSingleSISFile(e) {
             }
         }
 
+        async function searchAndPopulateCourses(searchTerm, searchField) {
+            if (!searchTerm || searchTerm.length < 1) return;
+
+            const domain = document.querySelector('#domain')?.value;
+            const token = document.querySelector('#token')?.value;
+            const errorContainer = document.getElementById('courses-search-error-container');
+
+            // Clear any previous errors
+            if (errorContainer) {
+                errorContainer.style.display = 'none';
+                errorContainer.innerHTML = '';
+            }
+
+            if (!domain || !token) {
+                console.log('Domain or token not available for courses search');
+                showCoursesSearchResult('Please configure Canvas domain and API token first.', 'warning');
+                return;
+            }
+
+            try {
+                const result = await window.axios.getCourseInfo({ domain, token, bpCourseID: searchTerm });
+
+                if (result.id) {
+                    // Course found, auto-populate directly
+                    populateCoursesFields(result, searchField);
+                } else {
+                    // No course found
+                    showCoursesSearchResult('No course found for the entered ID.', 'warning');
+                }
+            } catch (error) {
+                console.error('Courses search error:', error);
+
+                // Format error for display
+                const errorItem = {
+                    id: 'courses-search',
+                    reason: error.message || 'Unknown error occurred',
+                    isNetworkError: error.code === 'NETWORK_ERROR' || error.message?.includes('fetch') || error.message?.includes('ENOTFOUND'),
+                    status: error.status || error.response?.status
+                };
+
+                // Show detailed error card
+                if (errorContainer) {
+                    errorContainer.innerHTML = createErrorCard([errorItem], 'courses search');
+                    errorContainer.style.display = 'block';
+                }
+
+                // Also show toast notification
+                showCoursesSearchResult('Courses search failed. Check the error details below.', 'danger');
+            }
+        }
+
+        async function searchAndPopulateSections(searchTerm, searchField) {
+            if (!searchTerm || searchTerm.length < 1) return;
+
+            const domain = document.querySelector('#domain')?.value;
+            const token = document.querySelector('#token')?.value;
+            const errorContainer = document.getElementById('sections-search-error-container');
+
+            // Clear any previous errors
+            if (errorContainer) {
+                errorContainer.style.display = 'none';
+                errorContainer.innerHTML = '';
+            }
+
+            if (!domain || !token) {
+                console.log('Domain or token not available for sections search');
+                showSectionsSearchResult('Please configure Canvas domain and API token first.', 'warning');
+                return;
+            }
+
+            try {
+                const result = await window.electronAPI.searchSections(domain, token, searchTerm);
+
+                if (result.success && result.section) {
+                    // Section found, auto-populate directly
+                    populateSectionsFields(result.section, searchField);
+                } else {
+                    // No section found
+                    showSectionsSearchResult('No section found for the entered ID.', 'warning');
+                }
+            } catch (error) {
+                console.error('Sections search error:', error);
+
+                // Format error for display
+                const errorItem = {
+                    id: 'sections-search',
+                    reason: error.message || 'Unknown error occurred',
+                    isNetworkError: error.code === 'NETWORK_ERROR' || error.message?.includes('fetch') || error.message?.includes('ENOTFOUND'),
+                    status: error.status || error.response?.status
+                };
+
+                // Show detailed error card
+                if (errorContainer) {
+                    errorContainer.innerHTML = createErrorCard([errorItem], 'sections search');
+                    errorContainer.style.display = 'block';
+                }
+
+                // Also show toast notification
+                showSectionsSearchResult('Sections search failed. Check the error details below.', 'danger');
+            }
+        }
+
+        async function searchAndDisplayEnrollments(searchTerm, searchType) {
+            if (!searchTerm || searchTerm.length < 1) return;
+
+            const domain = document.querySelector('#domain')?.value;
+            const token = document.querySelector('#token')?.value;
+            const errorContainer = document.getElementById('enrollments-search-error-container');
+            const resultsContainer = document.getElementById('enrollments-search-results-container');
+
+            // Clear any previous errors and results
+            if (errorContainer) {
+                errorContainer.style.display = 'none';
+                errorContainer.innerHTML = '';
+            }
+            if (resultsContainer) {
+                resultsContainer.style.display = 'none';
+            }
+
+            if (!domain || !token) {
+                console.log('Domain or token not available for enrollments search');
+                showEnrollmentsSearchResult('Please configure Canvas domain and API token first.', 'warning');
+                return;
+            }
+
+            try {
+                const result = await window.electronAPI.searchEnrollments(domain, token, searchTerm, searchType);
+
+                if (result.success && result.enrollments) {
+                    // Display enrollments in expandable format
+                    displayEnrollmentResults(result.enrollments, result.searchType);
+                    showEnrollmentsSearchResult(`Found ${result.enrollments.length} enrollment(s) for ${searchType} ID: ${searchTerm}`, 'success');
+                } else {
+                    // No enrollments found
+                    showEnrollmentsSearchResult(`No enrollments found for ${searchType} ID: ${searchTerm}`, 'warning');
+                }
+            } catch (error) {
+                console.error('Enrollments search error:', error);
+
+                // Format error for display
+                const errorItem = {
+                    id: 'enrollments-search',
+                    reason: error.message || 'Unknown error occurred',
+                    isNetworkError: error.code === 'NETWORK_ERROR' || error.message?.includes('fetch') || error.message?.includes('ENOTFOUND'),
+                    status: error.status || error.response?.status
+                };
+
+                // Show detailed error card
+                if (errorContainer) {
+                    errorContainer.innerHTML = createErrorCard([errorItem], 'enrollments search');
+                    errorContainer.style.display = 'block';
+                }
+
+                // Also show toast notification
+                showEnrollmentsSearchResult('Enrollments search failed. Check the error details below.', 'danger');
+            }
+        }
+
         // Helper function to populate term fields from Canvas term data
         function populateTermFields(term, excludeField) {
             // Map the Canvas term data to SIS fields based on the provided mapping
@@ -1498,6 +1744,306 @@ async function createSingleSISFile(e) {
                     notification.remove();
                 }
             }, 3000);
+        }
+
+        function populateCoursesFields(course, excludeField) {
+            // Map the Canvas course data to SIS fields
+            // Based on Canvas API course response and SIS courses CSV fields
+            const courseFieldMappings = {
+                'course_id': course.sis_course_id || '',
+                'short_name': course.course_code || '',
+                'long_name': course.name || '',
+                'account_id': '',
+                'term_id': '',
+                'status': course.workflow_state || 'active',
+                'integration_id': course.integration_id || '',
+                'start_date': course.start_at ? new Date(course.start_at).toISOString().slice(0, 10) : '',
+                'end_date': course.end_at ? new Date(course.end_at).toISOString().slice(0, 10) : '',
+                'course_format': course.course_format || '',
+                'blueprint_course_id': ''
+            };
+
+            // Always populate all fields to give explicit control over what should be blank vs random
+            let fieldsWithValues = 0;
+            Object.entries(courseFieldMappings).forEach(([field, value]) => {
+                if (field !== excludeField) {
+                    // Use actual value if available, empty string if not
+                    const finalValue = value && value.toString().trim() ? value : '';
+                    selectedFields[field] = finalValue;
+
+                    // Update the corresponding input field
+                    const inputElement = document.getElementById(`field-${field}`);
+                    if (inputElement) {
+                        inputElement.value = finalValue;
+                        inputElement.dataset.justPopulated = 'true'; // Prevent search loop
+
+                        // Update visual styling
+                        if (finalValue) {
+                            inputElement.classList.add('border-success');
+                            inputElement.classList.remove('border-secondary');
+                            fieldsWithValues++;
+                        } else {
+                            inputElement.classList.remove('border-success');
+                            inputElement.classList.add('border-secondary');
+                        }
+                    }
+                }
+            });
+
+            // Show success message
+            let message = `Found course: ${course.name || course.course_code}.`;
+            if (fieldsWithValues > 0) {
+                message += ` Auto-populated ${fieldsWithValues} fields with data.`;
+            } else {
+                message += ` No additional data available to populate.`;
+            }
+
+            showCoursesSearchResult(message, 'success');
+        }
+
+        // Show courses search result message
+        function showCoursesSearchResult(message, type) {
+            // Create a temporary notification element
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type === 'success' ? 'success' : type === 'warning' ? 'warning' : type === 'info' ? 'info' : 'danger'} alert-dismissible fade show position-fixed`;
+            notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+            notification.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+
+            document.body.appendChild(notification);
+
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 3000);
+        }
+
+        function populateSectionsFields(section, excludeField) {
+            // Map the Canvas section data to SIS fields
+            // Based on Canvas API section response and SIS sections CSV fields
+            const sectionFieldMappings = {
+                'section_id': section.sis_section_id || '',
+                'course_id': section.sis_course_id || '',
+                'section_name': section.name || '',
+                'status': 'active', // Always set to active as requested
+                'start_date': section.start_at ? new Date(section.start_at).toISOString().slice(0, 10) : '',
+                'end_date': section.end_at ? new Date(section.end_at).toISOString().slice(0, 10) : '',
+                'integration_id': section.integration_id || ''
+            };
+
+            // Always populate all fields to give explicit control over what should be blank vs random
+            let fieldsWithValues = 0;
+            Object.entries(sectionFieldMappings).forEach(([field, value]) => {
+                if (field !== excludeField) {
+                    // Use actual value if available, empty string if not
+                    const finalValue = value && value.toString().trim() ? value : '';
+                    selectedFields[field] = finalValue;
+
+                    // Update the corresponding input field
+                    const inputElement = document.getElementById(`field-${field}`);
+                    if (inputElement) {
+                        inputElement.value = finalValue;
+                        inputElement.dataset.justPopulated = 'true'; // Prevent search loop
+
+                        // Update visual styling
+                        if (finalValue) {
+                            inputElement.classList.add('border-success');
+                            inputElement.classList.remove('border-secondary');
+                            fieldsWithValues++;
+                        } else {
+                            inputElement.classList.remove('border-success');
+                            inputElement.classList.add('border-secondary');
+                        }
+                    }
+                }
+            });
+
+            // Show success message
+            let message = `Found section: ${section.name}.`;
+            if (fieldsWithValues > 0) {
+                message += ` Auto-populated ${fieldsWithValues} fields with data.`;
+            } else {
+                message += ` No additional data available to populate.`;
+            }
+
+            showSectionsSearchResult(message, 'success');
+        }
+
+        // Show sections search result message
+        function showSectionsSearchResult(message, type) {
+            // Create a temporary notification element
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type === 'success' ? 'success' : type === 'warning' ? 'warning' : type === 'info' ? 'info' : 'danger'} alert-dismissible fade show position-fixed`;
+            notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+            notification.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+
+            document.body.appendChild(notification);
+
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 3000);
+        }
+
+        // Show enrollments search result message
+        function showEnrollmentsSearchResult(message, type) {
+            // Create a temporary notification element
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type === 'success' ? 'success' : type === 'warning' ? 'warning' : type === 'info' ? 'info' : 'danger'} alert-dismissible fade show position-fixed`;
+            notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+            notification.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+
+            document.body.appendChild(notification);
+
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 3000);
+        }
+
+        // Global variable to store current enrollment results for CSV generation
+        let currentEnrollmentResults = [];
+
+        // Function to display enrollment results in expandable/collapsible format
+        function displayEnrollmentResults(results, searchType) {
+            const resultsContainer = document.getElementById('enrollments-search-results-container');
+            const resultsList = document.getElementById('enrollments-results-list');
+
+            if (!resultsContainer || !resultsList) return;
+
+            // Store results globally for CSV generation
+            currentEnrollmentResults = results;
+
+            // Clear previous results
+            resultsList.innerHTML = '';
+
+            if (results.length === 0) {
+                resultsList.innerHTML = '<div class="text-muted text-center py-3">No enrollments found.</div>';
+                resultsContainer.style.display = 'block';
+                return;
+            }
+
+            // Create expandable items for each enrollment
+            results.forEach((enrollment, index) => {
+                const enrollmentId = `enrollment-${index}`;
+                const collapseId = `collapse-${enrollmentId}`;
+
+                const enrollmentHtml = `
+                    <div class="card mb-2">
+                        <div class="card-header p-2" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="false">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="fw-bold">
+                                    <i class="fas fa-user-graduate me-2"></i>
+                                    ${searchType.charAt(0).toUpperCase() + searchType.slice(1)} Enrollment ${index + 1}
+                                    ${enrollment.user_id ? `- User: ${enrollment.user_id}` : ''}
+                                    ${enrollment.course_id ? `- Course: ${enrollment.course_id}` : ''}
+                                    ${enrollment.section_id ? `- Section: ${enrollment.section_id}` : ''}
+                                </div>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        <div class="collapse" id="${collapseId}">
+                            <div class="card-body p-3">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <strong>User ID:</strong> ${enrollment.user_id || 'N/A'}<br>
+                                        <strong>Course ID:</strong> ${enrollment.course_id || 'N/A'}<br>
+                                        <strong>Section ID:</strong> ${enrollment.section_id || 'N/A'}<br>
+                                        <strong>Role ID:</strong> ${enrollment.role_id || 'N/A'}<br>
+                                        <strong>Status:</strong> <span class="badge ${enrollment.status === 'active' ? 'bg-success' : enrollment.status === 'deleted' ? 'bg-danger' : 'bg-secondary'}">${enrollment.status || 'N/A'}</span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>Integration ID:</strong> ${enrollment.integration_id || 'N/A'}<br>
+                                        <strong>Associated User ID:</strong> ${enrollment.associated_user_id || 'N/A'}<br>
+                                        <strong>Start Date:</strong> ${enrollment.start_date || 'N/A'}<br>
+                                        <strong>End Date:</strong> ${enrollment.end_date || 'N/A'}<br>
+                                        <strong>Limit Section Privileges:</strong> ${enrollment.limit_section_privileges ? 'Yes' : 'No'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                resultsList.innerHTML += enrollmentHtml;
+            });
+
+            // Update results header with count
+            const headerTitle = resultsContainer.querySelector('.card-header h6');
+            if (headerTitle) {
+                headerTitle.innerHTML = `<i class="fas fa-users me-2"></i>Enrollment Results (${results.length} found)`;
+            }
+
+            // Show the results container
+            resultsContainer.style.display = 'block';
+        }
+
+        // Function to generate CSV from enrollment results
+        function generateEnrollmentsCSV() {
+            if (!currentEnrollmentResults || currentEnrollmentResults.length === 0) {
+                showEnrollmentsSearchResult('No enrollment data to export', 'warning');
+                return;
+            }
+
+            // Define CSV headers based on SIS enrollments CSV format
+            const headers = [
+                'user_id',
+                'course_id',
+                'section_id',
+                'status',
+                'associated_user_id',
+                'role_id',
+                'integration_id',
+                'start_date',
+                'end_date',
+                'limit_section_privileges'
+            ];
+
+            // Create CSV content
+            let csvContent = headers.join(',') + '\n';
+
+            currentEnrollmentResults.forEach(enrollment => {
+                const row = headers.map(header => {
+                    let value = enrollment[header] || '';
+                    // Handle boolean values
+                    if (header === 'limit_section_privileges') {
+                        value = enrollment[header] ? 'true' : 'false';
+                    }
+                    // Escape commas and quotes in CSV
+                    if (value.toString().includes(',') || value.toString().includes('"')) {
+                        value = `"${value.toString().replace(/"/g, '""')}"`;
+                    }
+                    return value;
+                });
+                csvContent += row.join(',') + '\n';
+            });
+
+            // Create and download CSV file
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `enrollments_export_${new Date().getTime()}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showEnrollmentsSearchResult(`Exported ${currentEnrollmentResults.length} enrollments to CSV`, 'success');
         }
 
         // Show user selection modal when multiple users are found
@@ -1672,6 +2218,87 @@ async function createSingleSISFile(e) {
             }
         });
 
+        // Add search courses button event listener for the new UI
+        document.getElementById('search-courses-btn').addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const searchInput = document.getElementById('courses-search-input');
+            const searchValue = searchInput.value.trim();
+            const errorContainer = document.getElementById('courses-search-error-container');
+
+            // Clear any previous errors
+            if (errorContainer) {
+                errorContainer.style.display = 'none';
+                errorContainer.innerHTML = '';
+            }
+
+            if (searchValue) {
+                showCoursesSearchResult('Searching for course...', 'info');
+                await searchAndPopulateCourses(searchValue, null);
+                // Keep search value in input for reference
+            } else {
+                showCoursesSearchResult('Please enter a numeric Course ID', 'warning');
+            }
+        });
+
+        // Add search sections button event listener for the new UI
+        document.getElementById('search-sections-btn').addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const searchInput = document.getElementById('sections-search-input');
+            const searchValue = searchInput.value.trim();
+            const errorContainer = document.getElementById('sections-search-error-container');
+
+            // Clear any previous errors
+            if (errorContainer) {
+                errorContainer.style.display = 'none';
+                errorContainer.innerHTML = '';
+            }
+
+            if (searchValue) {
+                showSectionsSearchResult('Searching for section...', 'info');
+                await searchAndPopulateSections(searchValue, null);
+                // Keep search value in input for reference
+            } else {
+                showSectionsSearchResult('Please enter a numeric Section ID', 'warning');
+            }
+        });
+
+        // Add search enrollments button event listener for the new UI
+        document.getElementById('search-enrollments-btn').addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const searchInput = document.getElementById('enrollments-search-input');
+            const searchTypeSelect = document.getElementById('enrollments-search-type');
+            const searchValue = searchInput.value.trim();
+            const searchType = searchTypeSelect.value;
+            const errorContainer = document.getElementById('enrollments-search-error-container');
+
+            // Clear any previous errors
+            if (errorContainer) {
+                errorContainer.style.display = 'none';
+                errorContainer.innerHTML = '';
+            }
+
+            if (searchValue) {
+                showEnrollmentsSearchResult(`Searching for ${searchType} enrollments...`, 'info');
+                await searchAndDisplayEnrollments(searchValue, searchType);
+                // Keep search value in input for reference
+            } else {
+                showEnrollmentsSearchResult(`Please enter a ${searchType} ID`, 'warning');
+            }
+        });
+
+        // Add CSV generation button event listener
+        document.getElementById('generate-enrollments-csv-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            generateEnrollmentsCSV();
+        });
+
         // Randomize Fields Handler
         document.getElementById('randomize-fields-btn').addEventListener('click', () => {
             const fileType = document.getElementById('file-type').value;
@@ -1682,11 +2309,46 @@ async function createSingleSISFile(e) {
             randomizeRequiredFields(fileType);
         });
 
-        // Allow Enter key in search input to trigger search
+        // Allow Enter key in search inputs to trigger search
         document.getElementById('user-search-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 document.getElementById('search-users-btn').click();
+            }
+        });
+
+        document.getElementById('account-search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('search-accounts-btn').click();
+            }
+        });
+
+        document.getElementById('terms-search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('search-terms-btn').click();
+            }
+        });
+
+        document.getElementById('courses-search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('search-courses-btn').click();
+            }
+        });
+
+        document.getElementById('sections-search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('search-sections-btn').click();
+            }
+        });
+
+        document.getElementById('enrollments-search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('search-enrollments-btn').click();
             }
         });
 

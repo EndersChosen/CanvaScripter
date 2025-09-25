@@ -1,6 +1,6 @@
 // ****************************************************
 //
-// AssignmentGroup Endpoints
+// Assignment Group Endpoints
 //
 // ****************************************************
 
@@ -78,6 +78,42 @@ function emptyAssignmentGroups(e) {
 
         checkCourseID(cID, eContent);
     })
+
+    // checkCourseID function - validates course ID input and provides feedback
+    function checkCourseID(courseIDField, container) {
+        const trimmedValue = courseIDField.value.trim();
+        const isValid = !isNaN(Number(trimmedValue)) && Number(trimmedValue) > 0 && Number.isInteger(Number(trimmedValue));
+
+        // Find or create validation feedback element
+        let feedbackElement = container.querySelector('#course-id-feedback');
+        if (!feedbackElement) {
+            feedbackElement = document.createElement('div');
+            feedbackElement.id = 'course-id-feedback';
+            feedbackElement.className = 'invalid-feedback';
+            feedbackElement.style.display = 'none';
+            feedbackElement.style.color = '#dc3545';
+            feedbackElement.style.fontSize = '0.875rem';
+            feedbackElement.style.marginTop = '0.25rem';
+            courseIDField.parentNode.appendChild(feedbackElement);
+        }
+
+        if (trimmedValue === '') {
+            // Empty field - clear validation
+            courseIDField.classList.remove('is-invalid', 'is-valid');
+            feedbackElement.style.display = 'none';
+        } else if (isValid) {
+            // Valid course ID
+            courseIDField.classList.remove('is-invalid');
+            courseIDField.classList.add('is-valid');
+            feedbackElement.style.display = 'none';
+        } else {
+            // Invalid course ID
+            courseIDField.classList.remove('is-valid');
+            courseIDField.classList.add('is-invalid');
+            feedbackElement.textContent = 'Course ID must be a positive number';
+            feedbackElement.style.display = 'block';
+        }
+    }
 
     // const eResponse = document.createElement('div');
     // eResponse.id = "response-container";
@@ -192,13 +228,43 @@ function emptyAssignmentGroups(e) {
                 try {
                     const result = await window.axios.deleteEmptyAssignmentGroups(messageData);
 
-                    if (result.successful.length > 0) {
-                        eagProgressInfo.innerHTML = `Successfully removed ${result.successful.length} assignment group(s).`
-                    }
-                    if (result.failed.length > 0) {
-                        eagProgressBar.parentElement.hidden = true;
-                        eagProgressInfo.innerHTML += `Failed to remove ${result.failed.length} empty assignment group(s)`;
-                        errorHandler({ message: `${result.failed[0].reason}` }, eagProgressInfo);
+                    // Handle different result structures
+                    if (result && typeof result === 'object') {
+                        if (result.successful && Array.isArray(result.successful)) {
+                            // Structure with successful/failed arrays
+                            if (result.successful.length > 0) {
+                                eagProgressInfo.innerHTML = `Successfully removed ${result.successful.length} assignment group(s).`
+                            }
+                            if (result.failed && Array.isArray(result.failed) && result.failed.length > 0) {
+                                eagProgressBar.parentElement.hidden = true;
+                                eagProgressInfo.innerHTML += `Failed to remove ${result.failed.length} empty assignment group(s)`;
+                                errorHandler({ message: `${result.failed[0].reason}` }, eagProgressInfo);
+                            }
+                        } else if (result.success === true) {
+                            // Single success result structure
+                            eagProgressInfo.innerHTML = `Successfully removed assignment group.`
+                        } else if (Array.isArray(result)) {
+                            // Array of results
+                            const successCount = result.filter(r => r && (r.success === true || (r.status >= 200 && r.status < 300))).length;
+                            const failCount = result.length - successCount;
+
+                            if (successCount > 0) {
+                                eagProgressInfo.innerHTML = `Successfully removed ${successCount} assignment group(s).`
+                            }
+                            if (failCount > 0) {
+                                eagProgressBar.parentElement.hidden = true;
+                                eagProgressInfo.innerHTML += ` Failed to remove ${failCount} assignment group(s).`;
+                                const failedResults = result.filter(r => r && r.error);
+                                if (failedResults.length > 0) {
+                                    errorHandler({ message: failedResults[0].error }, eagProgressInfo);
+                                }
+                            }
+                        } else {
+                            // Unknown result structure, show generic success message
+                            eagProgressInfo.innerHTML = `Operation completed. Check the result for details.`;
+                        }
+                    } else {
+                        eagProgressInfo.innerHTML = `Operation completed, but result structure is unexpected.`;
                     }
                 } catch (error) {
                     errorHandler(error, eagProgressInfo);

@@ -424,7 +424,7 @@ async function getPageViews(e) {
         const isSingleUser = userIdsList.length === 1 && currentInputType !== 'file';
         const progressText = isSingleUser ? 'user' : `${userIdsList.length} users`;
 
-        progressInfo.textContent = `Processing page views for ${progressText}...`;
+        progressInfo.innerHTML = `<i class=\"fas fa-cog fa-spin me-2\"></i>Processing page views for ${progressText}...`;
         progressDetail.textContent = 'Initializing requests...';
         progressBar.style.width = '0%';
         progressBar.setAttribute('aria-valuenow', '0');
@@ -432,19 +432,39 @@ async function getPageViews(e) {
         // Listen for progress updates for both single and multiple users
         let progressListener;
         progressListener = (event, progressData) => {
-            const { currentUser, totalUsers, userId, percentage, completed, starting, error } = progressData;
+            const { currentUser, totalUsers, userId, percentage, completed, starting, error, fetchingPage, pageCompleted, currentPage, totalRecords } = progressData;
 
             if (completed) {
-                progressInfo.textContent = 'Operation completed!';
+                progressInfo.innerHTML = '<i class="fas fa-check-circle text-success me-2"></i>Operation completed!';
                 progressDetail.textContent = 'Processing results...';
                 progressBar.style.width = '100%';
                 progressBar.setAttribute('aria-valuenow', '100');
             } else if (starting) {
                 // When starting a user, show current status but don't update progress bar yet
                 const userText = isSingleUser ? 'user' : `user ${userId} (${currentUser}/${totalUsers})`;
-                progressInfo.textContent = `Getting page views for ${userText}`;
-                progressDetail.textContent = isSingleUser ? 'Sending requests to Canvas API...' : `Processing user ${currentUser} of ${totalUsers}...`;
+                progressInfo.innerHTML = `<i class="fas fa-search me-2"></i>Getting page views for ${userText}`;
+                progressDetail.textContent = isSingleUser ? 'Initializing requests to Canvas API...' : `Processing user ${currentUser} of ${totalUsers}...`;
                 // Keep current progress bar percentage (don't update until user completes)
+            } else if (fetchingPage) {
+                // Show spinning indicator during page fetch for single user
+                if (isSingleUser) {
+                    progressInfo.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Fetching page ${currentPage} of page views`;
+                    progressDetail.textContent = `Retrieved ${totalRecords} records so far...`;
+                } else {
+                    const userText = `user ${userId} (${currentUser}/${totalUsers})`;
+                    progressInfo.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Fetching page views for ${userText}`;
+                    progressDetail.textContent = `Processing page ${currentPage}, ${totalRecords} records retrieved...`;
+                }
+            } else if (pageCompleted) {
+                // Show completion of a page fetch for single user
+                if (isSingleUser) {
+                    progressInfo.innerHTML = `<i class="fas fa-download me-2"></i>Retrieved ${totalRecords} page view records`;
+                    progressDetail.textContent = `Completed fetching page ${currentPage - 1}...`;
+                } else {
+                    const userText = `user ${userId} (${currentUser}/${totalUsers})`;
+                    progressInfo.innerHTML = `<i class="fas fa-download me-2"></i>Retrieved data for ${userText}`;
+                    progressDetail.textContent = `${totalRecords} page view records collected...`;
+                }
             } else {
                 // When user completes, update progress bar and show next status
                 progressBar.style.width = `${percentage}%`;
@@ -452,11 +472,11 @@ async function getPageViews(e) {
 
                 if (error) {
                     const userText = isSingleUser ? 'user' : `user ${userId} (${currentUser}/${totalUsers})`;
-                    progressInfo.textContent = `Error getting page views for ${userText}`;
+                    progressInfo.innerHTML = `<i class="fas fa-exclamation-triangle text-warning me-2"></i>Error getting page views for ${userText}`;
                     progressDetail.textContent = isSingleUser ? 'Request failed' : `Failed user ${currentUser} of ${totalUsers}, continuing...`;
                 } else {
                     const userText = isSingleUser ? 'user' : `user ${userId} (${currentUser}/${totalUsers})`;
-                    progressInfo.textContent = `Completed ${userText}`;
+                    progressInfo.innerHTML = `<i class="fas fa-check text-success me-2"></i>Completed ${userText}`;
                     progressDetail.textContent = isSingleUser ? 'Request completed successfully' : `Finished user ${currentUser} of ${totalUsers}...`;
                 }
             }

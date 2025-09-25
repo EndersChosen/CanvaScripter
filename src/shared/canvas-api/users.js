@@ -295,6 +295,18 @@ async function getSingleUserPageViews(domain, token, user_id, startDate, endDate
     while (nextPage) {
         console.log(`Getting page ${pageNum} for user ${user_id}`);
 
+        // Send progress update for current page
+        if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.send('page-views-progress', {
+                currentUser: 1,
+                totalUsers: 1,
+                userId: user_id,
+                currentPage: pageNum,
+                totalRecords: pageViews.length,
+                fetchingPage: true
+            });
+        }
+
         try {
             const request = async () => {
                 return await axios.get(nextPage, {
@@ -320,6 +332,18 @@ async function getSingleUserPageViews(domain, token, user_id, startDate, endDate
                 } else {
                     dupPage.push(nextPage);
                 }
+            }
+
+            // Send progress update after successful page fetch
+            if (mainWindow && mainWindow.webContents) {
+                mainWindow.webContents.send('page-views-progress', {
+                    currentUser: 1,
+                    totalUsers: 1,
+                    userId: user_id,
+                    currentPage: pageNum,
+                    totalRecords: pageViews.length,
+                    pageCompleted: true
+                });
             }
         } catch (error) {
             throw error;

@@ -431,6 +431,42 @@ async function reLockModules(e) {
         checkCourseID(courseID, reLockModulesForm);
     });
 
+    // checkCourseID function - validates course ID input and provides feedback
+    function checkCourseID(courseIDField, container) {
+        const trimmedValue = courseIDField.value.trim();
+        const isValid = !isNaN(Number(trimmedValue)) && Number(trimmedValue) > 0 && Number.isInteger(Number(trimmedValue));
+
+        // Find or create validation feedback element
+        let feedbackElement = container.querySelector('#course-id-feedback');
+        if (!feedbackElement) {
+            feedbackElement = document.createElement('div');
+            feedbackElement.id = 'course-id-feedback';
+            feedbackElement.className = 'invalid-feedback';
+            feedbackElement.style.display = 'none';
+            feedbackElement.style.color = '#dc3545';
+            feedbackElement.style.fontSize = '0.875rem';
+            feedbackElement.style.marginTop = '0.25rem';
+            courseIDField.parentNode.appendChild(feedbackElement);
+        }
+
+        if (trimmedValue === '') {
+            // Empty field - clear validation
+            courseIDField.classList.remove('is-invalid', 'is-valid');
+            feedbackElement.style.display = 'none';
+        } else if (isValid) {
+            // Valid course ID
+            courseIDField.classList.remove('is-invalid');
+            courseIDField.classList.add('is-valid');
+            feedbackElement.style.display = 'none';
+        } else {
+            // Invalid course ID
+            courseIDField.classList.remove('is-valid');
+            courseIDField.classList.add('is-invalid');
+            feedbackElement.textContent = 'Course ID must be a positive number';
+            feedbackElement.style.display = 'block';
+        }
+    }
+
     // Set initial button and container state
     relockBtn.textContent = 'Re-lock Selected Modules';
     relockBtn.style.display = 'inline-block';
