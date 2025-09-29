@@ -1,4 +1,4 @@
-// ****************************************
+// ****************************************************
 //
 // User endpoints
 //
@@ -24,7 +24,7 @@ async function getPageViews(e) {
 
     if (!getPageViewsForm) {
 
-        getPageViewsForm = document.createElement('form');
+        getPageViewsForm =                        getPageViewsForm = document.createElement('form');
         getPageViewsForm.id = 'get-page-views-form';
         // eContent.innerHTML = `
         //     <div>
@@ -37,33 +37,33 @@ async function getPageViews(e) {
 
         getPageViewsForm.innerHTML = `
             <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h3 class="card-title mb-0">
-                        <i class="fas fa-chart-line me-2"></i>Get User Page Views
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-graph-up me-2"></i>Get User Page Views
                     </h3>
-                    <small class="text-light">Retrieve page view data for users with flexible input options</small>
+                    <small class="text-muted">Retrieve page view data for users with flexible input options</small>
                 </div>
                 <div class="card-body">
                     <!-- Input Type Selection -->
                     <div class="row g-3 mb-4">
                         <div class="col-12">
                             <label class="form-label fw-bold">
-                                <i class="fas fa-list me-1"></i>Input Method
+                                <i class="bi bi-list me-1"></i>Input Method
                             </label>
                             <div class="btn-group w-100" role="group" aria-label="Input type selection">
                                 <input type="radio" class="btn-check" name="input-type" id="single-user" value="single" checked>
                                 <label class="btn btn-outline-primary" for="single-user">
-                                    <i class="fas fa-user me-1"></i>Single User
+                                    <i class="bi bi-person me-1"></i>Single User
                                 </label>
                                 
                                 <input type="radio" class="btn-check" name="input-type" id="multi-user" value="multi">
                                 <label class="btn btn-outline-primary" for="multi-user">
-                                    <i class="fas fa-users me-1"></i>Multiple Users
+                                    <i class="bi bi-people me-1"></i>Multiple Users
                                 </label>
                                 
                                 <input type="radio" class="btn-check" name="input-type" id="file-upload" value="file">
                                 <label class="btn btn-outline-primary" for="file-upload">
-                                    <i class="fas fa-upload me-1"></i>File Upload
+                                    <i class="bi bi-upload me-1"></i>File Upload
                                 </label>
                             </div>
                         </div>
@@ -73,12 +73,12 @@ async function getPageViews(e) {
                     <div class="row g-3 mb-4" id="single-user-section">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="user-id">
-                                <i class="fas fa-user me-1"></i>Canvas User ID
+                                <i class="bi bi-person me-1"></i>Canvas User ID
                             </label>
                             <input type="text" id="user-id" class="form-control" 
                                    placeholder="Enter user ID (e.g., 12345)" aria-describedby="input-checker">
                             <div id="input-checker" class="form-text text-danger d-none">
-                                <i class="fas fa-exclamation-triangle me-1"></i>Must only contain numbers
+                                <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
                             </div>
                         </div>
                     </div>
@@ -87,15 +87,15 @@ async function getPageViews(e) {
                     <div class="row g-3 mb-4 d-none" id="multi-user-section">
                         <div class="col-md-8">
                             <label class="form-label fw-bold" for="user-ids">
-                                <i class="fas fa-users me-1"></i>Canvas User IDs
+                                <i class="bi bi-people me-1"></i>Canvas User IDs
                             </label>
                             <textarea id="user-ids" class="form-control" rows="4" 
                                       placeholder="Enter user IDs separated by commas (e.g., 12345, 67890, 11111)"></textarea>
                             <div id="multi-input-checker" class="form-text text-danger d-none">
-                                <i class="fas fa-exclamation-triangle me-1"></i>Please enter valid user IDs separated by commas
+                                <i class="bi bi-exclamation-triangle me-1"></i>Please enter valid user IDs separated by commas
                             </div>
                             <div class="form-text text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
+                                <i class="bi bi-info-circle me-1"></i>
                                 Enter multiple user IDs separated by commas. Spaces are automatically removed.
                             </div>
                         </div>
@@ -105,18 +105,18 @@ async function getPageViews(e) {
                     <div class="row g-3 mb-4 d-none" id="file-upload-section">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="user-file">
-                                <i class="fas fa-file-csv me-1"></i>User IDs File
+                                <i class="bi bi-filetype-csv me-1"></i>User IDs File
                             </label>
                             <input type="file" id="user-file" class="form-control" accept=".csv,.txt">
                             <div id="file-input-checker" class="form-text text-danger d-none">
-                                <i class="fas fa-exclamation-triangle me-1"></i>Please select a valid CSV or TXT file
+                                <i class="bi bi-exclamation-triangle me-1"></i>Please select a valid CSV or TXT file
                             </div>
                             <div id="file-user-count" class="form-text text-success d-none">
-                                <i class="fas fa-check-circle me-1"></i>
+                                <i class="bi bi-check-circle me-1"></i>
                                 <span id="file-user-count-text"></span>
                             </div>
                             <div class="form-text text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
+                                <i class="bi bi-info-circle me-1"></i>
                                 Upload a CSV or TXT file with user IDs. Supports: plain user IDs (one per line or comma-separated), or Canvas user URLs containing "/users/ID".
                             </div>
                         </div>
@@ -126,19 +126,19 @@ async function getPageViews(e) {
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label fw-bold" for="start-date">
-                                <i class="fas fa-calendar-alt me-1"></i>Start Date
+                                <i class="bi bi-calendar me-1"></i>Start Date
                             </label>
                             <input id="start-date" type="date" class="form-control">
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold" for="end-date">
-                                <i class="fas fa-calendar-alt me-1"></i>End Date
+                                <i class="bi bi-calendar me-1"></i>End Date
                             </label>
                             <input id="end-date" type="date" class="form-control">
                         </div>
                         <div class="col-md-6 d-flex align-items-end">
                             <div class="form-text text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
+                                <i class="bi bi-info-circle me-1"></i>
                                 Leave dates blank to get all available page views
                             </div>
                         </div>
@@ -148,7 +148,7 @@ async function getPageViews(e) {
                         <div class="col-md-6">
                             <div class="d-grid">
                                 <button type="button" class="btn btn-success" id="action-btn">
-                                    <i class="fas fa-search me-2"></i>Get Page Views
+                                    <i class="bi bi-search me-2"></i>Get Page Views
                                 </button>
                             </div>
                         </div>
@@ -160,7 +160,7 @@ async function getPageViews(e) {
             <div class="card mt-3" id="progress-card" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-cog fa-spin me-2"></i>Processing Page Views
+                        <i class="bi bi-gear me-2"></i>Processing Page Views
                     </h5>
                 </div>
                 <div class="card-body">
@@ -424,7 +424,7 @@ async function getPageViews(e) {
         const isSingleUser = userIdsList.length === 1 && currentInputType !== 'file';
         const progressText = isSingleUser ? 'user' : `${userIdsList.length} users`;
 
-        progressInfo.innerHTML = `<i class=\"fas fa-cog fa-spin me-2\"></i>Processing page views for ${progressText}...`;
+        progressInfo.innerHTML = `<i class=\"bi bi-gear me-2\"></i>Processing page views for ${progressText}...`;
         progressDetail.textContent = 'Initializing requests...';
         progressBar.style.width = '0%';
         progressBar.setAttribute('aria-valuenow', '0');
@@ -435,34 +435,34 @@ async function getPageViews(e) {
             const { currentUser, totalUsers, userId, percentage, completed, starting, error, fetchingPage, pageCompleted, currentPage, totalRecords } = progressData;
 
             if (completed) {
-                progressInfo.innerHTML = '<i class="fas fa-check-circle text-success me-2"></i>Operation completed!';
+                progressInfo.innerHTML = '<i class="bi bi-check-circle text-success me-2"></i>Operation completed!';
                 progressDetail.textContent = 'Processing results...';
                 progressBar.style.width = '100%';
                 progressBar.setAttribute('aria-valuenow', '100');
             } else if (starting) {
                 // When starting a user, show current status but don't update progress bar yet
                 const userText = isSingleUser ? 'user' : `user ${userId} (${currentUser}/${totalUsers})`;
-                progressInfo.innerHTML = `<i class="fas fa-search me-2"></i>Getting page views for ${userText}`;
+                progressInfo.innerHTML = `<i class="bi bi-search me-2"></i>Getting page views for ${userText}`;
                 progressDetail.textContent = isSingleUser ? 'Initializing requests to Canvas API...' : `Processing user ${currentUser} of ${totalUsers}...`;
                 // Keep current progress bar percentage (don't update until user completes)
             } else if (fetchingPage) {
                 // Show spinning indicator during page fetch for single user
                 if (isSingleUser) {
-                    progressInfo.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Fetching page ${currentPage} of page views`;
+                    progressInfo.innerHTML = `<i class="bi bi-arrow-clockwise me-2"></i>Fetching page ${currentPage} of page views`;
                     progressDetail.textContent = `Retrieved ${totalRecords} records so far...`;
                 } else {
                     const userText = `user ${userId} (${currentUser}/${totalUsers})`;
-                    progressInfo.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Fetching page views for ${userText}`;
+                    progressInfo.innerHTML = `<i class="bi bi-arrow-clockwise me-2"></i>Fetching page views for ${userText}`;
                     progressDetail.textContent = `Processing page ${currentPage}, ${totalRecords} records retrieved...`;
                 }
             } else if (pageCompleted) {
                 // Show completion of a page fetch for single user
                 if (isSingleUser) {
-                    progressInfo.innerHTML = `<i class="fas fa-download me-2"></i>Retrieved ${totalRecords} page view records`;
+                    progressInfo.innerHTML = `<i class="bi bi-download me-2"></i>Retrieved ${totalRecords} page view records`;
                     progressDetail.textContent = `Completed fetching page ${currentPage - 1}...`;
                 } else {
                     const userText = `user ${userId} (${currentUser}/${totalUsers})`;
-                    progressInfo.innerHTML = `<i class="fas fa-download me-2"></i>Retrieved data for ${userText}`;
+                    progressInfo.innerHTML = `<i class="bi bi-download me-2"></i>Retrieved data for ${userText}`;
                     progressDetail.textContent = `${totalRecords} page view records collected...`;
                 }
             } else {
@@ -472,11 +472,11 @@ async function getPageViews(e) {
 
                 if (error) {
                     const userText = isSingleUser ? 'user' : `user ${userId} (${currentUser}/${totalUsers})`;
-                    progressInfo.innerHTML = `<i class="fas fa-exclamation-triangle text-warning me-2"></i>Error getting page views for ${userText}`;
+                    progressInfo.innerHTML = `<i class="bi bi-exclamation-triangle text-warning me-2"></i>Error getting page views for ${userText}`;
                     progressDetail.textContent = isSingleUser ? 'Request failed' : `Failed user ${currentUser} of ${totalUsers}, continuing...`;
                 } else {
                     const userText = isSingleUser ? 'user' : `user ${userId} (${currentUser}/${totalUsers})`;
-                    progressInfo.innerHTML = `<i class="fas fa-check text-success me-2"></i>Completed ${userText}`;
+                    progressInfo.innerHTML = `<i class="bi bi-check text-success me-2"></i>Completed ${userText}`;
                     progressDetail.textContent = isSingleUser ? 'Request completed successfully' : `Finished user ${currentUser} of ${totalUsers}...`;
                 }
             }
@@ -560,7 +560,7 @@ async function getPageViews(e) {
         if (response === 'cancelled') {
             responseContainer.innerHTML = `
                 <div class="alert alert-warning" role="alert">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <i class="bi bi-exclamation-triangle me-2"></i>
                     Page views found, but saving was cancelled.
                 </div>
             `;
@@ -569,14 +569,14 @@ async function getPageViews(e) {
             responseContainer.innerHTML = `
                 <div class="alert alert-success" role="alert">
                     <h5 class="alert-heading">
-                        <i class="fas fa-check-circle me-2"></i>Success!
+                        <i class="bi bi-check-circle me-2"></i>Success!
                     </h5>
                     <p class="mb-2">
                         Page views successfully processed for <strong>${totalUsers}</strong> user${totalUsers !== 1 ? 's' : ''}.
                     </p>
                     <hr>
                     <div class="d-flex align-items-center">
-                        <i class="fas fa-download me-2"></i>
+                        <i class="bi bi-download me-2"></i>
                         <span>Your ${downloadType} is ready for download.</span>
                     </div>
                 </div>
@@ -584,14 +584,14 @@ async function getPageViews(e) {
         } else if (response && !response.success) {
             responseContainer.innerHTML = `
                 <div class="alert alert-info" role="alert">
-                    <i class="fas fa-info-circle me-2"></i>
+                    <i class="bi bi-info-circle me-2"></i>
                     No page views found for the specified user${totalUsers !== 1 ? 's' : ''} and date range.
                 </div>
             `;
         } else {
             responseContainer.innerHTML = `
                 <div class="alert alert-info" role="alert">
-                    <i class="fas fa-info-circle me-2"></i>
+                    <i class="bi bi-info-circle me-2"></i>
                     No page views found for the specified criteria.
                 </div>
             `;
@@ -604,7 +604,7 @@ async function getPageViews(e) {
         responseContainer.innerHTML = `
             <div class="alert alert-danger" role="alert">
                 <h5 class="alert-heading">
-                    <i class="fas fa-exclamation-triangle me-2"></i>Error
+                    <i class="bi bi-exclamation-triangle me-2"></i>Error
                 </h5>
                 <p class="mb-0">${message}</p>
             </div>
@@ -624,28 +624,28 @@ function userNotifications(e) {
 
         userNotificationsForm.innerHTML = `
             <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h3 class="card-title mb-0">
-                        <i class="fas fa-bell me-2"></i>User Notification Preferences
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-bell me-2"></i>User Notification Preferences
                     </h3>
-                    <small class="text-light">Enable or disable all notifications for a user across all communication channels</small>
+                    <small class="text-muted">Enable or disable all notifications for a user across all communication channels</small>
                 </div>
                 <div class="card-body">
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="user-id">
-                                <i class="fas fa-user me-1"></i>Canvas User ID
+                                <i class="bi bi-person me-1"></i>Canvas User ID
                             </label>
                             <input type="text" id="user-id" class="form-control" 
                                    placeholder="Enter user ID (e.g., 12345)" aria-describedby="user-input-checker">
                             <div id="user-input-checker" class="form-text text-danger d-none">
-                                <i class="fas fa-exclamation-triangle me-1"></i>Must only contain numbers
+                                <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
                             </div>
                         </div>
                         <div class="col-md-6 d-flex align-items-end">
                             <div class="d-grid w-100">
                                 <button type="button" class="btn btn-outline-primary" id="fetch-comm-channels-btn" disabled>
-                                    <i class="fas fa-download me-2"></i>Fetch Communication Channels
+                                    <i class="bi bi-download me-2"></i>Fetch Communication Channels
                                 </button>
                             </div>
                         </div>
@@ -654,13 +654,13 @@ function userNotifications(e) {
                     <div class="row g-3 mb-4">
                         <div class="col-md-8">
                             <label class="form-label fw-bold" for="comm-channel-select">
-                                <i class="fas fa-envelope me-1"></i>Communication Channel
+                                <i class="bi bi-envelope me-1"></i>Communication Channel
                             </label>
                             <select id="comm-channel-select" class="form-select" disabled>
                                 <option value="">Select a communication channel...</option>
                             </select>
                             <div class="form-text text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
+                                <i class="bi bi-info-circle me-1"></i>
                                 Choose from fetched channels or enter manually below
                             </div>
                         </div>
@@ -669,15 +669,15 @@ function userNotifications(e) {
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="comm-channel-id">
-                                <i class="fas fa-hashtag me-1"></i>Communication Channel ID
+                                <i class="bi bi-hash me-1"></i>Communication Channel ID
                             </label>
                             <input type="text" id="comm-channel-id" class="form-control" 
                                    placeholder="Enter channel ID manually" aria-describedby="comm-input-checker">
                             <div id="comm-input-checker" class="form-text text-danger d-none">
-                                <i class="fas fa-exclamation-triangle me-1"></i>Must only contain numbers
+                                <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
                             </div>
                             <div class="form-text text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
+                                <i class="bi bi-info-circle me-1"></i>
                                 Usually the user's email communication channel
                             </div>
                         </div>
@@ -687,14 +687,14 @@ function userNotifications(e) {
                         <div class="col-md-3">
                             <div class="d-grid">
                                 <button type="button" class="btn btn-success" id="enable-all-btn">
-                                    <i class="fas fa-bell me-2"></i>Enable All Notifications
+                                    <i class="bi bi-bell me-2"></i>Enable All Notifications
                                 </button>
                             </div>
                         </div>
                         <div class="col-md-3">
                             <div class="d-grid">
                                 <button type="button" class="btn btn-danger" id="disable-all-btn">
-                                    <i class="fas fa-bell-slash me-2"></i>Disable All Notifications
+                                    <i class="bi bi-bell-slash me-2"></i>Disable All Notifications
                                 </button>
                             </div>
                         </div>
@@ -706,7 +706,7 @@ function userNotifications(e) {
             <div class="card mt-3" id="notifications-progress-card" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-cog fa-spin me-2"></i>Updating Notifications
+                        <i class="bi bi-gear me-2"></i>Updating Notifications
                     </h5>
                 </div>
                 <div class="card-body">
@@ -975,7 +975,7 @@ function userNotifications(e) {
                 progressInfo.innerHTML = `Successfully ${action} all notifications.`;
                 resultsCard.hidden = false;
                 responseContainer.innerHTML = `<div class="alert alert-success" role="alert">
-                    <i class="fas fa-check-circle me-2"></i>All notifications have been ${action} for user ${user}.
+                    <i class="bi bi-check-circle me-2"></i>All notifications have been ${action} for user ${user}.
                 </div>`;
                 updateProgressWithPercent(progressBar, 100);
             } else {

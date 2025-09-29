@@ -9,32 +9,32 @@ function sectionsTemplate(e) {
     form.id = 'create-sections-form';
     form.innerHTML = `
             <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h3 class="card-title mb-0">
-                        <i class="fas fa-users me-2"></i>Create Course Sections
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-people me-2"></i>Create Course Sections
                     </h3>
-                    <small class="text-light">Add multiple sections to a course at once</small>
+                    <small class="text-muted">Add multiple sections to a course at once</small>
                 </div>
                 <div class="card-body">
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="course-id">
-                                <i class="fas fa-graduation-cap me-1"></i>Course ID
+                                <i class="bi bi-mortarboard-fill me-1"></i>Course ID
                             </label>
                             <input type="text" class="form-control" id="course-id" 
                                    placeholder="Enter course ID (e.g., 12345)" />
                             <div id="course-id-help" class="form-text text-danger d-none">
-                                <i class="fas fa-exclamation-triangle me-1"></i>Course ID must be a positive number.
+                                <i class="bi bi-exclamation-triangle me-1"></i>Course ID must be a positive number.
                             </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="num-items">
-                                <i class="fas fa-hashtag me-1"></i>Number of Sections
+                                <i class="bi bi-hash me-1"></i>Number of Sections
                             </label>
                             <input type="number" class="form-control" id="num-items" 
                                    placeholder="How many sections?" min="1" max="100" />
                             <div id="num-items-help" class="form-text text-danger d-none">
-                                <i class="fas fa-exclamation-triangle me-1"></i>Enter a number between 1 and 100.
+                                <i class="bi bi-exclamation-triangle me-1"></i>Enter a number between 1 and 100.
                             </div>
                         </div>
                     </div>
@@ -42,12 +42,12 @@ function sectionsTemplate(e) {
                     <div class="row g-3 mb-4">
                         <div class="col-md-8">
                             <label class="form-label fw-bold" for="name">
-                                <i class="fas fa-tag me-1"></i>Section Name Prefix
+                                <i class="bi bi-tag me-1"></i>Section Name Prefix
                             </label>
                             <input type="text" class="form-control" id="name" 
                                    placeholder="Section" value="Section" />
                             <div class="form-text text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
+                                <i class="bi bi-info-circle me-1"></i>
                                 Sections will be named: "<span id="name-preview">Section</span> 1", "<span id="name-preview-2">Section</span> 2", etc.
                             </div>
                         </div>
@@ -57,7 +57,7 @@ function sectionsTemplate(e) {
                         <div class="col-md-6">
                             <div class="d-grid">
                                 <button type="button" class="btn btn-success" id="create-btn" disabled>
-                                    <i class="fas fa-plus-circle me-2"></i>Create Sections
+                                    <i class="bi bi-plus-circle me-2"></i>Create Sections
                                 </button>
                             </div>
                         </div>
@@ -69,7 +69,7 @@ function sectionsTemplate(e) {
             <div class="card mt-3" id="progress-card" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-cog fa-spin me-2"></i>Creating Sections
+                        <i class="bi bi-gear me-2"></i>Creating Sections
                     </h5>
                 </div>
                 <div class="card-body">
@@ -153,9 +153,9 @@ function sectionsTemplate(e) {
     // Update button text based on validation
     if (isValid) {
       const count = parseInt(numItemsInput.value) || 0;
-      createBtn.innerHTML = `<i class="fas fa-plus-circle me-2"></i>Create ${count} Section${count !== 1 ? 's' : ''}`;
+      createBtn.innerHTML = `<i class="bi bi-plus-circle me-2"></i>Create ${count} Section${count !== 1 ? 's' : ''}`;
     } else {
-      createBtn.innerHTML = `<i class="fas fa-plus-circle me-2"></i>Create Sections`;
+      createBtn.innerHTML = `<i class="bi bi-plus-circle me-2"></i>Create Sections`;
     }
 
     return isValid;
@@ -259,7 +259,7 @@ function sectionsTemplate(e) {
     responseDiv.innerHTML = `
             <div class="alert alert-danger" role="alert">
                 <h5 class="alert-heading">
-                    <i class="fas fa-exclamation-triangle me-2"></i>Error
+                    <i class="bi bi-exclamation-triangle me-2"></i>Error
                 </h5>
                 <p class="mb-0">${message}</p>
             </div>
@@ -273,12 +273,12 @@ function sectionsTemplate(e) {
     const failed = res.failed?.length || 0;
 
     let alertClass = 'alert-success';
-    let icon = 'fas fa-check-circle';
+    let icon = 'bi bi-check-circle';
     let title = 'Success!';
 
     if (failed > 0) {
       alertClass = successful > 0 ? 'alert-warning' : 'alert-danger';
-      icon = successful > 0 ? 'fas fa-exclamation-triangle' : 'fas fa-times-circle';
+      icon = successful > 0 ? 'bi bi-exclamation-triangle' : 'bi bi-x-circle';
       title = successful > 0 ? 'Partial Success' : 'Failed';
     }
 
@@ -313,7 +313,7 @@ function sectionsTemplate(e) {
     if (successful > 0) {
       content += `
                 <div class="mt-3">
-                    <h6><i class="fas fa-list me-2"></i>Created Sections:</h6>
+                    <h6><i class="bi bi-list me-2"></i>Created Sections:</h6>
                     <div class="row">
             `;
 
@@ -322,7 +322,7 @@ function sectionsTemplate(e) {
         if (index % columns === 0) {
           content += '<div class="col-md-4"><ul class="list-unstyled">';
         }
-        content += `<li><small><i class="fas fa-users me-1"></i>${section.name}</small></li>`;
+        content += `<li><small><i class="bi bi-people me-1"></i>${section.name}</small></li>`;
         if ((index + 1) % columns === 0 || index === successful - 1) {
           content += '</ul></div>';
         }

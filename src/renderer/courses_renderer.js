@@ -33,48 +33,55 @@ async function restoreContent(e) {
         restoreContentForm = document.createElement('form');
         restoreContentForm.id = 'restore-content-form';
         restoreContentForm.innerHTML = `
-            <div>
-                <h3>Restore Content</h3>
-            </div>
-                <div class="row">
-                    <div class="col-auto">
-                        <label class="form-label">Course</label>
-                    </div>
-                    <div class="w-100"></div>
-                    <div class="col-2">
-                        <input id="course-id" type="text" class="form-control" aria-describedby="input-checker" />
-                    </div>
-                    <div class="col-auto" >
-                        <span id="input-checker" class="form-text" style="display: none;">Must only contain numbers</span>
-                    </div>
-                    <div class="mt-3">
-                        <label class="form-label" for="restore-content">Content</label>
-                        <select id="restore-context" class="form-select col-auto custom-select-width">
-                            <option value="assignment_" selected>Assignment</option>
-                            <option value="assignment_group_">Assignment Group</option>
-                            <option value="discussion_topic_">Announcement</option>
-                            <option value="discussion_topic_">Discussion</option>
-                            <option value="quiz_">Quiz</option>
-                            <option value="wiki_page_">Page</option>
-                            <option value="context_module_">Module</option>
-                            <option value="rubric_">Rubric</option>
-                            <option value="group_">Individual Group</option>
-                            <option value="group_category_">Entire Group Set</option>
-                        </select>
-                    </div>
-                    <div id="restore-ids-div" class="mt-3">
-                        <span>Enter comma separated IDs of the content you want to restore</span>
-                        <textarea class="form-control" id="restore-content-area" rows="3"></textarea>
-                    </div>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-arrow-counterclockwise me-2"></i>Restore Content
+                    </h3>
+                    <small class="text-muted">Restore deleted course content by providing content IDs</small>
                 </div>
-            <button type="button" class="btn btn-primary mt-3" id="restore-btn" disabled>Restore</button>
-            <div id="rcf-progress-div" hidden>
-                <p id="rcf-progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar" style="width: 0%"></div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-auto">
+                            <label class="form-label">Course</label>
+                        </div>
+                        <div class="w-100"></div>
+                        <div class="col-2">
+                            <input id="course-id" type="text" class="form-control" aria-describedby="input-checker" />
+                        </div>
+                        <div class="col-auto" >
+                            <span id="input-checker" class="form-text" style="display: none;">Must only contain numbers</span>
+                        </div>
+                        <div class="mt-3">
+                            <label class="form-label" for="restore-content">Content</label>
+                            <select id="restore-context" class="form-select col-auto custom-select-width">
+                                <option value="assignment_" selected>Assignment</option>
+                                <option value="assignment_group_">Assignment Group</option>
+                                <option value="discussion_topic_">Announcement</option>
+                                <option value="discussion_topic_">Discussion</option>
+                                <option value="quiz_">Quiz</option>
+                                <option value="wiki_page_">Page</option>
+                                <option value="context_module_">Module</option>
+                                <option value="rubric_">Rubric</option>
+                                <option value="group_">Individual Group</option>
+                                <option value="group_category_">Entire Group Set</option>
+                            </select>
+                        </div>
+                        <div id="restore-ids-div" class="mt-3">
+                            <span>Enter comma separated IDs of the content you want to restore</span>
+                            <textarea class="form-control" id="restore-content-area" rows="3"></textarea>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary mt-3" id="restore-btn" disabled>Restore</button>
+                    <div id="rcf-progress-div" hidden>
+                        <p id="rcf-progress-info"></p>
+                        <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div id='rcf-response-container'></div>
                 </div>
-            </div>
-            <div id='rcf-response-container'></div>`
+            </div>`
 
         eContent.append(restoreContentForm);
     }
@@ -189,9 +196,14 @@ async function resetCourses(e) {
 
 
         resetCourseForm.innerHTML = `
-            <div>
-                <h3>Reset Courses</h3>
-            </div>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-arrow-clockwise me-2"></i>Reset Courses
+                    </h3>
+                    <small class="text-muted">Reset course content and settings to default state</small>
+                </div>
+                <div class="card-body">
                 <div class="row">
                     <div class="mb-3" id="reset-switches">
                         <div class="form-check form-switch">
@@ -413,9 +425,14 @@ async function createSupportCourse(e) {
         // const eForm = document.createElement('form');
 
         createSupportCourseForm.innerHTML = `
-            <div>
-                <h3>Create Support Course</h3>
-            </div>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-plus-circle me-2"></i>Create Support Course
+                    </h3>
+                    <small class="text-muted">Create a new support course with predefined settings</small>
+                </div>
+                <div class="card-body">
             <div id="course-options">
                 <div class="row mb-3">
                     <div class="col-6">
@@ -1609,17 +1626,15 @@ async function createAssociatedCourses(e) {
         createAssociatedCoursesForm = document.createElement('form');
         createAssociatedCoursesForm.id = 'create-associated-courses-form';
 
-
-        // eContent.innerHTML = `
-        //     <div>
-        //         <h3>Create Associated Courses</h3>
-        //     </div>
-        // `;
-
-        // const eForm = document.createElement('form');
-
-
         createAssociatedCoursesForm.innerHTML = `
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-diagram-3 me-2"></i>Create Associated Courses
+                    </h3>
+                    <small class="text-muted">Create multiple courses and associate them with a blueprint course</small>
+                </div>
+                <div class="card-body">
             <div id="ac-container">
                 <div class="row flex-column">
                     <div class="mb-3 col-auto">
@@ -1654,7 +1669,9 @@ async function createAssociatedCourses(e) {
                 <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
-            </div>`
+            </div>
+            </div>
+        </div>`
 
         eContent.append(createAssociatedCoursesForm);
     }

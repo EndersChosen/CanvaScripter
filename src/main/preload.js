@@ -281,6 +281,16 @@ contextBridge.exposeInMainWorld('axios', {
 
         return await ipcRenderer.invoke('axios:deleteClassicQuizzes', data);
     },
+    createNewQuizzes: async (data) => {
+        console.log('preload.js > createNewQuizzes');
+
+        return await ipcRenderer.invoke('axios:createNewQuizzes', data);
+    },
+    createNewQuizItems: async (data) => {
+        console.log('preload.js > createNewQuizItems');
+
+        return await ipcRenderer.invoke('axios:createNewQuizItems', data);
+    },
     deleteDiscussions: async (data) => {
         console.log('preload.js > deleteDiscussions');
         return await ipcRenderer.invoke('axios:deleteDiscussions', data);

@@ -17,47 +17,78 @@ async function deleteImportedContent(e) {
         form = document.createElement('form');
         form.id = 'imports-delete-form';
         form.innerHTML = `
-                        <div class="mb-3">
-                                <h3 class="mb-1">Delete Imported Content</h3>
-                                <div class="text-muted small">Enter a Course ID and Import ID to review and delete imported items.</div>
-                        </div>
-
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <div class="row g-3 align-items-start">
-                                    <div class="col-sm-3">
-                                        <label for="course-id" class="form-label">Course ID</label>
-                                        <input id="course-id" type="text" class="form-control" aria-describedby="course-id-help" inputmode="numeric" />
-                                        <div id="course-id-help" class="form-text">Numbers only</div>
-                                        <div class="invalid-feedback">Please enter a valid numeric Course ID.</div>
-                                    </div>
-                                    <div class="col-sm-3">
-                                        <label for="import-id" class="form-label">Import ID</label>
-                                        <input class="form-control" id="import-id" type="text" aria-describedby="import-id-help" />
-                                        <div id="import-id-help" class="form-text">Use "List Imports" if you need to look it up.</div>
-                                    </div>
-                                    <div class="col-auto">
-                                        <button id="check-imported-assets-btn" class="btn btn-primary" disabled>Check</button>
-                                    </div>
-                                    <div class="col-auto">
-                                        <button id="list-imports-btn" type="button" class="btn btn-outline-secondary">List Imports</button>
-                                    </div>
-                                </div>
+            <div class="card">
+                                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-cloud-download me-2"></i>Import Items Cleaner
+                    </h3>
+                    <small class="text-muted">Enter a Course ID and Import ID to review and delete imported items</small>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-start">
+                        <div class="col-sm-3">
+                            <label for="course-id" class="form-label fw-bold">
+                                <i class="bi bi-book me-1"></i>Course ID
+                            </label>
+                            <input id="course-id" type="text" class="form-control" 
+                                   aria-describedby="course-id-help" inputmode="numeric" 
+                                   placeholder="Enter course ID" />
+                            <div id="course-id-help" class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>Numbers only
+                            </div>
+                            <div class="invalid-feedback">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Please enter a valid numeric Course ID
                             </div>
                         </div>
-
-                        <div hidden id="imports-progress-div" class="mb-3">
-                            <div class="d-flex align-items-center gap-2">
-                                <div class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></div>
-                                <p id="imports-progress-info" class="mb-0">Preparing...</p>
-                            </div>
-                            <div class="progress mt-3" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                                    <div class="progress-bar" style="width: 0%"></div>
+                        <div class="col-sm-3">
+                            <label for="import-id" class="form-label fw-bold">
+                                <i class="bi bi-download me-1"></i>Import ID
+                            </label>
+                            <input class="form-control" id="import-id" type="text" 
+                                   aria-describedby="import-id-help" placeholder="Enter import ID" />
+                            <div id="import-id-help" class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>Use "List Imports" if you need to look it up
                             </div>
                         </div>
+                        <div class="col-auto d-flex flex-column gap-2">
+                            <button id="check-imported-assets-btn" class="btn btn-success" disabled>
+                                <i class="bi bi-search me-1"></i>Check
+                            </button>
+                            <button id="list-imports-btn" type="button" class="btn btn-outline-secondary">
+                                <i class="bi bi-list me-1"></i>List Imports
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                        <div id="imports-list-container" class="mt-3"></div>
-                        <div id="imports-response-container" class="mt-3"></div>
+            
+            <!-- Progress Card -->
+            <div class="card mt-3" id="imports-progress-div" hidden>
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-gear me-2"></i>Processing Import
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p id="imports-progress-info" class="mb-2">Preparing...</p>
+                    <div class="progress mb-2" style="height: 15px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%" 
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Cards -->
+            <div class="card mt-3" id="imports-list-container-card" hidden>
+                <div class="card-body" id="imports-list-container"></div>
+            </div>
+            
+            <div class="card mt-3" id="imports-response-container-card" hidden>
+                <div class="card-body" id="imports-response-container"></div>
+            </div>
                 `;
         eContent.append(form);
     }

@@ -3,6 +3,9 @@
   "version": "1.0.1",
   "description": "Provides a UI for some common Canvas support Scripts.",
   "main": "src/main/main.js",
+  "engines": {
+    "node": ">=20 <=22"
+  },
   "scripts": {
     "start": "electron .",
     "start:forge": "electron-forge start",
@@ -53,21 +56,20 @@
   "author": "Caleb Kruger",
   "license": "MIT",
   "devDependencies": {
-    "@electron-forge/cli": "^6.4.2",
-    "@electron-forge/maker-deb": "^6.4.2",
-    "@electron-forge/maker-rpm": "^6.4.2",
-    "@electron-forge/maker-squirrel": "^6.4.2",
-    "@electron-forge/maker-zip": "^6.4.2",
-    "@electron-forge/plugin-auto-unpack-natives": "^6.4.2",
-    "electron": "^32.0.0",
-    "electron-builder": "^25.0.0",
-    "chokidar": "^3.6.0"
+    "@electron-forge/cli": "^7.9.0",
+    "@electron-forge/maker-squirrel": "^7.9.0",
+    "@electron-forge/maker-zip": "^7.9.0",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.9.0",
+    "chokidar": "^4.0.3",
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12"
   },
   "dependencies": {
     "archiver": "^7.0.1",
     "axios": "^1.7.0",
     "bootstrap": "^5.3.0",
-    "dotenv": "^16.4.0",
+    "bootstrap-icons": "^1.13.1",
+    "dotenv": "^17.2.2",
     "electron-squirrel-startup": "^1.0.0",
     "jszip": "^3.10.1"
   },

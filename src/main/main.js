@@ -47,10 +47,10 @@ const {
     syncBPCourses
 } = require('../shared/canvas-api/courses');
 const quizzes_classic = require('../shared/canvas-api/quizzes_classic');
+const quizzes_nq = require('../shared/canvas-api/quizzes_nq');
 const modules = require('../shared/canvas-api/modules');
 const folders = require('../shared/canvas-api/folders');
 const files = require('../shared/canvas-api/files');
-const quizzes_nq = require('../shared/canvas-api/quizzes_nq');
 const grading_standards = require('../shared/canvas-api/grading_standards');
 const discussions = require('../shared/canvas-api/discussions');
 const pages = require('../shared/canvas-api/pages');
@@ -3354,6 +3354,103 @@ app.whenReady().then(() => {
 
         return batchResponse;
     })
+
+    // New Quiz (New Quizzes) IPC Handlers
+    ipcMain.handle('axios:createNewQuizzes', async (event, data) => {
+        console.log('main.js > axios:createNewQuizzes');
+
+        try {
+            const totalRequests = data.count || 1;
+            let completedRequests = 0;
+
+            const updateProgress = () => {
+                completedRequests++;
+                mainWindow.webContents.send('update-progress', {
+                    mode: 'determinate',
+                    label: 'Creating new quizzes',
+                    processed: completedRequests,
+                    total: totalRequests,
+                    value: completedRequests / totalRequests,
+                });
+            };
+
+            const request = async (requestData) => {
+                try {
+                    return await quizzes_nq.createNewQuiz(requestData);
+                } catch (error) {
+                    throw error;
+                } finally {
+                    updateProgress();
+                }
+            };
+
+            const requests = [];
+            for (let i = 0; i < totalRequests; i++) {
+                const requestData = {
+                    domain: data.domain,
+                    token: data.token,
+                    course_id: data.course_id,
+                    quiz_title: totalRequests > 1 ? `${data.title} ${i + 1}` : data.title,
+                    published: data.published,
+                    grading_type: 'points',
+                };
+                requests.push({ id: i + 1, request: () => request(requestData) });
+            }
+
+            const batchResponse = await batchHandler(requests);
+            return batchResponse;
+        } catch (error) {
+            throw error.message;
+        }
+    });
+
+    ipcMain.handle('axios:createNewQuizItems', async (event, data) => {
+        console.log('main.js > axios:createNewQuizItems');
+
+        try {
+            const totalRequests = data.quizzes.length;
+            let completedRequests = 0;
+
+            const updateProgress = () => {
+                completedRequests++;
+                mainWindow.webContents.send('update-progress', {
+                    mode: 'determinate',
+                    label: 'Creating quiz items',
+                    processed: completedRequests,
+                    total: totalRequests,
+                    value: completedRequests / totalRequests,
+                });
+            };
+
+            const request = async (requestData) => {
+                try {
+                    return await quizzes_nq.addItemsToNewQuiz(requestData);
+                } catch (error) {
+                    throw error;
+                } finally {
+                    updateProgress();
+                }
+            };
+
+            const requests = [];
+            for (let i = 0; i < totalRequests; i++) {
+                const quiz = data.quizzes[i];
+                const requestData = {
+                    domain: data.domain,
+                    token: data.token,
+                    course_id: data.course_id,
+                    quiz_id: quiz.id || quiz,
+                    questionTypes: data.questionTypes
+                };
+                requests.push({ id: i + 1, request: () => request(requestData) });
+            }
+
+            const batchResponse = await batchHandler(requests);
+            return batchResponse;
+        } catch (error) {
+            throw error.message;
+        }
+    });
 
     ipcMain.handle('axios:getModules', async (event, data) => {
         console.log('main.js > axios:getModules');

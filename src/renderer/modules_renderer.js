@@ -6,7 +6,7 @@ function moduleTemplate(e) {
         case 'create-modules':
             createModules(e);
             break;
-        case 'relock-modules':
+        case 'unlock-modules':
             reLockModules(e);
             break;
         default:
@@ -24,9 +24,14 @@ async function deleteModules(e) {
         createModuleDeleteForm = document.createElement('form');
         createModuleDeleteForm.id = 'create-module-delete-form';
         createModuleDeleteForm.innerHTML = `
-            <div>
-                <h3>Delete Modules</h3>
-            </div>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-trash me-2"></i>Delete Modules
+                    </h3>
+                    <small class="text-muted">Remove modules from a course</small>
+                </div>
+                <div class="card-body">
             <div class="row">
                 <div class="row align-items-center">
                         <div class="col-2">
@@ -62,6 +67,8 @@ async function deleteModules(e) {
                 </div>
             </div>
             <div id="response-container" class="mt-3">
+            </div>
+                </div>
             </div>
         `;
 
@@ -222,9 +229,14 @@ async function createModules(e) {
         createModuleForm = document.createElement('form');
         createModuleForm.id = 'create-module-form';
         createModuleForm.innerHTML = `
-            <div>
-                <h3>Create Modules</h3>
-            </div>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-plus-circle me-2"></i>Create Modules
+                    </h3>
+                    <small class="text-muted">Add new modules to a course</small>
+                </div>
+                <div class="card-body">
             <div class="row">
                 <div class="row align-items-center">
                         <div class="col-2">
@@ -255,6 +267,8 @@ async function createModules(e) {
                 </div>
             </div>
             <div id="create-response-container" class="mt-3">
+            </div>
+                </div>
             </div>
         `;
 
@@ -348,10 +362,14 @@ async function reLockModules(e) {
         reLockModulesForm = document.createElement('form');
         reLockModulesForm.id = 'relock-modules-form';
         reLockModulesForm.innerHTML = `
-            <div>
-                <h3>Re-lock Modules</h3>
-                <p>Resets module progressions to their default locked state and recalculates them based on the current requirements.</p>
-            </div>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-arrow-clockwise me-2"></i>Reset Module Progressions
+                    </h3>
+                    <small class="text-muted">Resets module progressions to their default locked state and recalculates them based on the current requirements</small>
+                </div>
+                <div class="card-body">
             <div class="row">
                 <div class="row align-items-end">
                     <div class="col-12 col-sm-6 col-md-5 col-lg-4">
@@ -387,6 +405,8 @@ async function reLockModules(e) {
                 </div>
             </div>
             <div id="relock-response-container" class="mt-3">
+            </div>
+                </div>
             </div>
         `;
 

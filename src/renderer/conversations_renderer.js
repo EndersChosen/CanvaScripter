@@ -6,8 +6,7 @@ async function conversationTemplate(e) {
     switch (e.target.id) {
         case 'delete-conversations-subject':
             return deleteConvos(e);
-        case 'download-conversations-csv': // Not Complete
-            return downloadConvos(e);
+        case 'download-conversations-csv': // Not Complete\n            return downloadConvos(e);
         case 'get-deleted-conversations':
             return getDeletedConversations(e);
         case 'restore-deleted-conversations':
@@ -37,36 +36,42 @@ async function restoreDeletedConversations(e) {
         form = document.createElement('form');
         form.id = 'restore-deleted-conversations-form';
         form.innerHTML = `
-            <div>
-                <h3>Restore Deleted Conversations</h3>
-                <p>Upload CSV, ZIP of CSVs, or JSON with objects: { message_id, user_id, conversation_id }.</p>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-chat-dots me-2"></i>Restore Deleted Conversations
+                    </h3>
+                    <small class="text-muted">Upload CSV, ZIP of CSVs, or JSON with objects: { message_id, user_id, conversation_id }</small>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center mt-2">
+                        <div class="col-auto">
+                            <button id="rdc-upload" type="button" class="btn btn-secondary">Choose CSV/ZIP/JSON</button>
+                        </div>
+                        <div class="col-auto">
+                            <span id="rdc-upload-info" class="form-text"></span>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-auto">
+                            <button id="rdc-restore" type="button" class="btn btn-primary" disabled>Restore</button>
+                        </div>
+                        <div class="col-auto">
+                            <button id="rdc-cancel" type="button" class="btn btn-outline-danger" disabled>Cancel</button>
+                        </div>
+                        <div class="col-auto">
+                            <button id="rdc-clear" type="button" class="btn btn-outline-secondary">Clear</button>
+                        </div>
+                    </div>
+                    <div hidden id="rdc-progress-div" class="mt-3">
+                        <p id="rdc-progress-info"></p>
+                        <div class="progress mt-1" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div id="rdc-response" class="mt-3"></div>
+                </div>
             </div>
-            <div class="row align-items-center mt-2">
-                <div class="col-auto">
-                    <button id="rdc-upload" type="button" class="btn btn-secondary">Choose CSV/ZIP/JSON</button>
-                </div>
-                <div class="col-auto">
-                    <span id="rdc-upload-info" class="form-text"></span>
-                </div>
-            </div>
-            <div class="row mt-3">
-                <div class="col-auto">
-                    <button id="rdc-restore" type="button" class="btn btn-primary" disabled>Restore</button>
-                </div>
-                <div class="col-auto">
-                    <button id="rdc-cancel" type="button" class="btn btn-outline-danger" disabled>Cancel</button>
-                </div>
-                <div class="col-auto">
-                    <button id="rdc-clear" type="button" class="btn btn-outline-secondary">Clear</button>
-                </div>
-            </div>
-            <div hidden id="rdc-progress-div" class="mt-3">
-                <p id="rdc-progress-info"></p>
-                <div class="progress mt-1" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar" style="width: 0%"></div>
-                </div>
-            </div>
-            <div id="rdc-response" class="mt-3"></div>
         `;
         eContent.append(form);
     }
@@ -342,10 +347,14 @@ async function getDeletedConversations(e) {
         form = document.createElement('form');
         form.id = 'get-deleted-conversations-form';
         form.innerHTML = `
-            <div>
-                <h3>Get Deleted Conversations</h3>
-                <p>Fetch deleted conversations for a user, optionally filtered by deleted_before/after.</p>
-            </div>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-search me-2"></i>Get Deleted Conversations
+                    </h3>
+                    <small class="text-muted">Fetch deleted conversations for a user, optionally filtered by deleted_before/after</small>
+                </div>
+                <div class="card-body">
             <div class="row align-items-center">
                 <div class="col-auto">
                     <label for="gdc-user-id" class="form-label">User ID</label>
@@ -561,39 +570,45 @@ async function deleteConvos(e) {
         form = document.createElement('form');
         form.id = 'delete-conversations-subject-form';
         form.innerHTML = `
-            <div>
-                <h3>Delete conversations with specific subject</h3>
-                <p>Provide a Canvas user ID and an exact subject. This will search sent conversations for that subject and delete them for all recipients.</p>
-            </div>
-            <div class="row align-items-center">
-                <div class="col-auto"><label for="dcs-user-id" class="form-label">User ID</label></div>
-                <div class="col-2"><input id="dcs-user-id" type="text" class="form-control"></div>
-                <div class="col-auto"><span id="dcs-user-help" class="form-text" style="display:none;">Must be a number</span></div>
-            </div>
-            <div class="row align-items-center mt-2">
-                <div class="col-auto"><label for="dcs-subject" class="form-label">Subject</label></div>
-                <div class="col-4">
-                    <input id="dcs-subject" type="text" class="form-control" placeholder="Exact subject text">
-                    <div class="form-text">Exact match; case-sensitive.</div>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-trash me-2"></i>Delete User Conversations
+                    </h3>
+                    <small class="text-muted">Provide a Canvas user ID and an exact subject. This will search sent conversations for that subject and delete them for all recipients.</small>
                 </div>
-            </div>
-            <div class="row mt-3">
-                <div class="col-auto"><button id="dcs-search" type="button" class="btn btn-primary" disabled>Search</button></div>
-                <div class="col-auto"><button id="dcs-cancel-search" type="button" class="btn btn-outline-danger" disabled>Cancel</button></div>
-            </div>
-            <div hidden id="dcs-search-progress-div" class="mt-3">
-                <p id="dcs-search-progress-info"></p>
-            </div>
-            <div id="dcs-search-result" class="mt-2"></div>
-            <hr class="my-3" />
-            <div class="row mt-2">
-                <div class="col-auto"><button id="dcs-delete" type="button" class="btn btn-danger" disabled>Delete Found</button></div>
-                <div class="col-auto"><button id="dcs-cancel-delete" type="button" class="btn btn-outline-secondary" disabled>Cancel</button></div>
-            </div>
-            <div hidden id="dcs-delete-progress-div" class="mt-3">
-                <p id="dcs-delete-progress-info"></p>
-                <div class="progress mt-1" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar" style="width: 0%"></div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto"><label for="dcs-user-id" class="form-label">User ID</label></div>
+                        <div class="col-2"><input id="dcs-user-id" type="text" class="form-control"></div>
+                        <div class="col-auto"><span id="dcs-user-help" class="form-text" style="display:none;">Must be a number</span></div>
+                    </div>
+                    <div class="row align-items-center mt-2">
+                        <div class="col-auto"><label for="dcs-subject" class="form-label">Subject</label></div>
+                        <div class="col-4">
+                            <input id="dcs-subject" type="text" class="form-control" placeholder="Exact subject text">
+                            <div class="form-text">Exact match; case-sensitive.</div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-auto"><button id="dcs-search" type="button" class="btn btn-primary" disabled>Search</button></div>
+                        <div class="col-auto"><button id="dcs-cancel-search" type="button" class="btn btn-outline-danger" disabled>Cancel</button></div>
+                    </div>
+                    <div hidden id="dcs-search-progress-div" class="mt-3">
+                        <p id="dcs-search-progress-info"></p>
+                    </div>
+                    <div id="dcs-search-result" class="mt-2"></div>
+                    <hr class="my-3" />
+                    <div class="row mt-2">
+                        <div class="col-auto"><button id="dcs-delete" type="button" class="btn btn-danger" disabled>Delete Found</button></div>
+                        <div class="col-auto"><button id="dcs-cancel-delete" type="button" class="btn btn-outline-secondary" disabled>Cancel</button></div>
+                    </div>
+                    <div hidden id="dcs-delete-progress-div" class="mt-3">
+                        <p id="dcs-delete-progress-info"></p>
+                        <div class="progress mt-1" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;

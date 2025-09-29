@@ -112,7 +112,7 @@ function errorHandler(error, progressInfo, container = null) {
         errorCard.innerHTML = `
             <div class="card-header">
                 <h6 class="mb-0 text-danger">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <i class="bi bi-exclamation-triangle me-2"></i>
                     ${errorTitle}
                 </h6>
             </div>
@@ -204,13 +204,14 @@ function initializeSidebar() {
     if (sidebarToggle && sidebar) {
         sidebarToggle.addEventListener('click', function () {
             const isHidden = sidebar.style.display === 'none';
+            const icon = sidebarToggle.querySelector('i');
             if (isHidden) {
                 sidebar.style.display = 'block';
-                sidebarToggle.textContent = '«';
+                icon.className = 'bi bi-chevron-double-left';
                 sidebarToggle.title = 'Hide menu';
             } else {
                 sidebar.style.display = 'none';
-                sidebarToggle.textContent = '»';
+                icon.className = 'bi bi-chevron-double-right';
                 sidebarToggle.title = 'Show menu';
             }
         });

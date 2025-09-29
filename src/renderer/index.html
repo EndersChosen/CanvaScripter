@@ -9,6 +9,7 @@
     <meta http-equiv="X-Content-Security-Policy" content="default-src 'self'; script-src 'self'" />
     <title>CanvaScripter</title>
     <link rel="stylesheet" href="bootstrap.min.css">
+    <link rel="stylesheet" href="bootstrap-icons.min.css">
     <link rel="stylesheet" href="styles.css">
     <script src="bootstrap.min.js" defer></script>
     <script src="progress-utils.js" defer></script>
@@ -28,6 +29,7 @@
     <script src="./announcements_renderer.js" defer></script>
     <script src="./pages_renderer.js" defer></script>
     <script src="./sections_renderer.js" defer></script>
+    <script src="./ui-examples.js" defer></script>
     <script src="./integration-test.js" defer></script>
 </head>
 
@@ -37,8 +39,10 @@
             <div class="row justify-content-start g-2">
                 <div class="col-12 col-md-4 col-lg-4">
                     <div class="input-group flex-nowrap mt-2 mb-3">
-                        <button id="sidebar-toggle" class="btn btn-outline-secondary" type="button" aria-pressed="false"
-                            title="Hide menu" aria-label="Toggle menu">«</button>
+                        <button id="sidebar-toggle" class="btn" type="button" aria-pressed="false" title="Hide menu"
+                            aria-label="Toggle menu">
+                            <i class="bi bi-chevron-double-left"></i>
+                        </button>
                         <span class="input-group-text">https://</span>
                         <div class="form-floating flex-grow-1">
                             <input type="text" class="form-control" placeholder="doman" id="domain" value="" />

@@ -55,15 +55,19 @@ function checkComm(e) {
 
         // const eForm = document.createElement('form');
         checkSuppressionListForm.innerHTML = `
-            <div>
-                <h3>Check suppression and bounce list</h3>
-            </div>
-                <div class="row">
-                    <div class="mb-3">
-                        <div class="col-auto">
-                            <label for="region" class="form-label">Region: </label>
-                        </div>
-                        <div class="col-2">
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-shield-exclamation me-2"></i>Check Suppression and Bounce List
+                    </h3>
+                    <small class="text-muted">Verify email addresses against suppression and bounce lists</small>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label for="region" class="form-label fw-bold">
+                                <i class="bi bi-geo me-1"></i>Region
+                            </label>
                             <select id="region" class="form-select" aria-label="Region info">
                                 <option value="iad_pdx" selected>IAD/PDX</option>
                                 <option value="dub_fra">DUB/FRA</option>
@@ -72,63 +76,119 @@ function checkComm(e) {
                             </select>
                         </div>
                     </div>
-                    <div id="email-options">
-                        <div class="form-check form-switch">
-                            <label class="form-label" for="single-email-chkbx">Single Email</label>
-                            <input id="single-email-chkbx" type="checkbox" class="form-check-input" role="switch">
-                        </div>
-                        <div class="form-check form-switch">
-                            <label class="form-label" for="domain-email-chkbx">Domain</label>
-                            <input id="domain-email-chkbx" type="checkbox" class="form-check-input" role="switch">
-                        </div>
-                        <div class="form-check form-switch">
-                            <label class="form-label" for="file-upload-chkbx">File Upload</label>
-                            <input id="file-upload-chkbx" type="checkbox" class="form-check-input" role="switch">
-                        </div>
-                    </div>
-                    <div id="single-email-section" class="mt-3" hidden>
-                        <div class="col-auto">
-                            <label id="email-label" for="email" class="form-label">Email</label>
-                        </div>
-                        <div class="w-100"></div>
-                        <div class="col-5">
-                            <input type="text" id="email" class="form-control" aria-describedby="email-form-text">
-                        </div>
-                        <div class="form-text" id="email-form-text">
-                            Enter the full email address you want to check
+                    <!-- Check Method Selection -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-list me-1"></i>Check Method
+                            </label>
+                            <div class="btn-group w-100" role="group" aria-label="Check method selection" id="email-options">
+                                <input type="radio" class="btn-check" name="check-method" id="single-email-chkbx" value="single">
+                                <label class="btn btn-outline-primary" for="single-email-chkbx">
+                                    <i class="bi bi-envelope me-1"></i>Single Email
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="check-method" id="domain-email-chkbx" value="domain">
+                                <label class="btn btn-outline-primary" for="domain-email-chkbx">
+                                    <i class="bi bi-globe me-1"></i>Domain
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="check-method" id="file-upload-chkbx" value="file">
+                                <label class="btn btn-outline-primary" for="file-upload-chkbx">
+                                    <i class="bi bi-upload me-1"></i>File Upload
+                                </label>
+                            </div>
                         </div>
                     </div>
-                    <div id="domain-section" class="mt-3" hidden>
-                        <div class="col-auto">
-                            <label id="domain-label" for="domain-input" class="form-label">Domain</label>
-                        </div>
-                        <div class="w-100"></div>
-                        <div class="col-5">
-                            <input type="text" id="domain-input" class="form-control" aria-describedby="domain-form-text">
-                        </div>
-                        <div class="form-text" id="domain-form-text">
-                            Enter the domain pattern you want to check. You can use a wildcard at the beginning and end, for example *student* will match anything that has student in the email. <p><p>NOTE: This queries the entire aws region and will take some time, we're talking hours in some cases.</p></p>
+                    <!-- Single Email Input -->
+                    <div class="row g-3 mb-4 d-none" id="single-email-section">
+                        <div class="col-md-6">
+                            <label id="email-label" for="email" class="form-label fw-bold">
+                                <i class="bi bi-envelope me-1"></i>Email Address
+                            </label>
+                            <input type="text" id="email" class="form-control" 
+                                   aria-describedby="email-form-text" placeholder="Enter email address">
+                            <div class="form-text text-muted" id="email-form-text">
+                                <i class="bi bi-info-circle me-1"></i>Enter the full email address you want to check
+                            </div>
                         </div>
                     </div>
-                    <div id="file-upload-section" class="mt-3" hidden>
-                        <label for="email-upload" class="form-label">Upload CSV of emails</label>
-                        <input type="file" id="email-upload" accept=".csv" class="form-control" />
+                    
+                    <!-- Domain Input -->
+                    <div class="row g-3 mb-4 d-none" id="domain-section">
+                        <div class="col-md-8">
+                            <label id="domain-label" for="domain-input" class="form-label fw-bold">
+                                <i class="bi bi-globe me-1"></i>Domain Pattern
+                            </label>
+                            <input type="text" id="domain-input" class="form-control" 
+                                   aria-describedby="domain-form-text" placeholder="e.g., *student*">
+                            <div class="form-text text-muted" id="domain-form-text">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Enter domain pattern with wildcards. Example: *student* matches any email containing "student"
+                            </div>
+                            <div class="alert alert-warning mt-2">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                <strong>Note:</strong> Domain queries check the entire AWS region and may take several hours to complete.
+                            </div>
+                        </div>
                     </div>
-                </div>
-            <button type="button" class="btn btn-primary mt-3" id="dynamic-check-btn" disabled>Check</button>
-            <button type="button" class="btn btn-outline-secondary mt-3 ms-2" id="cancel-btn" hidden>Cancel</button>
-            <div id="progress-div" hidden>
-                <p id="progress-info"></p>
-                <div id="loading-wheel">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Loading...</span>
+                    
+                    <!-- File Upload Input -->
+                    <div class="row g-3 mb-4 d-none" id="file-upload-section">
+                        <div class="col-md-6">
+                            <label for="email-upload" class="form-label fw-bold">
+                                <i class="bi bi-filetype-csv me-1"></i>Upload CSV of Emails
+                            </label>
+                            <input type="file" id="email-upload" accept=".csv" class="form-control" />
+                            <div class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>Upload a CSV file containing email addresses to check
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar" style="width: 0%"></div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-success" id="dynamic-check-btn" disabled>
+                                    <i class="bi bi-search me-2"></i>Check
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" id="cancel-btn" hidden>
+                                    <i class="bi bi-x-circle me-2"></i>Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div id="response-container" class="mt-5">
+            
+            <!-- Progress Card -->
+            <div class="card mt-3" id="progress-div" hidden>
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-gear me-2"></i>Checking Suppression List
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p id="progress-info" class="mb-2"></p>
+                    <div id="loading-wheel" class="d-flex align-items-center gap-2 mb-3">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="text-muted">Processing...</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 15px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             style="width: 0%" role="progressbar" 
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Results Card -->
+            <div class="card mt-3" id="response-container-card" hidden>
+                <div class="card-body" id="response-container"></div>
             </div>
             `
 
@@ -583,9 +643,14 @@ function resetComm(e) {
         resetCommForm = document.createElement('form');
         resetCommForm.id = 'reset-comm-form';
         resetCommForm.innerHTML = `
-        <div>
-            <h3>Reset Communication Channels</h3>
-        </div>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-arrow-clockwise me-2"></i>Reset Communication Channels
+                    </h3>
+                    <small class="text-muted">Reset communication channel preferences for users</small>
+                </div>
+                <div class="card-body">
         <div>
             <div class="col-2">
                 <select id="region" class="form-select" aria-label="Region info">
@@ -1366,9 +1431,14 @@ function unconfirmed(e) {
 
         // const eForm = document.createElement('form');
         unconfirmedEmailForm.innerHTML = `
-            <div>
-                <h3>Unconfirmed emails</h3>
-            </div>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-envelope-exclamation me-2"></i>Unconfirmed Emails
+                    </h3>
+                    <small class="text-muted">Find and manage unconfirmed email addresses</small>
+                </div>
+                <div class="card-body">
             <div id="switches">
                 <div class="form-check form-switch">
                     <label class="form-check-label" for="uncofirmed-email-switch">Check for unconfirmed emails</label>

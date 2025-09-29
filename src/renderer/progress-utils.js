@@ -171,9 +171,113 @@ window.ProgressUtils = {
         observer.observe(document.body, { childList: true, subtree: true });
 
         return () => observer.disconnect();
+    },
+
+    /**
+     * Creates a universal card header with consistent styling
+     * @param {Object} options - Configuration object
+     * @param {string} options.title - The main title text (required)
+     * @param {string} options.subtitle - Descriptive subtitle text (optional)
+     * @param {string} options.icon - Bootstrap icon class (optional, e.g., 'bi-megaphone')
+     * @param {string} options.variant - Color variant ('primary'|'secondary'|'success'|'danger'|'warning'|'info'|'light'|'dark')
+     * @returns {string} HTML string for the card header
+     */
+    createUniversalHeader: function (options = {}) {
+        const {
+            title = 'Canvas API Request',
+            subtitle = '',
+            icon = 'bi-gear',
+            variant = 'primary'
+        } = options;
+
+        // Ensure icon starts with 'bi-'
+        const iconClass = icon.startsWith('bi-') ? icon : `bi-${icon}`;
+
+        // Generate header HTML
+        return `
+            <div class="card-header bg-${variant} text-white">
+                <h3 class="card-title mb-0">
+                    <i class="${iconClass} me-2"></i>${title}
+                </h3>
+                ${subtitle ? `<small class="text-light">${subtitle}</small>` : ''}
+            </div>
+        `;
+    },
+
+    /**
+     * Creates a complete card structure with header, body, progress, and results sections
+     * @param {Object} options - Configuration object  
+     * @param {string} options.title - The main title text (required)
+     * @param {string} options.subtitle - Descriptive subtitle text (optional)
+     * @param {string} options.icon - Bootstrap icon class (optional)
+     * @param {string} options.variant - Color variant (optional, defaults to 'primary')
+     * @param {string} options.bodyContent - Content for the card body (optional)
+     * @param {string} options.progressId - ID prefix for progress elements (optional)
+     * @param {boolean} options.includeProgress - Whether to include progress card (default: true)
+     * @param {boolean} options.includeResults - Whether to include results card (default: true)
+     * @returns {string} Complete HTML structure for the card
+     */
+    createUniversalCard: function (options = {}) {
+        const {
+            title = 'Canvas API Request',
+            subtitle = '',
+            icon = 'bi-gear',
+            variant = 'primary',
+            bodyContent = '',
+            progressId = 'request',
+            includeProgress = true,
+            includeResults = true
+        } = options;
+
+        const header = this.createUniversalHeader({ title, subtitle, icon, variant });
+
+        let html = `
+            <div class="card">
+                ${header}
+                <div class="card-body">
+                    ${bodyContent}
+                </div>
+            </div>
+        `;
+
+        if (includeProgress) {
+            html += `
+            <!-- Progress Card -->
+            <div class="card mt-3" id="${progressId}-progress-card" hidden>
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-gear me-2"></i>Processing Request
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p id="${progressId}-progress-info" class="mb-2"></p>
+                    <div class="progress mb-2" style="height: 15px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             id="${progressId}-progress-bar" style="width: 0%" 
+                             role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                    <small class="text-muted" id="${progressId}-progress-detail"></small>
+                </div>
+            </div>
+            `;
+        }
+
+        if (includeResults) {
+            html += `
+            <!-- Results Card -->
+            <div class="card mt-3" id="${progressId}-results-card" hidden>
+                <div class="card-body" id="${progressId}-response-container"></div>
+            </div>
+            `;
+        }
+
+        return html;
     }
 };
 
 // For convenience, create global aliases
 window.enhanceProgressBarWithPercent = window.ProgressUtils.enhanceProgressBarWithPercent;
 window.updateProgressWithPercent = window.ProgressUtils.updateProgressWithPercent;
+window.createUniversalHeader = window.ProgressUtils.createUniversalHeader;
+window.createUniversalCard = window.ProgressUtils.createUniversalCard;

@@ -38,32 +38,57 @@ function emptyAssignmentGroups(e) {
         // const eForm = document.createElement('form');
 
         deleteEmptyAssignmentGroupsForm.innerHTML = `
-            <div>
-                <h3>Delete Empty Assignment Groups</h3>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-trash me-2"></i>Delete Empty Assignment Groups
+                    </h3>
+                    <small class="text-muted">Remove assignment groups that contain no assignments</small>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-start">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold" for="course-id">
+                                <i class="bi bi-book me-1"></i>Course ID
+                            </label>
+                            <input id="course-id" type="text" class="form-control" 
+                                   aria-describedby="input-checker" placeholder="Enter course ID" />
+                            <div id="input-checker" class="form-text text-danger d-none">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
+                            </div>
+                        </div>
+                        <div class="col-md-8 d-flex align-items-end">
+                            <div class="d-grid w-100">
+                                <button id="action-btn" class="btn btn-warning">
+                                    <i class="bi bi-search me-2"></i>Check for Empty Groups
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="row align-items-center">
-                <div class="col-auto">
-                    <label class="form-label">Course</label>
+            
+            <!-- Progress Card -->
+            <div class="card mt-3" id="eag-progress-div" hidden>
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-gear me-2"></i>Checking Assignment Groups
+                    </h5>
                 </div>
-                <div class="w-100"></div>
-                <div class="col-2">
-                    <input id="course-id" type="text" class="form-control" aria-describedby="input-checker" />
-                </div>
-                <div class="col-auto" >
-                    <span id="input-checker" class="form-text" style="display: none;">Must only contain numbers</span>
-                </div>
-                <div class="w-100"></div>
-                <div class="col-auto">
-                    <button id="action-btn" class="btn btn-primary mt-3">Check</button>
-                </div>
-            </div>
-            <div hidden id="eag-progress-div">
-                <p id="eag-progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar" style="width: 0%"></div>
+                <div class="card-body">
+                    <p id="eag-progress-info" class="mb-2"></p>
+                    <div class="progress mb-2" style="height: 15px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             style="width: 0%" role="progressbar" 
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div id="eag-response-container" class="mt-5">
+            
+            <!-- Results Card -->
+            <div class="card mt-3" id="eag-response-container-card" hidden>
+                <div class="card-body" id="eag-response-container"></div>
             </div>
         `;
 
@@ -301,33 +326,67 @@ function assignmentGroupCreator(e) {
         // const eForm = document.createElement('form');
 
         createAssignmentGroupForm.innerHTML = `
-            <div>
-                <h3>Create Assignment Groups</h3>
+            <div class="card">
+                                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-folder-plus me-2"></i>Assignment Group Management
+                    </h3>
+                    <small class="text-muted">Create multiple assignment groups for organizing assignments</small>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-start">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold" for="course-id">
+                                <i class="bi bi-book me-1"></i>Course ID
+                            </label>
+                            <input id="course-id" type="text" class="form-control" 
+                                   aria-describedby="input-checker" placeholder="Enter course ID" />
+                            <div id="input-checker" class="form-text text-danger d-none">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold" for="assignment-group-number">
+                                <i class="bi bi-hash me-1"></i>How Many
+                            </label>
+                            <input id="assignment-group-number" type="number" class="form-control" 
+                                   value="1" min="1" max="50">
+                            <div class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>Number of groups to create
+                            </div>
+                        </div>
+                        <div class="col-md-5 d-flex align-items-end">
+                            <div class="d-grid w-100">
+                                <button id="action-btn" class="btn btn-success">
+                                    <i class="bi bi-plus-circle me-2"></i>Create Assignment Groups
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="row align-items-center">
-                <div class="col-2">
-                    <label class="form-label">Course</label>
-                    <input id="course-id" type="text" class="form-control" aria-describedby="input-checker" />
+            
+            <!-- Progress Card -->
+            <div class="card mt-3" id="agc-progress-div" hidden>
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-gear me-2"></i>Creating Assignment Groups
+                    </h5>
                 </div>
-                <div class="col-auto" >
-                    <span id="input-checker" class="form-text" style="display: none;">Must only contain numbers</span>
-                </div>
-                <div class="col-2">
-                    <label class="form-label">How many</label>
-                    <input id="assignment-group-number" type="text" class="form-control" value="1">
-                </div>
-                <div class="w-100"></div>
-                <div class="col-auto">
-                    <button id="action-btn" class="btn btn-primary mt-3">create</button>
-                </div>
-            </div>
-            <div hidden id="agc-progress-div">
-                <p id="agc-progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar" style="width: 0%"></div>
+                <div class="card-body">
+                    <p id="agc-progress-info" class="mb-2"></p>
+                    <div class="progress mb-2" style="height: 15px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             style="width: 0%" role="progressbar" 
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div id="agc-response-container" class="mt-5">
+            
+            <!-- Results Card -->
+            <div class="card mt-3" id="agc-response-container-card" hidden>
+                <div class="card-body" id="agc-response-container"></div>
             </div>
         `;
 
