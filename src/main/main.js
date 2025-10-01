@@ -3314,6 +3314,79 @@ app.whenReady().then(() => {
         }
     });
 
+    ipcMain.handle('axios:getRespondusQuizzes', async (event, data) => {
+        console.log('main.js > axios:getRespondusQuizzes');
+        try {
+            const quizzes = await quizzes_classic.getRespondusQuizzes(data);
+            return quizzes;
+        } catch (error) {
+            throw error.message;
+        }
+    });
+
+    ipcMain.handle('axios:updateRespondusQuizzes', async (event, data) => {
+        console.log('main.js > axios:updateRespondusQuizzes');
+
+        try {
+            const totalNumber = data.quizIds.length;
+            let completedRequests = 0;
+
+            const updateProgress = () => {
+                completedRequests++;
+                mainWindow.webContents.send('update-progress', (completedRequests / totalNumber) * 100);
+            }
+
+            const request = async (requestData) => {
+                try {
+                    await quizzes_classic.updateRespondusQuiz(requestData);
+                    return { success: true, quiz_id: requestData.quiz_id };
+                } catch (error) {
+                    return { success: false, quiz_id: requestData.quiz_id, error: error.message };
+                } finally {
+                    updateProgress();
+                }
+            };
+
+            const requests = [];
+            for (let i = 0; i < totalNumber; i++) {
+                const requestData = {
+                    domain: data.domain,
+                    token: data.token,
+                    course_id: data.courseID,
+                    quiz_id: data.quizIds[i],
+                    enable: data.enable
+                };
+                requests.push({ id: i + 1, request: () => request(requestData) });
+            }
+
+            const batchResponse = await batchHandler(requests);
+            
+            // batchHandler returns { successful: [], failed: [] }
+            // Convert to simple array of results
+            const results = [];
+            
+            if (batchResponse.successful) {
+                batchResponse.successful.forEach(item => {
+                    results.push(item.value);
+                });
+            }
+            
+            if (batchResponse.failed) {
+                batchResponse.failed.forEach(item => {
+                    results.push({ 
+                        success: false, 
+                        quiz_id: item.id, 
+                        error: item.reason 
+                    });
+                });
+            }
+            
+            return results;
+        } catch (error) {
+            throw error.message;
+        }
+    });
+
     ipcMain.handle('axios:createNQQuestions', async (event, data) => {
         console.log('main.js > axios:createNQQuestions');
 

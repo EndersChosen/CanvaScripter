@@ -281,6 +281,21 @@ contextBridge.exposeInMainWorld('axios', {
 
         return await ipcRenderer.invoke('axios:deleteClassicQuizzes', data);
     },
+    getRespondusQuizzes: async (data) => {
+        console.log('preload.js > getRespondusQuizzes');
+
+        const result = await ipcRenderer.invoke('axios:getRespondusQuizzes', data);
+        if (!result) {
+            return false;
+        }
+        console.log('in preload total respondus quizzes result ', result.length);
+        return result;
+    },
+    updateRespondusQuizzes: async (data) => {
+        console.log('preload.js > updateRespondusQuizzes');
+
+        return await ipcRenderer.invoke('axios:updateRespondusQuizzes', data);
+    },
     createNewQuizzes: async (data) => {
         console.log('preload.js > createNewQuizzes');
 

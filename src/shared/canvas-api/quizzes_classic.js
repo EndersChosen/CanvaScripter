@@ -898,6 +898,79 @@ async function publishQuiz(data) {
     }
 }
 
+// Get all quizzes and filter for those with Respondus settings
+async function getRespondusQuizzes(data) {
+    console.log("quizzes_classic > getRespondusQuizzes");
+
+    const axiosConfig = {
+        method: 'GET',
+        url: `https://${data.domain}/api/v1/courses/${data.courseID}/quizzes`,
+        headers: {
+            'Authorization': `Bearer ${data.token}`
+        },
+        params: {
+            per_page: 100
+        }
+    };
+
+    try {
+        // Use the getAllPages utility to handle pagination
+        const allQuizzes = await pagination.getAllPages(axiosConfig);
+        
+        console.log(`Retrieved ${allQuizzes.length} total quizzes`);
+        
+        // Filter for quizzes that have any Respondus settings
+        const respondusQuizzes = allQuizzes.filter(quiz => 
+            quiz.require_lockdown_browser || 
+            quiz.require_lockdown_browser_for_results || 
+            quiz.require_lockdown_browser_monitor
+        );
+
+        console.log(`Found ${respondusQuizzes.length} quizzes with Respondus settings`);
+        return respondusQuizzes;
+    } catch (error) {
+        console.error('Error in getRespondusQuizzes:', error);
+        throw error;
+    }
+}
+
+// Update Respondus settings for a single quiz
+async function updateRespondusQuiz(data) {
+    console.log(`Updating Respondus settings for quiz ${data.quiz_id}`);
+
+    const axiosConfig = {
+        method: 'PUT',
+        url: `https://${data.domain}/api/v1/courses/${data.course_id}/quizzes/${data.quiz_id}`,
+        headers: {
+            'Authorization': `Bearer ${data.token}`
+        },
+        data: {
+            quiz: {
+                require_lockdown_browser: data.enable,
+                require_lockdown_browser_for_results: data.enable,
+                require_lockdown_browser_monitor: data.enable
+            }
+        }
+    };
+
+    try {
+        const request = async () => {
+            return await axios(axiosConfig);
+        };
+        const response = await errorCheck(request);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
 module.exports = {
-    createQuiz, createQuestions, getClassicQuizzes, deleteClassicQuiz, updateClassicQuiz, publishQuiz
+    createQuiz, 
+    createQuestions, 
+    getClassicQuizzes, 
+    deleteClassicQuiz, 
+    updateClassicQuiz, 
+    publishQuiz,
+    getRespondusQuizzes,
+    updateRespondusQuiz
 }

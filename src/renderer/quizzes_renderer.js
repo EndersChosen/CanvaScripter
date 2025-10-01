@@ -6,6 +6,9 @@ function quizTemplate(e) {
         case 'delete-classic-quizzes':
             deleteAllClassicQuizzes(e);
             break;
+        case 'get-respondus-quizzes':
+            getRespondusQuizzes(e);
+            break;
         case 'add-nq-questions':
             addQuestionsNQ(e);
             break;
@@ -1171,4 +1174,435 @@ async function createNewQuiz(e) {
             createBtn.disabled = false;
         }
     });
+}
+
+// Get Respondus Quizzes function
+async function getRespondusQuizzes(e) {
+    hideEndpoints(e);
+
+    const eContent = document.querySelector('#endpoint-content');
+    let respondusQuizForm = eContent.querySelector('#respondus-quiz-form');
+
+    if (!respondusQuizForm) {
+        respondusQuizForm = document.createElement('form');
+        respondusQuizForm.id = 'respondus-quiz-form';
+        respondusQuizForm.innerHTML = `
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-lock me-2"></i>Get Respondus Quizzes
+                    </h3>
+                    <small class="text-muted">Find and manage quizzes with Respondus LockDown Browser settings</small>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label for="respondus-course-id" class="form-label">Course ID(s)</label>
+                            <input type="text" class="form-control" id="respondus-course-id" 
+                                   placeholder="Enter course ID(s), comma-separated for multiple" required>
+                            <small class="form-text text-muted">
+                                Examples: 12345 or 12345, 67890, 11111
+                            </small>
+                        </div>
+                    </div>
+                    <button id="get-respondus-btn" type="button" class="btn btn-primary" disabled>Get Quizzes</button>
+                    
+                    <div hidden id="respondus-quiz-list" class="mt-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <h5 class="mb-1">Quizzes with Respondus Settings</h5>
+                                <small class="text-muted" id="respondus-quiz-count"></small>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="select-all-respondus">
+                                <label class="form-check-label fw-bold" for="select-all-respondus">
+                                    Select All
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Search/Filter Bar -->
+                        <div class="input-group mb-3">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control" id="respondus-search" 
+                                   placeholder="Search by quiz title or course ID...">
+                            <button class="btn btn-outline-secondary" type="button" id="respondus-clear-search">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+
+                        <!-- Quiz List with better styling for many items -->
+                        <div class="card mb-3">
+                            <div class="card-body p-0">
+                                <div id="respondus-quiz-items" class="list-group list-group-flush" 
+                                     style="max-height: 500px; overflow-y: auto;">
+                                    <!-- Quiz checkboxes will be added here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button id="enable-respondus-btn" type="button" class="btn btn-success">
+                                <i class="bi bi-unlock me-1"></i>Enable Selected
+                            </button>
+                            <button id="disable-respondus-btn" type="button" class="btn btn-warning">
+                                <i class="bi bi-lock me-1"></i>Disable Selected
+                            </button>
+                        </div>
+                    </div>
+
+                    <div hidden id="respondus-progress-div">
+                        <p id="respondus-progress-info"></p>
+                        <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div id="respondus-response-container" class="mt-3"></div>
+                </div>
+            </div>
+        `;
+
+        eContent.append(respondusQuizForm);
+    }
+    respondusQuizForm.hidden = false;
+
+    const courseIDInput = respondusQuizForm.querySelector('#respondus-course-id');
+    const getQuizzesBtn = respondusQuizForm.querySelector('#get-respondus-btn');
+    const quizListDiv = respondusQuizForm.querySelector('#respondus-quiz-list');
+    const quizItemsDiv = respondusQuizForm.querySelector('#respondus-quiz-items');
+    const quizCountDiv = respondusQuizForm.querySelector('#respondus-quiz-count');
+    const selectAllCheckbox = respondusQuizForm.querySelector('#select-all-respondus');
+    const searchInput = respondusQuizForm.querySelector('#respondus-search');
+    const clearSearchBtn = respondusQuizForm.querySelector('#respondus-clear-search');
+    const enableBtn = respondusQuizForm.querySelector('#enable-respondus-btn');
+    const disableBtn = respondusQuizForm.querySelector('#disable-respondus-btn');
+    const progressDiv = respondusQuizForm.querySelector('#respondus-progress-div');
+    const progressInfo = respondusQuizForm.querySelector('#respondus-progress-info');
+    const progressBar = respondusQuizForm.querySelector('.progress-bar');
+    const responseContainer = respondusQuizForm.querySelector('#respondus-response-container');
+
+    let respondusQuizzes = [];
+    let allQuizzes = []; // Store all quizzes for filtering
+
+    // Helper function to parse course IDs
+    const parseCourseIDs = (input) => {
+        return input.split(',')
+            .map(id => id.trim())
+            .filter(id => id && /^\d+$/.test(id));
+    };
+
+    // Enable/disable get button based on course ID
+    const toggleGetQuizzesBtn = () => {
+        const courseIDs = parseCourseIDs(courseIDInput.value);
+        getQuizzesBtn.disabled = courseIDs.length === 0;
+    };
+
+    courseIDInput.addEventListener('input', toggleGetQuizzesBtn);
+
+    // Search/Filter functionality
+    const filterQuizzes = () => {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const visibleQuizzes = allQuizzes.filter(quiz => {
+            if (!searchTerm) return true;
+            return quiz.title.toLowerCase().includes(searchTerm) || 
+                   quiz.course_id.toString().includes(searchTerm) ||
+                   quiz.id.toString().includes(searchTerm);
+        });
+        
+        renderQuizList(visibleQuizzes);
+        updateQuizCount(visibleQuizzes.length, allQuizzes.length);
+    };
+
+    searchInput.addEventListener('input', filterQuizzes);
+    clearSearchBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        filterQuizzes();
+    });
+
+    // Function to render quiz list
+    const renderQuizList = (quizzes) => {
+        quizItemsDiv.innerHTML = '';
+        
+        if (quizzes.length === 0) {
+            quizItemsDiv.innerHTML = `
+                <div class="list-group-item text-center text-muted py-4">
+                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                    No quizzes match your search criteria
+                </div>
+            `;
+            return;
+        }
+
+        quizzes.forEach(quiz => {
+            const quizItem = document.createElement('div');
+            quizItem.className = 'list-group-item list-group-item-action py-2';
+            quizItem.innerHTML = `
+                <div class="form-check">
+                    <input class="form-check-input respondus-quiz-checkbox" type="checkbox" 
+                           value="${quiz.id}" id="quiz-${quiz.id}" data-course="${quiz.course_id}">
+                    <label class="form-check-label w-100" for="quiz-${quiz.id}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <strong>${quiz.title}</strong>
+                                <br>
+                                <small class="text-muted">
+                                    Course: ${quiz.course_id} | Quiz ID: ${quiz.id} | 
+                                    Lockdown: ${quiz.require_lockdown_browser ? 'Yes' : 'No'} | 
+                                    Results: ${quiz.require_lockdown_browser_for_results ? 'Yes' : 'No'} | 
+                                    Monitor: ${quiz.require_lockdown_browser_monitor ? 'Yes' : 'No'}
+                                </small>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            `;
+            quizItemsDiv.appendChild(quizItem);
+        });
+    };
+
+    // Function to update quiz count display
+    const updateQuizCount = (visible, total) => {
+        if (visible === total) {
+            quizCountDiv.textContent = `Showing ${total} quiz${total !== 1 ? 'zes' : ''}`;
+        } else {
+            quizCountDiv.textContent = `Showing ${visible} of ${total} quiz${total !== 1 ? 'zes' : ''}`;
+        }
+    };
+
+    // Get quizzes button handler
+    getQuizzesBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        getQuizzesBtn.disabled = true;
+        quizListDiv.hidden = true;
+        progressDiv.hidden = false;
+        responseContainer.innerHTML = '';
+        progressBar.style.width = '0%';
+        searchInput.value = '';
+
+        const domain = document.querySelector('#domain').value.trim();
+        const token = document.querySelector('#token').value.trim();
+        const courseIDs = parseCourseIDs(courseIDInput.value);
+
+        if (courseIDs.length === 0) {
+            progressDiv.hidden = true;
+            responseContainer.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Please enter at least one valid course ID.
+                </div>
+            `;
+            getQuizzesBtn.disabled = false;
+            return;
+        }
+
+        progressInfo.textContent = `Fetching quizzes from ${courseIDs.length} course${courseIDs.length > 1 ? 's' : ''}...`;
+
+        try {
+            allQuizzes = [];
+            let processedCourses = 0;
+
+            // Fetch quizzes from each course
+            for (const courseID of courseIDs) {
+                processedCourses++;
+                progressBar.style.width = `${(processedCourses / courseIDs.length) * 100}%`;
+                progressInfo.textContent = `Fetching quizzes from course ${courseID}... (${processedCourses}/${courseIDs.length})`;
+
+                try {
+                    const quizzes = await window.axios.getRespondusQuizzes({ domain, token, courseID });
+                    // Add course_id to each quiz for display
+                    quizzes.forEach(quiz => quiz.course_id = courseID);
+                    allQuizzes.push(...quizzes);
+                } catch (error) {
+                    console.error(`Error fetching quizzes from course ${courseID}:`, error);
+                    // Continue with other courses even if one fails
+                }
+            }
+
+            progressDiv.hidden = true;
+
+            if (allQuizzes.length === 0) {
+                responseContainer.innerHTML = `
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        No quizzes found with Respondus LockDown Browser settings in the specified course${courseIDs.length > 1 ? 's' : ''}.
+                    </div>
+                `;
+                getQuizzesBtn.disabled = false;
+                return;
+            }
+
+            // Sort by course ID, then by title
+            allQuizzes.sort((a, b) => {
+                if (a.course_id !== b.course_id) {
+                    return a.course_id - b.course_id;
+                }
+                return a.title.localeCompare(b.title);
+            });
+
+            // Display all quizzes
+            renderQuizList(allQuizzes);
+            updateQuizCount(allQuizzes.length, allQuizzes.length);
+            quizListDiv.hidden = false;
+            getQuizzesBtn.disabled = false;
+
+            // Show success message with summary
+            const courseSummary = courseIDs.map(id => {
+                const count = allQuizzes.filter(q => q.course_id === id).length;
+                return `Course ${id}: ${count} quiz${count !== 1 ? 'zes' : ''}`;
+            }).join(', ');
+
+            responseContainer.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle me-2"></i>
+                    <strong>Success!</strong> Found ${allQuizzes.length} quiz${allQuizzes.length !== 1 ? 'zes' : ''} with Respondus settings.
+                    <br><small>${courseSummary}</small>
+                </div>
+            `;
+
+        } catch (error) {
+            progressDiv.hidden = true;
+            responseContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Error:</strong> ${error.message || error}
+                </div>
+            `;
+            getQuizzesBtn.disabled = false;
+        }
+    });
+
+    // Select/Deselect all handler
+    selectAllCheckbox.addEventListener('change', (e) => {
+        const checkboxes = respondusQuizForm.querySelectorAll('.respondus-quiz-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = e.target.checked;
+        });
+    });
+
+    // Enable button handler
+    enableBtn.addEventListener('click', async () => {
+        await updateRespondusSettings(true);
+    });
+
+    // Disable button handler
+    disableBtn.addEventListener('click', async () => {
+        await updateRespondusSettings(false);
+    });
+
+    // Function to update Respondus settings
+    async function updateRespondusSettings(enable) {
+        const checkboxes = respondusQuizForm.querySelectorAll('.respondus-quiz-checkbox:checked');
+        
+        if (checkboxes.length === 0) {
+            responseContainer.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Please select at least one quiz to update.
+                </div>
+            `;
+            return;
+        }
+
+        // Group quizzes by course ID
+        const quizzesByCourse = new Map();
+        checkboxes.forEach(cb => {
+            const quizId = cb.value;
+            const courseId = cb.dataset.course;
+            if (!quizzesByCourse.has(courseId)) {
+                quizzesByCourse.set(courseId, []);
+            }
+            quizzesByCourse.get(courseId).push(quizId);
+        });
+        
+        enableBtn.disabled = true;
+        disableBtn.disabled = true;
+        getQuizzesBtn.disabled = true;
+        progressDiv.hidden = false;
+        responseContainer.innerHTML = '';
+        progressBar.style.width = '0%';
+        
+        const totalQuizzes = checkboxes.length;
+        progressInfo.textContent = `${enable ? 'Enabling' : 'Disabling'} Respondus settings for ${totalQuizzes} quiz${totalQuizzes !== 1 ? 'zes' : ''} across ${quizzesByCourse.size} course${quizzesByCourse.size !== 1 ? 's' : ''}...`;
+
+        const domain = document.querySelector('#domain').value.trim();
+        const token = document.querySelector('#token').value.trim();
+
+        try {
+            let allResults = [];
+            let processedQuizzes = 0;
+
+            // Update quizzes for each course
+            for (const [courseID, quizIds] of quizzesByCourse.entries()) {
+                try {
+                    // Set up progress tracking for this batch
+                    const batchStartProgress = processedQuizzes;
+                    window.progressAPI.onUpdateProgress((progress) => {
+                        const adjustedProgress = ((batchStartProgress + (progress * quizIds.length / 100)) / totalQuizzes) * 100;
+                        progressBar.style.width = `${adjustedProgress}%`;
+                    });
+
+                    const result = await window.axios.updateRespondusQuizzes({
+                        domain,
+                        token,
+                        courseID,
+                        quizIds: quizIds,
+                        enable
+                    });
+
+                    allResults.push(...result);
+                    processedQuizzes += quizIds.length;
+                    
+                } catch (error) {
+                    console.error(`Error updating quizzes in course ${courseID}:`, error);
+                    // Mark these quizzes as failed
+                    quizIds.forEach(quizId => {
+                        allResults.push({ success: false, quiz_id: quizId, error: error.message });
+                    });
+                    processedQuizzes += quizIds.length;
+                }
+            }
+
+            progressDiv.hidden = true;
+
+            const successCount = allResults.filter(r => r.success).length;
+            const failCount = allResults.filter(r => !r.success).length;
+
+            let alertClass = 'alert-success';
+            let icon = 'bi-check-circle';
+            let message = `Successfully ${enable ? 'enabled' : 'disabled'} Respondus settings for ${successCount} quiz${successCount !== 1 ? 'zes' : ''}.`;
+
+            if (failCount > 0) {
+                alertClass = 'alert-warning';
+                icon = 'bi-exclamation-triangle';
+                message += ` ${failCount} failed.`;
+            }
+
+            responseContainer.innerHTML = `
+                <div class="alert ${alertClass}">
+                    <i class="bi ${icon} me-2"></i>
+                    ${message}
+                </div>
+            `;
+
+            // Refresh the quiz list
+            setTimeout(() => {
+                getQuizzesBtn.click();
+            }, 1500);
+
+        } catch (error) {
+            progressDiv.hidden = true;
+            responseContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Error:</strong> ${error.message || error}
+                </div>
+            `;
+        } finally {
+            enableBtn.disabled = false;
+            disableBtn.disabled = false;
+            getQuizzesBtn.disabled = false;
+        }
+    }
 }
