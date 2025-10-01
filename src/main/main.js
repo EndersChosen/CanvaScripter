@@ -1338,7 +1338,7 @@ app.whenReady().then(() => {
             completedRequests++;
             mainWindow.webContents.send('update-progress', {
                 mode: 'determinate',
-                label: 'Creating assignments',
+                label: `Creating assignments (${completedRequests}/${totalRequests})`,
                 processed: completedRequests,
                 total: totalRequests,
                 value: completedRequests / totalRequests
@@ -1347,11 +1347,9 @@ app.whenReady().then(() => {
 
         const request = async (requestData) => {
             try {
-                // const response = await window.axios.deleteTheThings(messageData);
                 const response = await assignments.createAssignments(requestData);
                 return response;
             } catch (error) {
-                //console.error('Error: ', error);
                 throw error;
             } finally {
                 updateProgress();

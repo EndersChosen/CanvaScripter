@@ -199,6 +199,27 @@ function deleteAssignmentsCombined(e) {
                         </div>
                     </div>
 
+            <!-- Processing Card -->
+            <div class="card mt-3" id="combined-progress-div" hidden>
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-gear me-2"></i>Processing Assignments
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></div>
+                        <p id="combined-progress-info" class="mb-0">Preparing...</p>
+                    </div>
+                    <div class="progress mb-2" style="height: 15px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%" 
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card mb-3">
                 <div class="card-header" style="cursor: pointer;" id="filters-header">
                     <div class="d-flex justify-content-between align-items-center">
@@ -209,7 +230,7 @@ function deleteAssignmentsCombined(e) {
                         <i class="bi bi-chevron-down" id="filters-chevron"></i>
                     </div>
                 </div>
-                <div class="card-body" id="filters-body">
+                <div class="card-body" id="filters-body" style="display: none;">
                     <div class="row g-2">
                         <div class="col-auto form-check">
                             <input id="f-include-graded" class="form-check-input" type="checkbox" />
@@ -235,7 +256,7 @@ function deleteAssignmentsCombined(e) {
                         <div class="w-100"></div>
                         <div class="col-auto form-check" id="f-older-than-container">
                             <input id="f-older-than" class="form-check-input" type="checkbox" />
-                            <label for="f-older-than" class="form-check-label">Older than date (by due date)</label>
+                            <label for="f-older-than" class="form-check-label">Due date Before</label>
                         </div>
                         <div class="col-auto" id="f-older-date-container">
                             <input id="f-older-date" class="form-control" type="date" disabled />
@@ -243,7 +264,7 @@ function deleteAssignmentsCombined(e) {
                         <div class="w-100"></div>
                         <div class="col-auto form-check">
                             <input id="f-older-created" class="form-check-input" type="checkbox" />
-                            <label for="f-older-created" class="form-check-label">Older than date (by created at)</label>
+                            <label for="f-older-created" class="form-check-label">Created At Before</label>
                         </div>
                         <div class="col-auto">
                             <input id="f-older-created-date" class="form-control" type="date" disabled />
@@ -274,27 +295,6 @@ function deleteAssignmentsCombined(e) {
                         </div>
                     </div>
                 </div>
-                </div>
-            </div>
-            
-            <!-- Progress Card -->
-            <div class="card mt-3" id="combined-progress-div" hidden>
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-gear me-2"></i>Processing Assignments
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <div class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></div>
-                        <p id="combined-progress-info" class="mb-0">Preparing...</p>
-                    </div>
-                    <div class="progress mb-2" style="height: 15px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                             role="progressbar" style="width: 0%" 
-                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                        </div>
-                    </div>
                 </div>
             </div>
             
@@ -375,22 +375,50 @@ function deleteAssignmentsCombined(e) {
         });
 
         function renderResults(finalAssignments) {
+            console.log('=== renderResults Debug ===');
+            console.log('renderResults called with:', finalAssignments.length, 'assignments');
+            console.log('allAssignmentsCache length:', allAssignmentsCache ? allAssignmentsCache.length : 'null/undefined');
+            console.log('totalDeletedCount:', totalDeletedCount);
+            console.log('originalAssignmentCount:', originalAssignmentCount);
+            
             responseDiv.innerHTML = '';
+            const responseCard = form.querySelector('#combined-response-container-card');
+            if (responseCard) {
+                responseCard.hidden = false; // Always show the results card
+            }
+            
             const details = document.createElement('div');
             details.id = 'combined-response-details';
             details.className = 'card';
-            const totalCount = Array.isArray(allAssignmentsCache) ? allAssignmentsCache.length : finalAssignments.length;
+            const currentAvailable = Array.isArray(allAssignmentsCache) ? allAssignmentsCache.length : finalAssignments.length;
+            
+            console.log('Calculated currentAvailable:', currentAvailable);
+            
+            // Calculate display text based on deletion status
+            let headerText = 'Results';
+            let statusText = '';
+            
+            if (totalDeletedCount > 0) {
+                headerText = 'Delete More Assignments';
+                statusText = `Deleted ${totalDeletedCount} of ${originalAssignmentCount} assignments. ${finalAssignments.length} remaining assignments match your filters.`;
+            } else {
+                statusText = `Found ${finalAssignments.length} out of ${currentAvailable} assignments matching the selected filters.`;
+            }
+            
+            console.log('Header text:', headerText);
+            console.log('Status text:', statusText);
+            
             details.innerHTML = `
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Results</span>
-            <span class="text-muted small">Total: ${finalAssignments.length}/${totalCount}</span>
+                    <span>${headerText}</span>
+                    <span class="text-muted small">Available: ${currentAvailable}${totalDeletedCount > 0 ? ` | Deleted: ${totalDeletedCount}/${originalAssignmentCount}` : ``}</span>
                 </div>
                 <div class="card-body">
-            <div>Found ${finalAssignments.length} out of ${totalCount} assignments matching the selected filters.</div>
+                    <div>${statusText}</div>
                 </div>
                 <div class="card-footer d-flex justify-content-end gap-2">
                     <button type="button" class="btn btn-secondary" id="combined-clear-btn">Clear</button>
-                    <button type="button" class="btn btn-danger" id="combined-remove-btn" ${finalAssignments.length < 1 ? 'disabled' : ''}>Delete</button>
+                    <button type="button" class="btn btn-danger" id="combined-remove-btn" ${finalAssignments.length < 1 ? 'disabled' : ''}>Delete ${finalAssignments.length > 0 ? finalAssignments.length : ''} Assignment${finalAssignments.length === 1 ? '' : 's'}</button>
                 </div>`;
             responseDiv.appendChild(details);
 
@@ -402,13 +430,25 @@ function deleteAssignmentsCombined(e) {
                 form.querySelector('#course-id').value = '';
                 responseDiv.innerHTML = '';
                 progressDiv.hidden = true;
+                // Reset deletion tracking
+                totalDeletedCount = 0;
+                originalAssignmentCount = 0;
+                allAssignmentsCache = null;
             });
             removeBtn.addEventListener('click', async (e2) => {
                 e2.preventDefault();
                 e2.stopPropagation();
-                details.innerHTML = '';
+                
+                // Show processing card and hide results temporarily
+                progressDiv.hidden = false;
                 progressBar.parentElement.hidden = false;
-                progressInfo.innerHTML = `Removing ${finalAssignments.length} assignments...`;
+                progressBar.style.width = '0%';
+                if (spinner) spinner.hidden = false;
+                progressInfo.innerHTML = `Deleting ${finalAssignments.length} assignments...`;
+                
+                // Disable the delete button during processing
+                removeBtn.disabled = true;
+                
                 const domain = document.querySelector('#domain').value.trim();
                 const token = document.querySelector('#token').value.trim();
                 const cid = form.querySelector('#course-id').value.trim();
@@ -422,37 +462,126 @@ function deleteAssignmentsCombined(e) {
                 window.progressAPI.onUpdateProgress((p) => updateProgressWithPercent(progressBar, p));
                 try {
                     const result = await window.axios.deleteAssignments(payload);
+                    const { successful, failed } = result;
+                    
+                    // Update deletion tracking
+                    totalDeletedCount += successful.length;
+                    
+                    // Report initial results
+                    const successText = successful.length === 1 ? 'assignment' : 'assignments';
+                    const failureText = failed.length === 1 ? 'assignment' : 'assignments';
+                    
+                    let resultMessage = `<div class="alert alert-success d-flex align-items-center" role="alert">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        <div>Successfully deleted ${successful.length} ${successText}!</div>
+                    </div>`;
+                    
+                    if (failed.length > 0) {
+                        resultMessage += `<div class="alert alert-warning d-flex align-items-center mt-2" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <div>Failed to delete ${failed.length} ${failureText}.</div>
+                        </div>`;
+                    }
+                    
+                    progressInfo.innerHTML = resultMessage;
 
                     // Check for empty assignment groups after successful deletion
-                    const groupResult = await checkAndDeleteEmptyAssignmentGroups(domain, cid, token, progressInfo, details);
+                    if (successful.length > 0) {
+                        progressInfo.innerHTML = 'Checking for empty assignment groups...';
+                        try {
+                            const groupResult = await checkAndDeleteEmptyAssignmentGroups(domain, cid, token, progressInfo, details);
+                            
+                            if (groupResult.deletedCount > 0 || groupResult.failedCount > 0) {
+                                progressInfo.innerHTML += `<br>Deleted ${groupResult.deletedCount} empty assignment group(s)${groupResult.failedCount > 0 ? `, failed to delete ${groupResult.failedCount}` : ''}.`;
+                                // Give user time to see the group deletion result
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                            }
+                        } catch (groupError) {
+                            console.error('Error checking/deleting empty assignment groups:', groupError);
+                        }
 
-                    const { successful, failed } = result;
+                        // Refresh assignments from the course to get updated state
+                        progressInfo.innerHTML = 'Refreshing assignment data...';
+                        try {
+                            console.log('Refreshing assignments after deletion...');
+                            
+                            // Use a simpler call without progress callback to avoid cloning issues
+                            const updatedAssignments = await window.axios.getAllAssignmentsForCombined({
+                                domain,
+                                token,
+                                course_id: cid
+                            });
 
-                    // Create comprehensive result message including assignment group info
-                    let message = `Successfully removed ${successful.length} assignments${failed.length > 0 ? `, failed to remove ${failed.length} assignments` : ''}`;
-
-                    if (groupResult.deletedCount > 0) {
-                        message += `. Also deleted ${groupResult.deletedCount} empty assignment group(s)`;
+                            if (updatedAssignments && Array.isArray(updatedAssignments)) {
+                                console.log(`Refreshed assignment cache: ${updatedAssignments.length} assignments (was ${allAssignmentsCache ? allAssignmentsCache.length : 'null'})`);
+                                allAssignmentsCache = updatedAssignments;
+                                
+                                // Update success message with refresh info
+                                const refreshSuccessMessage = `<div class="alert alert-success d-flex align-items-center" role="alert">
+                                    <i class="bi bi-check-circle-fill me-2"></i>
+                                    <div>
+                                        Successfully deleted ${successful.length} ${successText}!<br>
+                                        <small class="text-success">✓ Cleaned up empty assignment groups<br>
+                                        ✓ Refreshed assignment data: ${updatedAssignments.length} assignments found</small>
+                                    </div>
+                                </div>`;
+                                
+                                if (failed.length > 0) {
+                                    progressInfo.innerHTML = refreshSuccessMessage + `<div class="alert alert-warning d-flex align-items-center mt-2" role="alert">
+                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                        <div>Failed to delete ${failed.length} ${failureText}.</div>
+                                    </div>`;
+                                } else {
+                                    progressInfo.innerHTML = refreshSuccessMessage;
+                                }
+                            } else {
+                                console.warn('Refresh returned invalid data, keeping existing cache');
+                                progressInfo.innerHTML += `<br><small class="text-warning">⚠ Warning: Could not refresh assignment data.</small>`;
+                            }
+                        } catch (refreshError) {
+                            console.error('Error refreshing assignments:', refreshError);
+                            
+                            // If refresh fails, show success message without refresh info
+                            const basicSuccessMessage = `<div class="alert alert-success d-flex align-items-center" role="alert">
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                                <div>
+                                    Successfully deleted ${successful.length} ${successText}!<br>
+                                    <small class="text-success">✓ Cleaned up empty assignment groups</small><br>
+                                    <small class="text-warning">⚠ Could not refresh assignment data - please re-run the check to see updated results</small>
+                                </div>
+                            </div>`;
+                            
+                            if (failed.length > 0) {
+                                progressInfo.innerHTML = basicSuccessMessage + `<div class="alert alert-warning d-flex align-items-center mt-2" role="alert">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                    <div>Failed to delete ${failed.length} ${failureText}.</div>
+                                </div>`;
+                            } else {
+                                progressInfo.innerHTML = basicSuccessMessage;
+                            }
+                        }
                     }
-                    if (groupResult.failedCount > 0) {
-                        message += `. Failed to delete ${groupResult.failedCount} assignment group(s)`;
-                    }
 
-                    progressInfo.innerHTML = '';
-                    const resultCard = createResultCard(
-                        'Delete Assignments Results',
-                        message,
-                        failed,
-                        failed.length > 0 || groupResult.failedCount > 0 ? 'warning' : 'success'
-                    );
-                    responseDiv.appendChild(resultCard);
+                    // Hide processing card after completion
+                    progressDiv.hidden = true;
+                    if (spinner) spinner.hidden = true;
+                    
+                    // Re-apply filters to update the results with refreshed data
+                    console.log('Reapplying filters after deletion and refresh...');
+                    updateCount();
+                    
                 } catch (err) {
+                    progressDiv.hidden = true;
+                    if (spinner) spinner.hidden = true;
                     errorHandler(err, progressInfo, responseDiv);
+                } finally {
+                    removeBtn.disabled = false;
                 }
             });
         }
 
         const updateCount = async () => {
+            console.log('updateCount called, allAssignmentsCache:', allAssignmentsCache ? allAssignmentsCache.length : 'null/undefined');
             if (!allAssignmentsCache) return;
             const useNonModule = fNonModule.checked;
             const useNoDue = fNoDue.checked;
@@ -470,7 +599,14 @@ function deleteAssignmentsCombined(e) {
             const useNotInGroup = fNotInGroup.checked;
             const notGroupIdVal = fNotGroupId.value.trim();
 
+            console.log('Active filters:', {
+                useNonModule, useNoDue, useUnpub, useNoSubs, includeGradedGlobal,
+                useOlder, useOlderCreated, useFromImport, useInGroup, useNotInGroup
+            });
+
             let filtered = allAssignmentsCache;
+            console.log('Starting with', filtered.length, 'assignments');
+            
             if (useNonModule) {
                 filtered = filtered.filter(a => {
                     const inCore = Array.isArray(a.modules) && a.modules.length > 0;
@@ -478,23 +614,49 @@ function deleteAssignmentsCombined(e) {
                     const inDisc = Array.isArray(a.discussion?.modules) && a.discussion.modules.length > 0;
                     return !(inCore || inQuiz || inDisc);
                 });
+                console.log('After non-module filter:', filtered.length);
             }
-            if (useNoDue) filtered = filtered.filter(a => !a.dueAt);
-            if (useUnpub) filtered = filtered.filter(a => !a.published);
+            if (useNoDue) {
+                filtered = filtered.filter(a => !a.dueAt);
+                console.log('After no-due-date filter:', filtered.length);
+            }
+            if (useUnpub) {
+                filtered = filtered.filter(a => !a.published);
+                console.log('After unpublished filter:', filtered.length);
+            }
             if (useNoSubs) {
                 filtered = filtered.filter(a => !a.hasSubmittedSubmissions);
+                console.log('After no-submissions filter:', filtered.length);
             }
             if (useOlder && olderDateVal) {
                 const cutoff = new Date(olderDateVal);
-                filtered = filtered.filter(a => a.dueAt && new Date(a.dueAt) < cutoff);
+                // Set cutoff to end of day in local timezone for proper comparison
+                cutoff.setHours(23, 59, 59, 999);
+                filtered = filtered.filter(a => {
+                    if (!a.dueAt) return false;
+                    // Convert UTC due date to local time for comparison
+                    const localDueDate = new Date(a.dueAt);
+                    return localDueDate < cutoff;
+                });
+                console.log('After due date before filter:', filtered.length, `(cutoff: ${cutoff.toLocaleString()})`);
             }
             if (useOlderCreated && olderCreatedDateVal) {
                 const cutoff = new Date(olderCreatedDateVal);
-                filtered = filtered.filter(a => a.createdAt && new Date(a.createdAt) < cutoff);
+                // Set cutoff to end of day in local timezone for proper comparison
+                cutoff.setHours(23, 59, 59, 999);
+                filtered = filtered.filter(a => {
+                    if (!a.createdAt) return false;
+                    // Convert UTC created date to local time for comparison
+                    const localCreatedDate = new Date(a.createdAt);
+                    return localCreatedDate < cutoff;
+                });
+                console.log('After created date before filter:', filtered.length, `(cutoff: ${cutoff.toLocaleString()})`);
             }
             // Apply global grade filter LAST - exclude graded assignments unless includeGradedGlobal is checked
             if (!includeGradedGlobal) {
+                const beforeGradeFilter = filtered.length;
                 filtered = filtered.filter(a => !a.gradedSubmissionsExist);
+                console.log('After graded submissions filter:', filtered.length, `(removed ${beforeGradeFilter - filtered.length})`);
             }
             if (useFromImport && importIdVal) {
                 try {
@@ -629,6 +791,10 @@ function deleteAssignmentsCombined(e) {
             // Clear import cache when fetching new assignments (might be different course)
             importedAssignmentsCache = null;
             cachedImportId = null;
+            
+            // Reset deletion tracking for new course
+            totalDeletedCount = 0;
+            originalAssignmentCount = 0;
 
             const domain = document.querySelector('#domain').value.trim();
             const token = document.querySelector('#token').value.trim();
@@ -636,16 +802,36 @@ function deleteAssignmentsCombined(e) {
 
             // Always re-query on Check
             try {
+                console.log('Fetching assignments for course:', cid, 'domain:', domain);
                 const all = await window.axios.getAllAssignmentsForCombined({ domain, token, course_id: cid });
+                console.log('Received assignments:', all ? all.length : 'null/undefined', all);
                 allAssignmentsCache = all;
+                
+                // Set original count only on first fetch (when totalDeletedCount is 0)
+                if (totalDeletedCount === 0) {
+                    originalAssignmentCount = all ? all.length : 0;
+                }
+                
+                // Hide processing card after successful fetch
+                progressDiv.hidden = true;
                 progressInfo.innerHTML = '';
                 if (spinner) spinner.hidden = true;
                 setFiltersDisabled(false);
                 cancelBtn.disabled = true;
                 checkBtn.disabled = false;
+                
+                // Show immediate feedback about what was found
+                if (!all || all.length === 0) {
+                    progressInfo.innerHTML = '<span class="text-info">No assignments found in this course.</span>';
+                } else {
+                    // Don't show the success message, just proceed to results
+                }
+                
                 // Apply current filter state instead of showing all assignments
                 updateCount();
             } catch (error) {
+                console.error('Error fetching assignments:', error);
+                progressDiv.hidden = true;
                 if (String(error).includes('canceled') || String(error).includes('abort')) {
                     progressInfo.innerHTML = '<span class="text-warning">Cancelled.</span>';
                 } else {
@@ -657,10 +843,10 @@ function deleteAssignmentsCombined(e) {
         // Listen for filter changes to update counts live
         fNonModule?.addEventListener('change', updateCount);
 
-        // Handle "No due date" filter - disable "Older than date (by due date)" when checked
+        // Handle "No due date" filter - disable "Due date Before" when checked
         fNoDue?.addEventListener('change', () => {
             if (fNoDue.checked) {
-                // When "No due date" is checked, disable and uncheck "Older than date (by due date)"
+                // When "No due date" is checked, disable and uncheck "Due date Before"
                 fOlder.checked = false;
                 fOlder.disabled = true;
                 fOlderDate.disabled = true;
@@ -671,7 +857,7 @@ function deleteAssignmentsCombined(e) {
                 fOlderDateContainer.style.opacity = '0.5';
                 fOlderContainer.title = 'This filter is disabled because "No due date" is selected';
             } else {
-                // When "No due date" is unchecked, re-enable "Older than date (by due date)"
+                // When "No due date" is unchecked, re-enable "Due date Before"
                 fOlder.disabled = false;
 
                 // Remove visual styling
@@ -750,6 +936,8 @@ function deleteAssignmentsCombined(e) {
         // Store fetched assignments in memory; re-fetched on each Check press
         let allAssignmentsCache = null;
         let cacheKey = null; // kept for potential future use
+        let totalDeletedCount = 0; // Track total deleted assignments
+        let originalAssignmentCount = 0; // Track original assignment count
 
         // Cache for imported assignments to avoid repeated API calls
         let importedAssignmentsCache = null;
@@ -3384,7 +3572,7 @@ function assignmentCreator(e) {
                 </div>
 
                 <div class="w-100"></div>
-                <div class="col-12">
+                <div class="col-4">
                     <div class="d-grid">
                         <button id="action-btn" class="btn btn-success mt-2" type="button">
                             <i class="bi bi-plus-circle me-2"></i>Create Assignments
@@ -3499,6 +3687,10 @@ function assignmentCreator(e) {
 
             // Reset UI
             responseDiv.innerHTML = '';
+            const responseCard = form.querySelector('#cac-response-container-card');
+            if (responseCard) {
+                responseCard.hidden = true;
+            }
             progressDiv.hidden = false;
             progressBar.parentElement.hidden = false;
             updateProgressWithPercent(progressBar, 0);
@@ -3515,8 +3707,7 @@ function assignmentCreator(e) {
                             updateProgressWithPercent(progressBar, Math.round(Math.max(0, Math.min(1, payload.value)) * 100));
                         }
                         if (payload.label) {
-                            const pct = payload.value != null ? ` (${Math.round((payload.value || 0) * 100)}%)` : '';
-                            progressInfo.textContent = `${payload.label}${pct}`;
+                            progressInfo.textContent = payload.label;
                         }
                     }
                 } catch { }
@@ -3540,11 +3731,17 @@ function assignmentCreator(e) {
                 const result = await window.axios.createAssignments(data);
                 const ok = result?.successful?.length || 0;
                 const bad = result?.failed?.length || 0;
+                
+                // Hide the progress bar and clear progress text
+                progressBar.parentElement.hidden = true;
+                progressDiv.hidden = true;
                 progressInfo.textContent = '';
 
                 let responseHTML = `
                     <div class="alert ${bad > 0 ? 'alert-warning' : 'alert-success'}" role="alert">
-                        Created ${ok} assignment(s)${bad ? `, ${bad} failed` : ''}.
+                        <i class="bi bi-${bad > 0 ? 'exclamation-triangle' : 'check-circle'} me-2"></i>
+                        <strong>Assignment Creation ${bad > 0 ? 'Completed with Issues' : 'Successful'}!</strong><br>
+                        Successfully created ${ok} assignment(s)${bad ? `. Failed to create ${bad} assignment(s)` : ''}${ok > 0 ? `. <a href="#" id="view-assignments-link" class="alert-link"><i class="bi bi-external-link me-1"></i>View assignments in course</a>` : ''}.
                     </div>
                 `;
 
@@ -3553,7 +3750,27 @@ function assignmentCreator(e) {
                     responseHTML += createErrorCard(result.failed, 'Assignment');
                 }
 
-                responseDiv.innerHTML = responseHTML;                // Reset the assignment number field to 1 to prevent accidental multiple creations
+                responseDiv.innerHTML = responseHTML;
+                
+                // Show the response container card
+                const responseCard = form.querySelector('#cac-response-container-card');
+                if (responseCard) {
+                    responseCard.hidden = false;
+                }
+                
+                // Add click handler for the view assignments link
+                if (ok > 0) {
+                    const viewLink = responseDiv.querySelector('#view-assignments-link');
+                    if (viewLink) {
+                        viewLink.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const courseUrl = `https://${domain}/courses/${course_id}/assignments`;
+                            window.shell.openExternal(courseUrl);
+                        });
+                    }
+                }
+                
+                // Reset the assignment number field to 1 to prevent accidental multiple creations
                 form.querySelector('#assignment-number').value = '1';
                 updateAssignmentNumberVisual(); // Update visual state after reset
             } catch (error) {
