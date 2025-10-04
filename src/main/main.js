@@ -20,6 +20,7 @@ const assignments = require('../shared/canvas-api/assignments');
 const { getPageViews, createUsers, enrollUser, addUsers, getCommChannels, updateNotifications, searchUsers } = require('../shared/canvas-api/users');
 const { searchAccounts } = require('../shared/canvas-api/accounts');
 const { searchTerms } = require('../shared/canvas-api/terms');
+const { searchUserLogins } = require('../shared/canvas-api/logins');
 const { send } = require('process');
 const { deleteRequester, waitFunc } = require('../shared/utilities');
 const { batchHandler } = require('../shared/batchHandler');
@@ -155,6 +156,105 @@ function parseEmailsFromCSV(csvContent) {
 
     // Remove duplicates and return
     return Array.from(new Set(emails));
+}
+
+function parseEmailsFromExcel(fileBuffer) {
+    try {
+        // Try to import xlsx library
+        let XLSX;
+        try {
+            XLSX = require('xlsx');
+        } catch (error) {
+            throw new Error('Excel parsing requires the "xlsx" library. Please install it with: npm install xlsx');
+        }
+
+        // Parse the Excel file from buffer
+        const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+        
+        // Get the first worksheet
+        const sheetName = workbook.SheetNames[0];
+        if (!sheetName) {
+            throw new Error('No worksheets found in Excel file');
+        }
+        
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // Convert worksheet to JSON
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (jsonData.length === 0) {
+            return [];
+        }
+
+        const emails = [];
+        const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
+
+        // Check if first row contains headers
+        const firstRow = jsonData[0];
+        let pathColumnIndex = -1;
+        let startRowIndex = 0;
+
+        // Look for the "Path" column (Canvas bounce report format)
+        if (Array.isArray(firstRow)) {
+            for (let i = 0; i < firstRow.length; i++) {
+                const cellValue = String(firstRow[i] || '').toLowerCase().trim();
+                if (['path', 'email', 'email_address', 'communication_channel_path'].includes(cellValue)) {
+                    pathColumnIndex = i;
+                    startRowIndex = 1; // Skip header row
+                    break;
+                }
+            }
+        }
+
+        // If we found a path column, extract emails from that column
+        if (pathColumnIndex >= 0) {
+            for (let i = startRowIndex; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                if (Array.isArray(row) && row[pathColumnIndex]) {
+                    const cellValue = String(row[pathColumnIndex]).trim();
+                    if (cellValue.includes('@')) {
+                        const emailMatch = cellValue.match(emailRegex);
+                        if (emailMatch) {
+                            emails.push(emailMatch[1]);
+                        }
+                    }
+                }
+            }
+        } else {
+            // Fallback: search all cells for email addresses
+            for (let i = 0; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                if (!Array.isArray(row)) continue;
+                
+                // Skip potential header row
+                if (i === 0 && row.some(cell => 
+                    String(cell || '').toLowerCase().includes('user id') || 
+                    String(cell || '').toLowerCase().includes('path')
+                )) {
+                    continue;
+                }
+
+                for (let j = 0; j < row.length; j++) {
+                    const cellValue = String(row[j] || '').trim();
+                    if (cellValue.includes('@')) {
+                        const emailMatch = cellValue.match(emailRegex);
+                        if (emailMatch) {
+                            emails.push(emailMatch[1]);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Remove duplicates and return
+        return Array.from(new Set(emails));
+        
+    } catch (error) {
+        if (error.message.includes('xlsx')) {
+            throw error; // Re-throw library installation error
+        }
+        throw new Error(`Failed to parse Excel file: ${error.message}`);
+    }
 }
 
 function removeBlanks(arr) {
@@ -765,6 +865,7 @@ function registerSisIpcHandlers() {
                     csvContent = sisImports.generateLoginsCSV(rowCount, emailDomain, authProviderId, loginOptions);
                     break;
                 case 'change_sis_id':
+                case 'change_sis_ids':
                     csvContent = sisImports.generateChangeSisIdCSV(rowCount, changeSisIdOptions);
                     break;
                 case 'admins':
@@ -774,9 +875,17 @@ function registerSisIpcHandlers() {
                     throw new Error(`Unsupported file type: ${fileType}`);
             }
 
-            return csvContent;
+            return {
+                success: true,
+                preview: csvContent,
+                data: csvContent
+            };
         } catch (error) {
-            throw new Error(`Error generating preview: ${error.message}`);
+            console.error('Error in sis:previewData:', error);
+            return {
+                success: false,
+                error: error.message || 'Unknown error occurred'
+            };
         }
     });
 
@@ -808,6 +917,32 @@ function registerSisIpcHandlers() {
             const differentiationTagSetOptions = allOptions.differentiationTagSetOptions || {};
             const differentiationTagOptions = allOptions.differentiationTagOptions || {};
             const differentiationTagMembershipOptions = allOptions.differentiationTagMembershipOptions || {};
+
+            // Pass search data through loginOptions for logins file type
+            if (fileType === 'logins' && allOptions.searchData) {
+                loginOptions.searchData = allOptions.searchData;
+            }
+
+            // Pass field values to all options for customization
+            if (allOptions.fieldValues) {
+                Object.assign(loginOptions, allOptions.fieldValues);
+                Object.assign(userOptions, allOptions.fieldValues);
+                Object.assign(enrollmentOptions, allOptions.fieldValues);
+                Object.assign(courseOptions, allOptions.fieldValues);
+                Object.assign(sectionOptions, allOptions.fieldValues);
+                Object.assign(termOptions, allOptions.fieldValues);
+                Object.assign(accountOptions, allOptions.fieldValues);
+                Object.assign(groupCategoryOptions, allOptions.fieldValues);
+                Object.assign(groupOptions, allOptions.fieldValues);
+                Object.assign(groupMembershipOptions, allOptions.fieldValues);
+                Object.assign(adminOptions, allOptions.fieldValues);
+                Object.assign(crossListingOptions, allOptions.fieldValues);
+                Object.assign(userObserverOptions, allOptions.fieldValues);
+                Object.assign(changeSisIdOptions, allOptions.fieldValues);
+                Object.assign(differentiationTagSetOptions, allOptions.fieldValues);
+                Object.assign(differentiationTagOptions, allOptions.fieldValues);
+                Object.assign(differentiationTagMembershipOptions, allOptions.fieldValues);
+            }
 
             const filePath = await sisImports.createSISImportFile(
                 fileType,
@@ -1005,6 +1140,18 @@ function registerSisIpcHandlers() {
             return result;
         } catch (error) {
             console.error('Error searching enrollments:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Logins search IPC handler
+    ipcMain.handle('logins:search', async (event, domain, token, userId, idType) => {
+        console.log('main.js > logins:search IPC handler');
+        try {
+            const logins = await searchUserLogins(domain, token, userId, idType);
+            return { success: true, data: logins };
+        } catch (error) {
+            console.error('Error searching user logins:', error);
             return { success: false, error: error.message };
         }
     });
@@ -4038,6 +4185,24 @@ app.whenReady().then(() => {
             return {
                 success: false,
                 error: error.message || 'Failed to parse CSV content'
+            };
+        }
+    });
+
+    // Parse emails from Excel content (used by renderer for immediate parsing)
+    ipcMain.handle('parseEmailsFromExcel', async (event, { filePath, fileBuffer }) => {
+        try {
+            const emails = parseEmailsFromExcel(fileBuffer);
+            return {
+                success: true,
+                emails,
+                count: emails.length
+            };
+        } catch (error) {
+            console.error('Error parsing Excel content:', error);
+            return {
+                success: false,
+                error: error.message || 'Failed to parse Excel content'
             };
         }
     });

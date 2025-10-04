@@ -526,6 +526,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
     searchEnrollments: async (domain, token, searchTerm, searchType) => {
         return await ipcRenderer.invoke('enrollments:search', domain, token, searchTerm, searchType);
     },
+    searchLogins: async (domain, token, userId, idType) => {
+        return await ipcRenderer.invoke('logins:search', domain, token, userId, idType);
+    },
+    searchCanvasData: async (fileType, searchParams) => {
+        // Extract domain and token from searchParams
+        const { domain, token } = searchParams;
+        
+        if (!domain || !token) {
+            return { success: false, error: 'Please enter both Canvas domain and API token' };
+        }
+        
+        switch (fileType) {
+            case 'users':
+                return await ipcRenderer.invoke('users:search', domain, token, searchParams.search_term);
+            case 'accounts':
+                return await ipcRenderer.invoke('accounts:search', domain, token, searchParams.search_term);
+            case 'terms':
+                return await ipcRenderer.invoke('terms:search', domain, token, searchParams.search_term);
+            case 'sections':
+                return await ipcRenderer.invoke('sections:search', domain, token, searchParams.search_term);
+            case 'enrollments':
+                return await ipcRenderer.invoke('enrollments:search', domain, token, searchParams.search_term, searchParams.search_type);
+            case 'logins':
+                return await ipcRenderer.invoke('logins:search', domain, token, searchParams.user_id, searchParams.id_type);
+            default:
+                return { success: false, error: 'Unknown file type' };
+        }
+    },
     onPageViewsProgress: (callback) => {
         ipcRenderer.on('page-views-progress', callback);
     },

@@ -468,22 +468,46 @@ function generateUserObserversCSV(rowCount, userObserverOptions = {}) {
 }
 
 function generateLoginsCSV(rowCount, emailDomain = '@school.edu', authProviderId = '', loginOptions = {}) {
-    const headers = 'user_id,login_id,authentication_provider_id,password,existing_canvas_user_id,email';
+    const headers = 'user_id,login_id,authentication_provider_id,password,existing_user_id,existing_integration_id,existing_canvas_user_id,email';
     const rows = [headers];
 
+    // If search data is available, use it instead of generating random data
+    if (loginOptions.searchData && Array.isArray(loginOptions.searchData)) {
+        console.log('Using search data for logins CSV generation');
+        
+        loginOptions.searchData.forEach(login => {
+            // Map from the search API response format to SIS CSV format
+            const userId = login.sis_user_id || '';
+            const loginId = login.unique_id || '';
+            const authProvider = login.authentication_provider_id || '';
+            const password = 'temppass123'; // Default password for import
+            const existingUserId = login.existing_user_id || '';
+            const existingIntegrationId = login.existing_integration_id || '';
+            const canvasUserId = login.existing_canvas_user_id || '';
+            const email = login.email || (login.unique_id && login.unique_id.includes('@') ? login.unique_id : '');
+
+            const row = `${userId},${loginId},${authProvider},${password},${existingUserId},${existingIntegrationId},${canvasUserId},${email}`;
+            rows.push(row);
+        });
+
+        return rows.join('\n');
+    }
+
+    // If no search data, generate sample data as before
     for (let i = 0; i < rowCount; i++) {
         const { firstName, lastName } = generateRandomName();
 
-        // Use specific user_id if provided
-        const userId = loginOptions.specificUserId || generateRandomId('U', 6);
+        // Use field values for customization, fallback to defaults
+        const userId = loginOptions.user_id || loginOptions.specificUserId || generateRandomId('U', 6);
+        const loginId = loginOptions.login_id || `${firstName.toLowerCase()}${lastName.toLowerCase()}${Math.floor(Math.random() * 100)}`;
+        const authProviderToUse = loginOptions.authentication_provider_id || authProviderId || (Math.random() > 0.7 ? generateRandomId('', 2) : '');
+        const password = loginOptions.password || 'temppass123';
+        const existingUserId = loginOptions.existing_user_id || '';
+        const existingIntegrationId = loginOptions.existing_integration_id || '';
+        const canvasUserId = loginOptions.existing_canvas_user_id || (1000 + i); // Sequential Canvas user IDs
+        const email = loginOptions.email || generateRandomEmail(firstName, lastName, emailDomain);
 
-        const loginId = `${firstName.toLowerCase()}${lastName.toLowerCase()}${Math.floor(Math.random() * 100)}`;
-        // Use the provided authProviderId, or generate random one if not provided
-        const authProviderToUse = authProviderId || (Math.random() > 0.7 ? generateRandomId('', 2) : '');
-        const canvasUserId = 1000 + i; // Sequential Canvas user IDs
-        const email = generateRandomEmail(firstName, lastName, emailDomain);
-
-        const row = `${userId},${loginId},${authProviderToUse},temppass123,${canvasUserId},${email}`;
+        const row = `${userId},${loginId},${authProviderToUse},${password},${existingUserId},${existingIntegrationId},${canvasUserId},${email}`;
         rows.push(row);
     }
 

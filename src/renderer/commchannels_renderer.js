@@ -137,11 +137,12 @@ function checkComm(e) {
                     <div class="row g-3 mb-4 d-none" id="file-upload-section">
                         <div class="col-md-6">
                             <label for="email-upload" class="form-label fw-bold">
-                                <i class="bi bi-filetype-csv me-1"></i>Upload CSV of Emails
+                                <i class="bi bi-filetype-csv me-1"></i>Upload File of Emails
                             </label>
-                            <input type="file" id="email-upload" accept=".csv" class="form-control" />
+                            <input type="file" id="email-upload" accept=".csv,.xlsx,.xls" class="form-control" />
                             <div class="form-text text-muted">
-                                <i class="bi bi-info-circle me-1"></i>Upload a CSV file containing email addresses to check
+                                <i class="bi bi-info-circle me-1"></i>Upload a CSV, Excel (.xlsx), or Excel 97-2003 (.xls) file containing email addresses to check
+                                <br><small>Supports Canvas bounce report format with columns: User ID, Name, Path, Date, Bounce reason</small>
                             </div>
                         </div>
                     </div>
@@ -239,53 +240,83 @@ function checkComm(e) {
 
             if (e.target.files && e.target.files.length > 0) {
                 const file = e.target.files[0];
+                const fileName = file.name.toLowerCase();
+                const fileExtension = fileName.split('.').pop();
+                
                 try {
-                    // Parse the uploaded file immediately
-                    const reader = new FileReader();
-                    reader.onload = async function (event) {
+                    selectedEmails = [];
+                    
+                    if (fileExtension === 'csv') {
+                        // Handle CSV files
+                        const reader = new FileReader();
+                        reader.onload = async function (event) {
+                            try {
+                                const csvContent = event.target.result;
+                                // Use the parseEmailsFromCSV function via IPC
+                                const result = await window.ipcRenderer.invoke('parseEmailsFromCSV', csvContent);
+                                selectedEmails = result.emails || [];
+                                
+                                updateFileParseUI(file, selectedEmails, fileUploadChkbx, dynamicBtn);
+                            } catch (error) {
+                                handleFileParseError(error, dynamicBtn);
+                            }
+                        };
+                        reader.readAsText(file);
+                    } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+                        // Handle Excel files
                         try {
-                            const csvContent = event.target.result;
-                            // Use the parseEmailsFromCSV function via IPC
-                            const result = await window.ipcRenderer.invoke('parseEmailsFromCSV', csvContent);
-
+                            // Use IPC to parse Excel file in main process
+                            const result = await window.ipcRenderer.invoke('parseEmailsFromExcel', {
+                                filePath: file.path || null,
+                                fileBuffer: await file.arrayBuffer()
+                            });
+                            
                             selectedEmails = result.emails || [];
-
-                            // Update UI to show file parsed successfully
-                            const responseContainer = checkSuppressionListForm.querySelector('#response-container');
-                            responseContainer.innerHTML = `
-                                <div class="alert alert-success">
-                                    <strong>✓ File parsed successfully!</strong><br>
-                                    Found ${selectedEmails.length} email addresses in "${file.name}"
-                                    ${file.name.includes('bounced_communication') ?
-                                    '<br><small class="text-muted">Detected Canvas bounced communication channels format</small>' : ''}
-                                </div>`;
-
-                            // Enable the button if checkbox is checked
-                            dynamicBtn.disabled = !fileUploadChkbx.checked || selectedEmails.length === 0;
-
+                            updateFileParseUI(file, selectedEmails, fileUploadChkbx, dynamicBtn);
                         } catch (error) {
-                            console.error('Error parsing file:', error);
-                            selectedEmails = [];
-                            const responseContainer = checkSuppressionListForm.querySelector('#response-container');
-                            responseContainer.innerHTML = `
-                                <div class="alert alert-danger">
-                                    <strong>Error parsing file:</strong><br>
-                                    ${error.message}
-                                </div>`;
-                            dynamicBtn.disabled = true;
+                            handleFileParseError(error, dynamicBtn);
                         }
-                    };
-                    reader.readAsText(file);
+                    } else {
+                        throw new Error('Unsupported file format. Please upload a CSV (.csv), Excel (.xlsx), or Excel 97-2003 (.xls) file.');
+                    }
                 } catch (error) {
                     console.error('File upload error:', error);
-                    selectedEmails = [];
-                    dynamicBtn.disabled = true;
+                    handleFileParseError(error, dynamicBtn);
                 }
             } else {
                 selectedEmails = [];
                 dynamicBtn.disabled = !fileUploadChkbx.checked || !uploadInput.files || uploadInput.files.length === 0;
             }
         });
+
+        // Helper function to update UI after successful file parsing
+        function updateFileParseUI(file, emails, checkbox, button) {
+            const responseContainer = checkSuppressionListForm.querySelector('#response-container');
+            const fileType = file.name.toLowerCase().includes('.xlsx') || file.name.toLowerCase().includes('.xls') ? 'Excel' : 'CSV';
+            
+            responseContainer.innerHTML = `
+                <div class="alert alert-success">
+                    <strong>✓ ${fileType} file parsed successfully!</strong><br>
+                    Found ${emails.length} email address(es) in "${file.name}"
+                    ${(file.name.includes('bounced_communication') || file.name.includes('bounce')) ?
+                        '<br><small class="text-muted">Detected Canvas bounce report format</small>' : ''}
+                </div>`;
+
+            // Enable the button if checkbox is checked
+            button.disabled = !checkbox.checked || emails.length === 0;
+        }
+
+        // Helper function to handle file parsing errors
+        function handleFileParseError(error, button) {
+            selectedEmails = [];
+            const responseContainer = checkSuppressionListForm.querySelector('#response-container');
+            responseContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <strong>Error parsing file:</strong><br>
+                    ${error.message}
+                </div>`;
+            button.disabled = true;
+        }
 
         function handleQueryType(e) {
             const singleEmailChkbx = checkSuppressionListForm.querySelector('#single-email-chkbx');
@@ -307,9 +338,9 @@ function checkComm(e) {
             }
 
             // Hide all sections first
-            singleEmailSection.hidden = true;
-            domainSection.hidden = true;
-            fileUploadSection.hidden = true;
+            singleEmailSection.classList.add('d-none');
+            domainSection.classList.add('d-none');
+            fileUploadSection.classList.add('d-none');
 
             // Clear response container when switching modes
             const responseContainer = checkSuppressionListForm.querySelector('#response-container');
@@ -317,21 +348,21 @@ function checkComm(e) {
 
             // Show appropriate section and update button
             if (singleEmailChkbx.checked) {
-                singleEmailSection.hidden = false;
-                dynamicBtn.textContent = 'Check Email';
+                singleEmailSection.classList.remove('d-none');
+                dynamicBtn.innerHTML = '<i class="bi bi-search me-2"></i>Check Email';
                 dynamicBtn.disabled = emailInput.value.trim() === '';
             } else if (domainEmailChkbx.checked) {
-                domainSection.hidden = false;
-                dynamicBtn.textContent = 'Check Domain';
+                domainSection.classList.remove('d-none');
+                dynamicBtn.innerHTML = '<i class="bi bi-search me-2"></i>Check Domain';
                 dynamicBtn.disabled = domainInput.value.trim() === '';
             } else if (fileUploadChkbx.checked) {
-                fileUploadSection.hidden = false;
-                dynamicBtn.textContent = 'Check Uploaded Emails';
+                fileUploadSection.classList.remove('d-none');
+                dynamicBtn.innerHTML = '<i class="bi bi-upload me-2"></i>Check Uploaded Emails';
                 dynamicBtn.disabled = selectedEmails.length === 0;
             } else {
                 // No switch selected, clear uploaded emails
                 selectedEmails = [];
-                dynamicBtn.textContent = 'Check';
+                dynamicBtn.innerHTML = '<i class="bi bi-search me-2"></i>Check';
                 dynamicBtn.disabled = true;
             }
         }
@@ -399,6 +430,9 @@ function checkComm(e) {
             }
 
             responseContainer.innerHTML = '';
+            // Show the response container card
+            const responseContainerCard = checkSuppressionListForm.querySelector('#response-container-card');
+            responseContainerCard.hidden = false;
 
             const data = {
                 domain: domain,
@@ -455,6 +489,9 @@ function checkComm(e) {
             }
 
             responseContainer.innerHTML = '';
+            // Show the response container card
+            const responseContainerCard = checkSuppressionListForm.querySelector('#response-container-card');
+            responseContainerCard.hidden = false;
 
             const data = {
                 domain: domain,
@@ -512,10 +549,11 @@ function checkComm(e) {
 
         // File upload check function
         async function handleFileUploadCheck(e) {
+            console.log('handleFileUploadCheck called');
             try {
                 // Check if we have parsed emails
                 if (!selectedEmails || selectedEmails.length === 0) {
-                    alert('Please select and upload a CSV file first.');
+                    alert('Please select and upload a file first.');
                     return;
                 }
 
@@ -537,7 +575,9 @@ function checkComm(e) {
                 const progressBar = progresDiv.querySelector('.progress-bar');
                 const progressInfo = progresDiv.querySelector('#progress-info');
                 const loadingWheel = progresDiv.querySelector('#loading-wheel');
-                const progressBarWrapper = progresDiv.querySelector('.progress'); progresDiv.hidden = false;
+                const progressBarWrapper = progresDiv.querySelector('.progress'); 
+                
+                progresDiv.hidden = false;
                 // Hide spinner and show progress bar for file upload
                 loadingWheel.hidden = true;
                 progressBarWrapper.hidden = false;
@@ -545,6 +585,7 @@ function checkComm(e) {
 
                 const responseContainer = checkSuppressionListForm.querySelector('#response-container');
                 responseContainer.innerHTML = 'Starting email check...';
+                
                 // Results array
                 const results = [];
                 const totalEmails = emails.length;
@@ -576,37 +617,130 @@ function checkComm(e) {
 
                 // Only generate CSV if not cancelled
                 if (!isCancelled && results.length > 0) {
-                    // Filter to only include emails that are suppressed or bounced
+                    // Show the response container card
+                    const responseContainerCard = checkSuppressionListForm.querySelector('#response-container-card');
+                    responseContainerCard.hidden = false;
+
+                    // Separate results by status
+                    const suppressedEmails = results.filter(r => r.suppressed);
+                    const bouncedEmails = results.filter(r => r.bounced);
                     const problematicEmails = results.filter(r => r.suppressed || r.bounced);
+                    const cleanEmails = results.filter(r => !r.suppressed && !r.bounced);
+
+                    const totalChecked = results.length;
+                    const suppressedCount = suppressedEmails.length;
+                    const bouncedCount = bouncedEmails.length;
+                    const bothCount = results.filter(r => r.suppressed && r.bounced).length;
+                    const cleanCount = cleanEmails.length;
+
+                    // Generate detailed results display
+                    let resultsHTML = `
+                        <div class="alert alert-info">
+                            <h5><i class="bi bi-check-circle me-2"></i>Suppression & Bounce Check Complete</h5>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card border-primary">
+                                    <div class="card-header bg-primary text-white">
+                                        <h6 class="mb-0"><i class="bi bi-graph-up me-2"></i>Summary</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <p><strong>Total emails checked:</strong> ${totalChecked}</p>
+                                        <p class="mb-1"><strong>Clean emails:</strong> <span class="text-success">${cleanCount}</span></p>
+                                        <p class="mb-1"><strong>On suppression list:</strong> <span class="text-warning">${suppressedCount}</span></p>
+                                        <p class="mb-1"><strong>On bounce list:</strong> <span class="text-danger">${bouncedCount}</span></p>
+                                        ${bothCount > 0 ? `<p class="mb-1"><strong>On both lists:</strong> <span class="text-danger">${bothCount}</span></p>` : ''}
+                                        <hr>
+                                        <p class="mb-0"><strong>Total problematic:</strong> <span class="text-danger">${problematicEmails.length}</span></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0"><i class="bi bi-download me-2"></i>Downloads</h6>
+                                    </div>
+                                    <div class="card-body">
+                    `;
 
                     if (problematicEmails.length > 0) {
-                        // Generate CSV with only suppressed or bounced emails
-                        const csv = ['email,suppressed,bounced'].concat(
-                            problematicEmails.map(r => `${r.email},${r.suppressed ? 'Yes' : 'No'},${r.bounced ? 'Yes' : 'No'}`)
+                        // Generate CSV with problematic emails
+                        const csv = ['email,suppressed,bounced,status'].concat(
+                            problematicEmails.map(r => {
+                                let status = '';
+                                if (r.suppressed && r.bounced) status = 'Both';
+                                else if (r.suppressed) status = 'Suppressed';
+                                else if (r.bounced) status = 'Bounced';
+                                return `${r.email},${r.suppressed ? 'Yes' : 'No'},${r.bounced ? 'Yes' : 'No'},${status}`;
+                            })
                         ).join('\r\n');
+                        
                         const blob = new Blob([csv], { type: 'text/csv' });
                         const url = URL.createObjectURL(blob);
 
-                        const totalChecked = results.length;
-                        const suppressedCount = problematicEmails.filter(r => r.suppressed).length;
-                        const bouncedCount = problematicEmails.filter(r => r.bounced).length;
-
-                        responseContainer.innerHTML = `
-                            <p><strong>Check Complete:</strong></p>
-                            <p>• Total emails checked: ${totalChecked}</p>
-                            <p>• Emails on suppression list: ${suppressedCount}</p>
-                            <p>• Emails on bounce list: ${bouncedCount}</p>
-                            <p>• Problematic emails found: ${problematicEmails.length}</p>
-                            <br>
-                            <a href="${url}" download="problematic_emails.csv" class="btn btn-primary">📥 Download Problematic Emails CSV</a>
+                        resultsHTML += `
+                                        <p class="mb-2">Download files containing problematic emails:</p>
+                                        <div class="d-grid gap-2">
+                                            <a href="${url}" download="problematic_emails_${new Date().toISOString().split('T')[0]}.csv" 
+                                               class="btn btn-danger btn-sm">
+                                                <i class="bi bi-download me-1"></i>Problematic Emails (${problematicEmails.length})
+                                            </a>
                         `;
+
+                        // Generate additional specific files if needed
+                        if (suppressedCount > 0) {
+                            const suppressedCSV = ['email,status'].concat(
+                                suppressedEmails.map(r => `${r.email},Suppressed`)
+                            ).join('\r\n');
+                            const suppressedBlob = new Blob([suppressedCSV], { type: 'text/csv' });
+                            const suppressedUrl = URL.createObjectURL(suppressedBlob);
+                            
+                            resultsHTML += `
+                                            <a href="${suppressedUrl}" download="suppressed_emails_${new Date().toISOString().split('T')[0]}.csv" 
+                                               class="btn btn-warning btn-sm">
+                                                <i class="bi bi-download me-1"></i>Suppressed Only (${suppressedCount})
+                                            </a>
+                            `;
+                        }
+
+                        if (bouncedCount > 0) {
+                            const bouncedCSV = ['email,status'].concat(
+                                bouncedEmails.map(r => `${r.email},Bounced`)
+                            ).join('\r\n');
+                            const bouncedBlob = new Blob([bouncedCSV], { type: 'text/csv' });
+                            const bouncedUrl = URL.createObjectURL(bouncedBlob);
+                            
+                            resultsHTML += `
+                                            <a href="${bouncedUrl}" download="bounced_emails_${new Date().toISOString().split('T')[0]}.csv" 
+                                               class="btn btn-danger btn-sm">
+                                                <i class="bi bi-download me-1"></i>Bounced Only (${bouncedCount})
+                                            </a>
+                            `;
+                        }
+
+                        resultsHTML += '</div>';
                     } else {
-                        responseContainer.innerHTML = `
-                            <p><strong>Great news!</strong> None of the ${results.length} checked emails are on the suppression or bounce lists.</p>
+                        resultsHTML += `
+                                        <div class="alert alert-success mb-0">
+                                            <i class="bi bi-check-circle me-2"></i>
+                                            <strong>Excellent!</strong> All ${totalChecked} emails are clean.
+                                            <br><small>No emails found on suppression or bounce lists.</small>
+                                        </div>
                         `;
                     }
+
+                    resultsHTML += `
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    responseContainer.innerHTML = resultsHTML;
                 } else if (!isCancelled) {
-                    responseContainer.innerHTML = 'No results to export.';
+                    const responseContainerCard = checkSuppressionListForm.querySelector('#response-container-card');
+                    responseContainerCard.hidden = false;
+                    responseContainer.innerHTML = '<div class="alert alert-warning">No results to export.</div>';
                 }
 
                 // Reset progress bar and hide progress div
