@@ -1535,6 +1535,16 @@ app.whenReady().then(() => {
         return batchResponse;
     });
 
+    // Global cancellation flags for delete operations
+    const deleteCancelFlags = new Map();
+
+    ipcMain.handle('axios:cancelDeleteOperations', async (event) => {
+        const senderId = event.sender.id;
+        deleteCancelFlags.set(senderId, true);
+        console.log(`Delete operations cancelled for sender ${senderId}`);
+        return { cancelled: true };
+    });
+
     // 
     ipcMain.handle('axios:deleteAssignments', async (event, data) => {
         console.log('inside axios:deleteAssignments');
@@ -1571,8 +1581,17 @@ app.whenReady().then(() => {
             requests.push({ id: i + 1, request: () => request(requestData) });
         }
 
-        const batchResponse = await batchHandler(requests);
+        // Support cancellation
+        const senderId = event.sender.id;
+        deleteCancelFlags.set(senderId, false); // Reset flag
+        const isCancelled = () => deleteCancelFlags.get(senderId) === true;
+        
+        const batchResponse = await batchHandler(requests, { batchSize: 35, timeDelay: 100, isCancelled });
         console.log('Finished deleting assignments.');
+        
+        // Clean up flag
+        deleteCancelFlags.delete(senderId);
+        
         return batchResponse;
     });
 
@@ -3838,13 +3857,21 @@ app.whenReady().then(() => {
             });
         };
 
+        // Support cancellation
+        const senderId = event.sender.id;
+        deleteCancelFlags.set(senderId, false); // Reset flag
+        const isCancelled = () => deleteCancelFlags.get(senderId) === true;
+
         try {
-            const result = await grading_standards.deleteGradingStandards(data, updateProgress);
+            const result = await grading_standards.deleteGradingStandards(data, updateProgress, isCancelled);
             console.log('Finished deleting grading standards.');
             return result;
         } catch (error) {
             console.error('Error deleting grading standards:', error);
             throw error.message;
+        } finally {
+            // Clean up flag
+            deleteCancelFlags.delete(senderId);
         }
     });
 

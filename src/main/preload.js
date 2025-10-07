@@ -70,6 +70,10 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('inside preload deleteAssignments');
         return await ipcRenderer.invoke('axios:deleteAssignments', data);
     },
+    cancelDeleteOperations: async () => {
+        console.log('inside preload cancelDeleteOperations');
+        return await ipcRenderer.invoke('axios:cancelDeleteOperations');
+    },
     getEmptyAssignmentGroups: async (data) => {
         console.log('inside preload getEmptyAssignmentGroups');
         return await ipcRenderer.invoke('axios:getEmptyAssignmentGroups', data);

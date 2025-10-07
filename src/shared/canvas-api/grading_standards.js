@@ -10,9 +10,11 @@ const { errorCheck } = require('../utilities');
  * @param {string} data.token - Canvas API token
  * @param {string} data.course_id - Course ID
  * @param {Array} data.grading_standards - Array of grading standard objects with id property
+ * @param {Function} updateProgress - Optional progress callback
+ * @param {Function} isCancelled - Optional cancellation check callback
  * @returns {Promise<Object>} Batch operation results
  */
-async function deleteGradingStandards(data, updateProgress = null) {
+async function deleteGradingStandards(data, updateProgress = null, isCancelled = null) {
     const { domain, token, course_id, grading_standards } = data;
 
     if (!grading_standards || !Array.isArray(grading_standards) || grading_standards.length === 0) {
@@ -59,7 +61,12 @@ async function deleteGradingStandards(data, updateProgress = null) {
         };
     });
 
-    const batchResponse = await batchHandler(requests);
+    // Pass cancellation support to batchHandler with same config as assignments
+    const batchResponse = await batchHandler(requests, { 
+        batchSize: 35, 
+        timeDelay: 100, 
+        isCancelled 
+    });
 
     // Sanitize the response to remove non-serializable objects
     const sanitizedResponse = {

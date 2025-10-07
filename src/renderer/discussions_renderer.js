@@ -281,7 +281,7 @@ function discussionTemplate(e) {
     const course_id = form.querySelector('#course-id').value.trim();
     const number = parseInt(form.querySelector('#num-items').value.trim(), 10) || 0;
     const title = form.querySelector('#title').value.trim() || 'Discussion';
-    const message = form.querySelector('#message').value.trim();
+    const discussionMessage = form.querySelector('#message').value.trim();
     const published = form.querySelector('#published').checked;
     const threaded = form.querySelector('#threaded').checked;
     const delayEnabled = form.querySelector('#delayed_post_at_enable').checked;
@@ -308,7 +308,7 @@ function discussionTemplate(e) {
         requests.push({
           domain, token, course_id,
           title: `${title} ${i}`,
-          message,
+          message: discussionMessage,
           published,
           threaded,
           delayed_post_at
