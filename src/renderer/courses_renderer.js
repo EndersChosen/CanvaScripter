@@ -503,6 +503,9 @@ async function createSupportCourse(e) {
                     <div class="col-1">
                         <label for="csc-content-qty" class="form-label">Quantity</label>
                         <input id="csc-content-qty" type="text" class="form-control" placeholder="e.g., 5">
+                        <div id="csc-content-qty-feedback" class="invalid-feedback">
+                            Please enter a positive number
+                        </div>
                     </div>
                     <div class="col-1">
                         <label class="form-label mb-1" for="csc-content-status">Publish</label>
@@ -852,21 +855,37 @@ async function createSupportCourse(e) {
     }
 
     function setContent(key, qty) {
+        console.log('setContent called:', { key, qty });
         const entry = map.find(m => m[0] === key);
-        if (!entry) return;
+        if (!entry) {
+            console.warn('No entry found in map for key:', key);
+            return;
+        }
         const [, toggleSel, divSel, inputSel] = entry;
+        console.log('Selectors:', { toggleSel, divSel, inputSel });
+        
         const toggle = createSupportCourseForm.querySelector(toggleSel);
         const div = createSupportCourseForm.querySelector(divSel);
         const input = createSupportCourseForm.querySelector(inputSel);
+        
+        console.log('Elements found:', { 
+            toggle: !!toggle, 
+            div: !!div, 
+            input: !!input,
+            isPositiveInt: isPositiveInt(qty)
+        });
+        
         if (isPositiveInt(qty)) {
             if (toggle) toggle.checked = true;
             if (div) { div.classList.remove('hidden'); div.classList.add('visible', 'mb-3'); }
             if (input) input.value = String(qty);
+            console.log('Content set to:', qty);
         } else {
             // zero/empty qty removes selection
             if (toggle) toggle.checked = false;
             if (div) { div.classList.add('hidden'); div.classList.remove('visible', 'mb-3'); }
             if (input) input.value = '';
+            console.log('Content cleared');
         }
         renderSummary();
     }
@@ -1034,15 +1053,71 @@ async function createSupportCourse(e) {
         });
     }
 
+    // Clear validation state when user types in quantity field
+    if (contentQtyInput) {
+        contentQtyInput.addEventListener('input', () => {
+            contentQtyInput.classList.remove('is-invalid', 'is-valid');
+        });
+    }
+    
     if (contentAddBtn) {
         contentAddBtn.addEventListener('click', (ev) => {
             ev.preventDefault(); ev.stopPropagation();
             const key = contentTypeSel?.value;
-            const qty = contentQtyInput?.value;
+            const qty = contentQtyInput?.value?.trim();
+            console.log('Add/Update clicked:', { key, qty });
+            
+            // Clear any previous validation state
+            if (contentQtyInput) {
+                contentQtyInput.classList.remove('is-invalid', 'is-valid');
+            }
+            
+            if (!key) {
+                console.warn('No content type selected');
+                return;
+            }
+            
+            if (!qty || qty === '') {
+                console.warn('No quantity entered');
+                // Show validation error on the input field
+                if (contentQtyInput) {
+                    contentQtyInput.classList.add('is-invalid');
+                    contentQtyInput.focus();
+                }
+                return;
+            }
+            
+            if (!isPositiveInt(qty)) {
+                console.warn('Invalid quantity entered');
+                // Show validation error on the input field
+                if (contentQtyInput) {
+                    contentQtyInput.classList.add('is-invalid');
+                    contentQtyInput.focus();
+                }
+                return;
+            }
+            
+            // Valid input - show success state
+            if (contentQtyInput) {
+                contentQtyInput.classList.add('is-valid');
+            }
+            
             setContent(key, qty);
             if (contentPublishSwitch && key) publishByType[key] = !!contentPublishSwitch.checked;
             if (typeof saveDefaultsDebounced === 'function') saveDefaultsDebounced();
+            
+            console.log('Content added:', { key, qty, published: publishByType[key] });
+            
+            // Clear the input and validation state after a short delay
+            setTimeout(() => {
+                if (contentQtyInput) {
+                    contentQtyInput.value = '';
+                    contentQtyInput.classList.remove('is-valid');
+                }
+            }, 1000);
         });
+    } else {
+        console.error('Content Add button not found!');
     }
 
     if (contentClearBtn) {

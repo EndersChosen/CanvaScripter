@@ -157,25 +157,57 @@ async function createSingleSISFile(e) {
                     <div id="field-config-section" class="row mb-3" style="display: none;">
                         <div class="col-12">
                             <div class="card">
-                                <div class="card-header">
-                                    <h6 class="mb-0">
-                                        <i class="bi bi-gear me-2"></i>Field Configuration
-                                        <small class="text-muted ms-2">(Customize which fields to include)</small>
-                                    </h6>
-                                </div>
-                                <div class="card-body">
-                                    <div id="field-checkboxes-container">
-                                        <!-- Dynamic field checkboxes will be added here -->
+                                <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#field-config-collapse" aria-expanded="true">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0">
+                                            <i class="bi bi-gear me-2"></i>Field Configuration
+                                            <small class="text-muted ms-2">(Customize which fields to include)</small>
+                                        </h6>
+                                        <i class="bi bi-chevron-down"></i>
                                     </div>
                                 </div>
-                                <div class="card-footer">
+                                <div id="field-config-collapse" class="collapse show">
+                                    <div class="card-body">
+                                        <div id="field-checkboxes-container">
+                                            <!-- Dynamic field checkboxes will be added here -->
+                                        </div>
+                                    </div>
+                                    <div class="card-footer">
                                     <button type="button" id="add-manual-row" class="btn btn-success btn-sm me-2">
                                         <i class="bi bi-plus-circle me-1"></i>Add Row from Configuration
                                     </button>
-                                    <button type="button" id="add-random-rows" class="btn btn-outline-success btn-sm">
+                                    <button type="button" id="add-random-rows" class="btn btn-outline-success btn-sm me-2">
                                         <i class="bi bi-shuffle me-1"></i>Add Random Rows
                                     </button>
+                                    <button type="button" id="clear-all-rows" class="btn btn-outline-danger btn-sm">
+                                        <i class="bi bi-trash me-1"></i>Clear All Rows
+                                    </button>
                                     <small class="text-muted ms-3">Add individual custom rows or generate multiple random rows</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- CSV Data Section - Shows all rows that will be included in the CSV -->
+                    <div id="csv-data-section" class="row mb-3" style="display: none;">
+                        <div class="col-12">
+                            <div class="card border-success">
+                                <div class="card-header bg-success-subtle" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#csv-data-collapse" aria-expanded="true">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0">
+                                            <i class="bi bi-file-earmark-spreadsheet me-2"></i>CSV Data
+                                            <small class="text-muted ms-2">(Rows to be included in the CSV file)</small>
+                                        </h6>
+                                        <i class="bi bi-chevron-down"></i>
+                                    </div>
+                                </div>
+                                <div id="csv-data-collapse" class="collapse show">
+                                    <div class="card-body">
+                                        <div id="csv-data-results">
+                                            <!-- CSV data rows will be displayed here -->
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -231,16 +263,34 @@ async function createSingleSISFile(e) {
             
             // Show search and field configuration sections if a file type is selected
             if (fileType) {
-                searchFieldsSection.style.display = 'block';
+                // Only show search section for file types that support search
+                const searchSupportedTypes = ['users', 'courses', 'accounts', 'logins'];
+                if (searchSupportedTypes.includes(fileType)) {
+                    searchFieldsSection.style.display = 'block';
+                } else {
+                    searchFieldsSection.style.display = 'none';
+                }
+                
                 fieldConfigSection.style.display = 'block';
                 populateSearchFields(fileType);
                 populateFieldConfiguration(fileType);
                 
-                // Initialize empty search results to allow manual data entry
-                showSearchResults([], fileType);
+                // Initialize search results section for search-based data selection
+                const searchResults = document.getElementById('search-results');
+                searchResults.innerHTML = '';
+                searchResults.style.display = 'none';
+                searchResults.dataset.searchData = JSON.stringify([]);
+                
+                // Initialize CSV Data section - this will hold all rows to be exported
+                const csvDataSection = document.getElementById('csv-data-section');
+                const csvDataResults = document.getElementById('csv-data-results');
+                csvDataSection.style.display = 'none'; // Hidden until data is added
+                csvDataResults.innerHTML = '';
+                csvDataResults.dataset.csvData = JSON.stringify([]);
             } else {
                 searchFieldsSection.style.display = 'none';
                 fieldConfigSection.style.display = 'none';
+                document.getElementById('csv-data-section').style.display = 'none';
             }
             
             validateForm();
@@ -282,7 +332,10 @@ async function createSingleSISFile(e) {
         }
 
         // Generate file handler
-        document.getElementById('generate-sis-file').addEventListener('click', async () => {
+        document.getElementById('generate-sis-file').addEventListener('click', async (e) => {
+            e.preventDefault(); // Prevent form submission
+            e.stopPropagation();
+            
             const fileType = document.getElementById('file-type').value;
             const rowCount = parseInt(document.getElementById('row-count').value);
             const outputPath = document.getElementById('output-path').value;
@@ -396,7 +449,10 @@ async function createSingleSISFile(e) {
 
                 const result = await window.electronAPI.searchCanvasData(fileType, searchParams);
                 
+                console.log('Search result:', result);
+                
                 if (result.success && result.data) {
+                    console.log('Showing search results for', fileType, '- count:', result.data.length);
                     showSearchResults(result.data, fileType);
                 } else {
                     showSearchError(result.error || 'No data found');
@@ -456,25 +512,25 @@ async function createSingleSISFile(e) {
     }
 
     function updateStoredSearchData(rowIndex, fieldName, newValue) {
-        const searchResults = document.getElementById('search-results');
-        if (searchResults && searchResults.dataset.searchData) {
+        const csvDataResults = document.getElementById('csv-data-results');
+        if (csvDataResults && csvDataResults.dataset.csvData) {
             try {
-                const data = JSON.parse(searchResults.dataset.searchData);
+                const data = JSON.parse(csvDataResults.dataset.csvData);
                 if (data[rowIndex]) {
                     data[rowIndex][fieldName] = newValue;
-                    searchResults.dataset.searchData = JSON.stringify(data);
+                    csvDataResults.dataset.csvData = JSON.stringify(data);
                 }
             } catch (e) {
-                console.warn('Failed to update search data:', e);
+                console.warn('Failed to update CSV data:', e);
             }
         }
     }
 
     function addManualRow(fileType) {
         const fieldContainer = document.getElementById('field-checkboxes-container');
-        const searchResults = document.getElementById('search-results');
+        const csvDataResults = document.getElementById('csv-data-results');
         
-        if (!fieldContainer || !searchResults) return;
+        if (!fieldContainer || !csvDataResults) return;
 
         // Gather field values from configuration
         const fieldValues = {};
@@ -489,24 +545,48 @@ async function createSingleSISFile(e) {
             }
         });
 
-        // Fill in missing required fields with random values
-        fieldDefinitions.forEach(field => {
-            if (field.required && !fieldValues[field.name]) {
-                fieldValues[field.name] = generateRandomValueForField(field, fileType);
+        // Fill in missing required fields with random values ONLY
+        // Don't fill in optional fields - leave them empty if not provided
+        // Special handling for change_sis_ids: either regular IDs OR integration IDs must be provided
+        if (fileType === 'change_sis_ids') {
+            // Check if user provided regular IDs or integration IDs
+            const hasRegularIds = fieldValues.old_id || fieldValues.new_id;
+            const hasIntegrationIds = fieldValues.old_integration_id || fieldValues.new_integration_id;
+            
+            // Only generate random values if neither set is provided
+            if (!hasRegularIds && !hasIntegrationIds) {
+                // Generate random values for old_id and new_id only
+                if (!fieldValues.old_id) {
+                    fieldValues.old_id = generateRandomValueForField({ name: 'old_id', required: true }, fileType);
+                }
+                if (!fieldValues.new_id) {
+                    fieldValues.new_id = generateRandomValueForField({ name: 'new_id', required: true }, fileType);
+                }
             }
-        });
+            // Always ensure type has a value
+            if (!fieldValues.type) {
+                fieldValues.type = generateRandomValueForField({ name: 'type', required: true }, fileType);
+            }
+        } else {
+            // For other file types, use the standard logic
+            fieldDefinitions.forEach(field => {
+                if (field.required && !fieldValues[field.name]) {
+                    fieldValues[field.name] = generateRandomValueForField(field, fileType);
+                }
+            });
+        }
 
-        // Get current search data or initialize empty array
+        // Get current CSV data or initialize empty array
         let data = [];
-        if (searchResults.dataset.searchData) {
+        if (csvDataResults.dataset.csvData) {
             try {
-                data = JSON.parse(searchResults.dataset.searchData);
+                data = JSON.parse(csvDataResults.dataset.csvData);
             } catch (e) {
-                console.warn('Failed to parse existing search data:', e);
+                console.warn('Failed to parse existing CSV data:', e);
             }
         }
 
-        // Create new row based on file type
+        // Create new row based on file type - ensure ALL fields from definitions are included
         let newRow = {};
         if (fileType === 'logins') {
             newRow = {
@@ -520,36 +600,50 @@ async function createSingleSISFile(e) {
                 email: fieldValues.email || '',
                 status: fieldValues.status || 'active'
             };
+        } else if (fileType === 'change_sis_ids') {
+            // For change_sis_ids, explicitly map all fields and preserve empty values
+            newRow = {
+                old_id: fieldValues.old_id || '',
+                new_id: fieldValues.new_id || '',
+                old_integration_id: fieldValues.old_integration_id || '',
+                new_integration_id: fieldValues.new_integration_id || '',
+                type: fieldValues.type || 'user'
+            };
         } else {
-            // For other file types, use the field values directly
-            newRow = { ...fieldValues };
+            // For other file types, ensure ALL fields from definitions are included
+            fieldDefinitions.forEach(field => {
+                newRow[field.name] = fieldValues[field.name] || '';
+            });
         }
 
         // Add the new row to data
         data.push(newRow);
 
-        // Update stored data
-        searchResults.dataset.searchData = JSON.stringify(data);
+        // Update stored CSV data
+        csvDataResults.dataset.csvData = JSON.stringify(data);
 
-        // Refresh the search results display
-        showSearchResults(data, fileType);
+        // Refresh the CSV data display
+        showCSVData(data, fileType);
+        
+        // Ensure the CSV data section is visible
+        document.getElementById('csv-data-section').style.display = 'block';
     }
 
     function addRandomRows(fileType) {
-        const searchResults = document.getElementById('search-results');
+        const csvDataResults = document.getElementById('csv-data-results');
         const rowCountInput = document.getElementById('row-count');
         
-        if (!searchResults || !rowCountInput) return;
+        if (!csvDataResults || !rowCountInput) return;
 
         const rowCount = parseInt(rowCountInput.value) || 1;
         
-        // Get current search data or initialize empty array
+        // Get current CSV data or initialize empty array
         let data = [];
-        if (searchResults.dataset.searchData) {
+        if (csvDataResults.dataset.csvData) {
             try {
-                data = JSON.parse(searchResults.dataset.searchData);
+                data = JSON.parse(csvDataResults.dataset.csvData);
             } catch (e) {
-                console.warn('Failed to parse existing search data:', e);
+                console.warn('Failed to parse existing CSV data:', e);
             }
         }
 
@@ -559,28 +653,66 @@ async function createSingleSISFile(e) {
         // Add the new rows to data
         data.push(...newRows);
 
-        // Update stored data
-        searchResults.dataset.searchData = JSON.stringify(data);
+        // Update stored CSV data
+        csvDataResults.dataset.csvData = JSON.stringify(data);
 
-        // Refresh the search results display
-        showSearchResults(data, fileType);
+        // Refresh the CSV data display
+        showCSVData(data, fileType);
+        
+        // Ensure the CSV data section is visible
+        document.getElementById('csv-data-section').style.display = 'block';
+    }
 
-        // Show success message
-        const successMsg = document.createElement('div');
-        successMsg.className = 'alert alert-success alert-dismissible fade show mt-2';
-        successMsg.innerHTML = `
-            <i class="bi bi-check-circle me-2"></i>
-            Added ${rowCount} random row(s) successfully! Total rows: ${data.length}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        searchResults.appendChild(successMsg);
-
-        // Auto-remove success message
-        setTimeout(() => {
-            if (successMsg.parentNode) {
-                successMsg.remove();
+    function removeRow(rowIndex, fileType) {
+        const csvDataResults = document.getElementById('csv-data-results');
+        
+        // Get current CSV data
+        let data = [];
+        if (csvDataResults.dataset.csvData) {
+            try {
+                data = JSON.parse(csvDataResults.dataset.csvData);
+            } catch (e) {
+                console.warn('Failed to parse existing CSV data:', e);
+                return;
             }
-        }, 3000);
+        }
+
+        // Remove the row at the specified index
+        if (rowIndex >= 0 && rowIndex < data.length) {
+            data.splice(rowIndex, 1);
+            
+            // Update stored CSV data
+            csvDataResults.dataset.csvData = JSON.stringify(data);
+            
+            // Refresh the display
+            showCSVData(data, fileType);
+        }
+    }
+
+    function clearAllRows(fileType) {
+        const csvDataResults = document.getElementById('csv-data-results');
+        
+        // Clear all CSV data
+        csvDataResults.dataset.csvData = JSON.stringify([]);
+        
+        // Clear the CSV data display
+        csvDataResults.innerHTML = '';
+        
+        // Hide the CSV data section
+        document.getElementById('csv-data-section').style.display = 'none';
+    }
+
+    function addRemoveRowListeners(fileType) {
+        // Add click listeners to all remove buttons
+        const removeButtons = document.querySelectorAll('.remove-row-btn');
+        removeButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const rowIndex = parseInt(this.dataset.rowIndex);
+                removeRow(rowIndex, fileType);
+            });
+        });
     }
 
     function generateRandomDataForFileType(fileType, rowCount) {
@@ -590,10 +722,13 @@ async function createSingleSISFile(e) {
         for (let i = 0; i < rowCount; i++) {
             const row = {};
             
-            // Generate random data for required fields only
+            // Include ALL fields from definitions, generate random data for required fields
             fieldDefinitions.forEach(field => {
                 if (field.required) {
                     row[field.name] = generateRandomValueForField(field, fileType);
+                } else {
+                    // Include optional fields as empty strings
+                    row[field.name] = '';
                 }
             });
             
@@ -716,13 +851,13 @@ async function createSingleSISFile(e) {
             });
         }
 
-        // Get search results if available
-        const searchResults = document.getElementById('search-results');
-        if (searchResults && searchResults.dataset.searchData) {
+        // Get CSV data if available (this is what will be exported)
+        const csvDataResults = document.getElementById('csv-data-results');
+        if (csvDataResults && csvDataResults.dataset.csvData) {
             try {
-                options.searchData = JSON.parse(searchResults.dataset.searchData);
+                options.searchData = JSON.parse(csvDataResults.dataset.csvData);
             } catch (e) {
-                console.warn('Failed to parse search data:', e);
+                console.warn('Failed to parse CSV data:', e);
             }
         }
 
@@ -864,6 +999,7 @@ async function createSingleSISFile(e) {
         setTimeout(() => {
             const addRowBtn = document.getElementById('add-manual-row');
             const addRandomBtn = document.getElementById('add-random-rows');
+            const clearAllBtn = document.getElementById('clear-all-rows');
             
             if (addRowBtn) {
                 // Remove existing listener if any
@@ -878,6 +1014,13 @@ async function createSingleSISFile(e) {
                 const newAddRandomBtn = document.getElementById('add-random-rows');
                 newAddRandomBtn.addEventListener('click', () => addRandomRows(fileType));
             }
+            
+            if (clearAllBtn) {
+                // Remove existing listener if any
+                clearAllBtn.replaceWith(clearAllBtn.cloneNode(true));
+                const newClearAllBtn = document.getElementById('clear-all-rows');
+                newClearAllBtn.addEventListener('click', () => clearAllRows(fileType));
+            }
         }, 0);
     }
 
@@ -886,6 +1029,9 @@ async function createSingleSISFile(e) {
             users: [
                 { name: 'user_id', display: 'User ID', required: true, description: 'Unique identifier for the user' },
                 { name: 'login_id', display: 'Login ID', required: true, description: 'Username for login' },
+                { name: 'authentication_provider_id', display: 'Auth Provider ID', description: 'Authentication provider this login is associated with' },
+                { name: 'password', display: 'Password', description: 'Password for Canvas login' },
+                { name: 'ssha_password', display: 'SSHA Password', description: 'Pre-hashed password using SSHA scheme' },
                 { name: 'first_name', display: 'First Name', recommended: true },
                 { name: 'last_name', display: 'Last Name', recommended: true },
                 { name: 'full_name', display: 'Full Name', recommended: true },
@@ -893,10 +1039,11 @@ async function createSingleSISFile(e) {
                 { name: 'short_name', display: 'Short Name' },
                 { name: 'email', display: 'Email', recommended: true },
                 { name: 'status', display: 'Status', recommended: true, description: 'active, deleted, suspended' },
-                { name: 'authentication_provider_id', display: 'Auth Provider ID' },
-                { name: 'send_confirmation', display: 'Send Confirmation' },
-                { name: 'home_account', display: 'Home Account' },
-                { name: 'sticky_sis_fields', display: 'Sticky SIS Fields' }
+                { name: 'integration_id', display: 'Integration ID', description: 'Secondary unique identifier for complex SIS integrations' },
+                { name: 'pronouns', display: 'Pronouns', description: 'User\'s preferred pronouns' },
+                { name: 'declared_user_type', display: 'Declared User Type', description: 'administrative, observer, staff, student, student_other, teacher' },
+                { name: 'canvas_password_notification', display: 'Canvas Password Notification', description: 'Notify user for password setup' },
+                { name: 'home_account', display: 'Home Account', description: 'Create user in target account and merge with existing' }
             ],
             accounts: [
                 { name: 'account_id', display: 'Account ID', required: true },
@@ -1023,21 +1170,47 @@ async function createSingleSISFile(e) {
         const resultContainer = document.createElement('div');
         resultContainer.id = 'result-container';
         resultContainer.className = 'mt-3';
-        resultContainer.innerHTML = `
-            <div class="alert alert-${type} alert-dismissible fade show">
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
         
-        createSISForm.appendChild(resultContainer);
-
+        // For success messages, show a more prominent, persistent banner
         if (type === 'success') {
+            resultContainer.innerHTML = `
+                <div class="alert alert-success alert-dismissible fade show border-success" style="border-left: 4px solid #198754;">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-check-circle-fill me-2" style="font-size: 1.5rem;"></i>
+                        <div>
+                            <strong>Success!</strong>
+                            <div>${message}</div>
+                            <small class="text-muted">You can now change the file type or add more rows to generate another CSV.</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        } else {
+            resultContainer.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+        
+        // Insert at the top of the form card body for better visibility
+        const cardBody = createSISForm.querySelector('.card-body');
+        if (cardBody && cardBody.firstChild) {
+            cardBody.insertBefore(resultContainer, cardBody.firstChild);
+        } else {
+            createSISForm.appendChild(resultContainer);
+        }
+
+        // Don't auto-remove success messages - let user dismiss them manually
+        // Only auto-remove error messages after 10 seconds
+        if (type !== 'success') {
             setTimeout(() => {
                 if (resultContainer && resultContainer.parentNode) {
                     resultContainer.remove();
                 }
-            }, 5000);
+            }, 10000);
         }
     }
 
@@ -1062,7 +1235,7 @@ async function createSingleSISFile(e) {
                                     <tr>
             `;
 
-            // Add headers based on file type
+            // Add headers based on file type (no checkbox column for empty state)
             if (fileType === 'logins') {
                 searchResults.innerHTML += `
                     <th>User ID</th>
@@ -1073,6 +1246,7 @@ async function createSingleSISFile(e) {
                     <th>Existing Integration ID</th>
                     <th>Existing Canvas User ID</th>
                     <th>Email</th>
+                    <th>Actions</th>
                 `;
             } else {
                 // For other types, use field definitions
@@ -1080,6 +1254,7 @@ async function createSingleSISFile(e) {
                 fieldDefinitions.forEach(field => {
                     searchResults.innerHTML += `<th>${field.display}</th>`;
                 });
+                searchResults.innerHTML += `<th>Actions</th>`;
             }
 
             searchResults.innerHTML += `
@@ -1106,23 +1281,32 @@ async function createSingleSISFile(e) {
             return;
         }
 
-        // Store search data for use in file generation
-        searchResults.dataset.searchData = JSON.stringify(data);
+        // Store search data temporarily (not in dataset yet - only selected items will be added)
+        searchResults.dataset.searchResults = JSON.stringify(data);
 
         let resultsHTML = `
-            <div class="alert alert-success">
-                <i class="bi bi-check-circle me-2"></i>
-                Found ${data.length} ${fileType} record(s). These will be used for the CSV file.
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Found ${data.length} ${fileType} record(s). Select the items you want to add to the CSV file.
             </div>
             <div class="card">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h6 class="mb-0">Search Results Preview (SIS CSV Format)</h6>
+                    <div>
+                        <button type="button" id="select-all-results" class="btn btn-sm btn-outline-primary me-2">
+                            <i class="bi bi-check-all me-1"></i>Select All
+                        </button>
+                        <button type="button" id="add-selected-results" class="btn btn-sm btn-success" disabled>
+                            <i class="bi bi-plus-circle me-1"></i>Add Selected (<span id="selected-count">0</span>)
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                        <table class="table table-sm table-striped">
+                        <table class="table table-sm table-striped" id="search-results-table">
                             <thead class="table-dark sticky-top">
                                 <tr>
+                                    <th><input type="checkbox" id="select-all-checkbox" title="Select/Deselect All"></th>
         `;
 
         // Add headers based on file type
@@ -1150,25 +1334,28 @@ async function createSingleSISFile(e) {
         
         resultsHTML += '</tr></thead><tbody>';
 
-        // Add all rows (make them all editable)
+        // Add all rows with checkboxes
         data.forEach((item, rowIndex) => {
             resultsHTML += `<tr data-row-index="${rowIndex}">`;
             
+            // Add checkbox column
+            resultsHTML += `<td><input type="checkbox" class="result-checkbox" data-row-index="${rowIndex}"></td>`;
+            
             if (fileType === 'logins') {
-                // For logins, show the mapped SIS format with editable cells
+                // For logins, show the mapped SIS format
                 const fields = ['sis_user_id', 'unique_id', 'authentication_provider_id', 'password', 'existing_user_id', 'existing_integration_id', 'existing_canvas_user_id', 'email'];
                 fields.forEach(field => {
                     const value = item[field] || '';
-                    resultsHTML += `<td class="editable-cell" data-field="${field}" data-row="${rowIndex}">${value}</td>`;
+                    resultsHTML += `<td>${value}</td>`;
                 });
             } else {
-                // For other types, use the original logic with editable cells
+                // For other types, use the original logic
                 const sampleItem = data[0];
                 Object.keys(sampleItem).forEach(key => {
                     if (!key.startsWith('_') && key !== 'id') {
                         const value = item[key] || '';
                         const displayValue = String(value).substring(0, 50) + (String(value).length > 50 ? '...' : '');
-                        resultsHTML += `<td class="editable-cell" data-field="${key}" data-row="${rowIndex}" title="${value}">${displayValue}</td>`;
+                        resultsHTML += `<td title="${value}">${displayValue}</td>`;
                     }
                 });
             }
@@ -1187,8 +1374,246 @@ async function createSingleSISFile(e) {
         searchResults.innerHTML = resultsHTML;
         searchResults.style.display = 'block';
         
-        // Add event listeners for editable cells
+        // Add event listeners for selection
+        addSearchResultsSelectionListeners(fileType);
+    }
+
+    function addSearchResultsSelectionListeners(fileType) {
+        const searchResults = document.getElementById('search-results');
+        const selectAllCheckbox = document.getElementById('select-all-checkbox');
+        const selectAllBtn = document.getElementById('select-all-results');
+        const addSelectedBtn = document.getElementById('add-selected-results');
+        const selectedCountSpan = document.getElementById('selected-count');
+        const resultCheckboxes = document.querySelectorAll('.result-checkbox');
+        
+        // Update selected count and button state
+        function updateSelectionState() {
+            const checkedCount = document.querySelectorAll('.result-checkbox:checked').length;
+            selectedCountSpan.textContent = checkedCount;
+            addSelectedBtn.disabled = checkedCount === 0;
+            
+            // Update select-all checkbox state
+            const totalCount = resultCheckboxes.length;
+            if (checkedCount === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (checkedCount === totalCount) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+            }
+        }
+        
+        // Individual checkbox change
+        resultCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateSelectionState);
+        });
+        
+        // Select all checkbox
+        selectAllCheckbox.addEventListener('change', function() {
+            resultCheckboxes.forEach(cb => {
+                cb.checked = this.checked;
+            });
+            updateSelectionState();
+        });
+        
+        // Select all button
+        selectAllBtn.addEventListener('click', function() {
+            resultCheckboxes.forEach(cb => {
+                cb.checked = true;
+            });
+            updateSelectionState();
+        });
+        
+        // Add selected button
+        addSelectedBtn.addEventListener('click', function() {
+            const selectedIndices = [];
+            resultCheckboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedIndices.push(parseInt(cb.dataset.rowIndex));
+                }
+            });
+            
+            if (selectedIndices.length === 0) {
+                return;
+            }
+            
+            // Get the search results
+            const allResults = JSON.parse(searchResults.dataset.searchResults || '[]');
+            
+            // Get currently stored data or initialize empty array
+            let currentData = [];
+            if (searchResults.dataset.searchData) {
+                try {
+                    currentData = JSON.parse(searchResults.dataset.searchData);
+                } catch (e) {
+                    currentData = [];
+                }
+            }
+            
+            // Get field definitions to ensure all fields are present
+            const fieldDefinitions = getSISFieldDefinitions(fileType);
+            
+            // Add selected items to current data, normalizing to include all fields
+            selectedIndices.forEach(index => {
+                if (allResults[index]) {
+                    const normalizedItem = {};
+                    
+                    // For logins, use the specific fields
+                    if (fileType === 'logins') {
+                        const loginFields = ['sis_user_id', 'unique_id', 'authentication_provider_id', 'password', 'existing_user_id', 'existing_integration_id', 'existing_canvas_user_id', 'email'];
+                        loginFields.forEach(field => {
+                            normalizedItem[field] = allResults[index][field] || '';
+                        });
+                    } else {
+                        // For other types, use field definitions
+                        fieldDefinitions.forEach(field => {
+                            normalizedItem[field.name] = allResults[index][field.name] || '';
+                        });
+                    }
+                    
+                    currentData.push(normalizedItem);
+                }
+            });
+            
+            // Update CSV data (not search data)
+            const csvDataResults = document.getElementById('csv-data-results');
+            let csvData = [];
+            if (csvDataResults.dataset.csvData) {
+                try {
+                    csvData = JSON.parse(csvDataResults.dataset.csvData);
+                } catch (e) {
+                    csvData = [];
+                }
+            }
+            
+            // Add selected items to CSV data
+            csvData.push(...currentData);
+            csvDataResults.dataset.csvData = JSON.stringify(csvData);
+            
+            // Show the CSV data
+            showCSVData(csvData, fileType);
+            document.getElementById('csv-data-section').style.display = 'block';
+            
+            // Show success message
+            const successMsg = document.createElement('div');
+            successMsg.className = 'alert alert-success alert-dismissible fade show mt-2';
+            successMsg.innerHTML = `
+                <i class="bi bi-check-circle me-2"></i>
+                Added ${selectedIndices.length} item(s) to CSV Data! Total items: ${csvData.length}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            searchResults.insertBefore(successMsg, searchResults.firstChild);
+            
+            // Auto-remove success message
+            setTimeout(() => {
+                if (successMsg.parentNode) {
+                    successMsg.remove();
+                }
+            }, 3000);
+            
+            // Clear selections
+            resultCheckboxes.forEach(cb => {
+                cb.checked = false;
+            });
+            updateSelectionState();
+        });
+        
+        // Initialize state
+        updateSelectionState();
+    }
+    
+    function showCSVData(data, fileType) {
+        const csvDataResults = document.getElementById('csv-data-results');
+        
+        if (!csvDataResults) return;
+        
+        if (!data || data.length === 0) {
+            csvDataResults.innerHTML = `
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle me-2"></i>
+                    No data added yet. Use "Add Row from Configuration" or "Add Random Rows" to add data.
+                </div>
+            `;
+            return;
+        }
+        
+        let csvHTML = `
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <table class="table table-sm table-striped">
+                    <thead class="table-dark sticky-top">
+                        <tr>
+        `;
+        
+        // Add headers based on file type - use field definitions to show ALL columns
+        const fieldDefinitions = getSISFieldDefinitions(fileType);
+        
+        if (fileType === 'logins') {
+            csvHTML += `
+                <th>User ID</th>
+                <th>Login ID</th>
+                <th>Auth Provider ID</th>
+                <th>Password</th>
+                <th>Existing User ID</th>
+                <th>Existing Integration ID</th>
+                <th>Existing Canvas User ID</th>
+                <th>Email</th>
+                <th>Actions</th>
+            `;
+        } else {
+            // Use field definitions to ensure ALL fields are shown
+            fieldDefinitions.forEach(field => {
+                csvHTML += `<th>${field.display}</th>`;
+            });
+            csvHTML += `<th>Actions</th>`;
+        }
+        
+        csvHTML += '</tr></thead><tbody>';
+        
+        // Add all rows with editable cells - show ALL columns from field definitions
+        data.forEach((item, rowIndex) => {
+            csvHTML += `<tr data-row-index="${rowIndex}">`;
+            
+            if (fileType === 'logins') {
+                const fields = ['sis_user_id', 'unique_id', 'authentication_provider_id', 'password', 'existing_user_id', 'existing_integration_id', 'existing_canvas_user_id', 'email'];
+                fields.forEach(field => {
+                    const value = item[field] || '';
+                    csvHTML += `<td class="editable-cell" data-field="${field}" data-row="${rowIndex}">${value}</td>`;
+                });
+            } else {
+                // Use field definitions to ensure ALL fields are shown, even if empty
+                fieldDefinitions.forEach(field => {
+                    const value = item[field.name] || '';
+                    const displayValue = String(value).substring(0, 50) + (String(value).length > 50 ? '...' : '');
+                    csvHTML += `<td class="editable-cell" data-field="${field.name}" data-row="${rowIndex}" title="${value}">${displayValue}</td>`;
+                });
+            }
+            
+            // Add remove button
+            csvHTML += `
+                <td>
+                    <button class="btn btn-sm btn-outline-danger remove-row-btn" data-row-index="${rowIndex}" title="Remove this row">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            `;
+            
+            csvHTML += '</tr>';
+        });
+        
+        csvHTML += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        csvDataResults.innerHTML = csvHTML;
+        
+        // Add event listeners for editable cells and remove buttons
         addEditableCellListeners();
+        addRemoveRowListeners(fileType);
     }
 
     function showSearchError(error) {

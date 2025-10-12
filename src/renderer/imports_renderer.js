@@ -166,6 +166,84 @@ function updateDeleteButtonState(container) {
     deleteBtn.disabled = activeToggles.length === 0;
 }
 
+// Helper function to update global delete button state
+function updateGlobalDeleteButtonState() {
+    const globalDeleteBtn = document.getElementById('delete-all-selected-btn');
+    if (!globalDeleteBtn) return;
+    
+    const allActiveToggles = document.querySelectorAll('.import-assets-container .toggle-tile.active');
+    globalDeleteBtn.disabled = allActiveToggles.length === 0;
+    
+    if (allActiveToggles.length > 0) {
+        const count = allActiveToggles.length;
+        globalDeleteBtn.innerHTML = `<i class="bi bi-trash me-1"></i>Delete Selected from All Imports (${count} selected)`;
+    } else {
+        globalDeleteBtn.innerHTML = `<i class="bi bi-trash me-1"></i>Delete Selected from All Imports`;
+    }
+}
+
+// Helper function to collect and deduplicate selections across all imports
+async function collectAllSelections(domain, token, course_id) {
+    const allContainers = document.querySelectorAll('.import-assets-container');
+    const aggregatedAssets = {
+        assignments: new Set(),
+        attachments: new Set(),
+        folders: new Set(),
+        discussions: new Set(),
+        quizzes: new Set(),
+        modules: new Set(),
+        gradingStandards: new Set(),
+        rubrics: new Set(),
+        assignmentGroups: new Set(),
+        announcements: new Set(),
+        pages: new Set(),
+        outcomes: new Set(),
+        calendarEvents: new Set(),
+        questionBanks: new Set()
+    };
+    
+    const importIds = [];
+    
+    for (const container of allContainers) {
+        const importId = container.getAttribute('data-import-id');
+        const activeToggles = container.querySelectorAll('.toggle-tile.active');
+        
+        if (activeToggles.length === 0) continue;
+        
+        importIds.push(importId);
+        
+        // Get asset data for this import
+        try {
+            const assets = await window.axios.getImportedAssets({ domain, token, course_id, import_id: importId });
+            const assetData = await processImportedAssets(assets, domain, token);
+            const { transformedAssets } = assetData;
+            
+            // Add selected asset types to aggregated sets
+            activeToggles.forEach(toggle => {
+                const assetType = toggle.getAttribute('data-asset-type');
+                if (transformedAssets[assetType] && aggregatedAssets[assetType]) {
+                    transformedAssets[assetType].forEach(id => aggregatedAssets[assetType].add(String(id)));
+                }
+            });
+        } catch (error) {
+            console.warn(`Failed to load assets for import ${importId}:`, error.message);
+        }
+    }
+    
+    // Convert sets to arrays and create summary
+    const finalAssets = {};
+    const summary = [];
+    Object.keys(aggregatedAssets).forEach(key => {
+        if (aggregatedAssets[key].size > 0) {
+            finalAssets[key] = Array.from(aggregatedAssets[key]);
+            const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+            summary.push(`${aggregatedAssets[key].size} ${label}`);
+        }
+    });
+    
+    return { finalAssets, summary, importIds };
+}
+
 // Helper function to handle asset deletion
 // Helper function to handle deletion of selected assets
 async function handleDeleteSelectedAssets(container, domain, token, course_id, importId, progressInfo, progressBar, progressDiv, spinner, cancelBtn, cancelFlag) {
@@ -506,9 +584,7 @@ async function handleDeleteSelectedAssets(container, domain, token, course_id, i
             if (!result) return null;
             
             const succeeded = Array.isArray(result.succeeded) ? result.succeeded : [];
-            const failed = Array.isArray(result.failed) ? result.failed : [];
             const successCount = succeeded.length;
-            const failCount = failed.length;
             
             if (successCount > 0) {
                 return `${successCount} ${op.label}`;
@@ -517,8 +593,8 @@ async function handleDeleteSelectedAssets(container, domain, token, course_id, i
         }).filter(item => item !== null);
 
         const deletedSummary = deletedItemsList.length > 0 
-            ? `Successfully deleted ${deletedItemsList.join(', ')}`
-            : 'No items were deleted';
+            ? deletedItemsList.join(', ')
+            : '';
 
         if (totalFailed > 0) {
             // Group failure reasons by type
@@ -565,9 +641,7 @@ async function handleDeleteSelectedAssets(container, domain, token, course_id, i
                 <h6 class="alert-heading mb-3">
                     <i class="bi bi-exclamation-triangle me-2"></i>Deletion Completed with Failures
                 </h6>
-                <div class="mb-2">
-                    <strong>${deletedSummary}</strong>
-                </div>
+                ${deletedSummary ? `<div class="mb-2"><strong>Successfully deleted:</strong> ${deletedSummary}</div>` : ''}
                 ${failedSummary ? `<div class="mb-3 text-danger"><strong>${failedSummary}</strong></div>` : ''}
                 <hr>
                 <div>
@@ -582,11 +656,9 @@ async function handleDeleteSelectedAssets(container, domain, token, course_id, i
             progressDiv_inline.className = 'deletion-result alert alert-success mt-3';
             progressDiv_inline.innerHTML = `
                 <h6 class="alert-heading mb-2">
-                    <i class="bi bi-check-circle me-2"></i>All Items Deleted Successfully
+                    <i class="bi bi-check-circle me-2"></i>Successfully Deleted
                 </h6>
-                <div class="mb-2">
-                    <strong>${deletedSummary}</strong>
-                </div>
+                ${deletedSummary ? `<div class="mb-2">${deletedSummary}</div>` : ''}
                 <div class="mt-3 text-muted small">
                     <i class="bi bi-info-circle me-1"></i>You can select and delete other items from this import.
                 </div>
@@ -661,9 +733,12 @@ function setupImportCardInteractions(container, domain, token, course_id, progre
             btn.classList.add('toggle-pulse');
             setTimeout(() => btn.classList.remove('toggle-pulse'), 320);
             
-            // Update delete button state
+            // Update delete button state for this import
             const container = btn.closest('.import-assets-container');
             updateDeleteButtonState(container);
+            
+            // Update global delete button state
+            updateGlobalDeleteButtonState();
             return;
         }
 
@@ -676,6 +751,7 @@ function setupImportCardInteractions(container, domain, token, course_id, progre
                 toggle.setAttribute('aria-pressed', 'true');
             });
             updateDeleteButtonState(container);
+            updateGlobalDeleteButtonState();
             return;
         }
 
@@ -687,6 +763,7 @@ function setupImportCardInteractions(container, domain, token, course_id, progre
                 toggle.setAttribute('aria-pressed', 'false');
             });
             updateDeleteButtonState(container);
+            updateGlobalDeleteButtonState();
             return;
         }
 
@@ -907,8 +984,8 @@ async function deleteImportedContent(e) {
                 const userId = importItem.user_id || importItem.audit_info?.user_id || '';
                 const sourceCourseId = importItem.settings?.source_course_id || importItem.audit_info?.source_course_id || '';
 
-                const statusBadge = status ?
-                    `<span class="badge bg-${status === 'completed' ? 'success' : status === 'failed' ? 'danger' : 'secondary'}">${status}</span>` : '';
+                const statusText = status ? 
+                    `<span class="text-${status === 'completed' ? 'success' : status === 'failed' ? 'danger' : 'muted'}">${status}</span>` : '';
 
                 // Try to fetch assets for this import
                 let assetData = null;
@@ -942,9 +1019,9 @@ async function deleteImportedContent(e) {
                                         <small class="text-muted ms-2">${type}</small>
                                     </div>
                                 </div>
-                                <div class="d-flex align-items-center gap-2">
-                                    ${hasAssets ? `<span class="badge bg-info">${assetData.totalAll} items</span>` : '<span class="badge bg-secondary">No assets</span>'}
-                                    ${statusBadge}
+                                <div class="d-flex align-items-center gap-3">
+                                    <small class="text-muted">${hasAssets ? `${assetData.totalAll} items` : 'No assets'}</small>
+                                    ${statusText ? `<small>${statusText}</small>` : ''}
                                 </div>
                             </div>
                         </div>
@@ -975,9 +1052,14 @@ async function deleteImportedContent(e) {
 
             listContainer.innerHTML = `
                 <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">Recent Imports with Assets (${imports.length} found)</h6>
-                        <small class="text-muted">Click the arrow to expand and view/select imported content for deletion</small>
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Recent Imports with Assets (${imports.length} found)</h6>
+                            <small class="text-muted">Click the arrow to expand and view/select imported content for deletion</small>
+                        </div>
+                        <button type="button" id="delete-all-selected-btn" class="btn btn-danger" disabled>
+                            <i class="bi bi-trash me-1"></i>Delete Selected from All Imports
+                        </button>
                     </div>
                     <div class="card-body p-0">
                         ${importCards.join('')}
@@ -998,6 +1080,294 @@ async function deleteImportedContent(e) {
             
             // Add event listeners for expanding/collapsing and asset selection
             setupImportCardInteractions(listContainer, domain, token, course_id, progressInfo, progressBar, progressDiv, spinner, cancelBtn, cancelFlagObj);
+            
+            // Setup global delete button handler
+            const globalDeleteBtn = document.getElementById('delete-all-selected-btn');
+            if (globalDeleteBtn) {
+                globalDeleteBtn.addEventListener('click', async () => {
+                    // Collect all selections
+                    const { finalAssets, summary, importIds } = await collectAllSelections(domain, token, course_id);
+                    
+                    if (summary.length === 0) {
+                        alert('Please select at least one content type from any import to delete.');
+                        return;
+                    }
+                    
+                    // Calculate total count
+                    const totalCount = Object.values(finalAssets).reduce((sum, arr) => sum + arr.length, 0);
+                    
+                    // Show confirmation with deduplication info
+                    const confirmMsg = `You are about to delete ${totalCount} items:\n\n${summary.join('\n')}\n\nFrom ${importIds.length} import(s). Duplicates have been removed.\n\nThis action cannot be undone. Continue?`;
+                    if (!confirm(confirmMsg)) {
+                        return;
+                    }
+                    
+                    // Create a global progress indicator
+                    const globalProgressDiv = document.createElement('div');
+                    globalProgressDiv.className = 'alert alert-info mt-3';
+                    globalProgressDiv.innerHTML = `
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                            <span class="global-deletion-status">Deleting selected content from all imports...</span>
+                        </div>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated global-deletion-progress-bar" 
+                                 role="progressbar" style="width: 0%" 
+                                 aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                <span class="progress-percent">0%</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-danger mt-2 cancel-global-delete-btn">
+                            <i class="bi bi-x-circle me-1"></i>Cancel
+                        </button>
+                    `;
+                    listContainer.insertBefore(globalProgressDiv, listContainer.firstChild);
+                    
+                    const globalStatusSpan = globalProgressDiv.querySelector('.global-deletion-status');
+                    const globalProgressBar = globalProgressDiv.querySelector('.global-deletion-progress-bar');
+                    const globalProgressPercent = globalProgressDiv.querySelector('.progress-percent');
+                    const globalCancelBtn = globalProgressDiv.querySelector('.cancel-global-delete-btn');
+                    
+                    const globalCancelFlag = { cancelled: false };
+                    globalCancelBtn.addEventListener('click', async () => {
+                        globalCancelFlag.cancelled = true;
+                        globalCancelBtn.disabled = true;
+                        globalCancelBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Cancelling...';
+                        
+                        try {
+                            await window.axios.cancelDeleteOperations();
+                        } catch (error) {
+                            console.error('Failed to send cancellation signal:', error);
+                        }
+                    });
+                    
+                    try {
+                        const batchResults = [];
+                        const deleteOperations = [];
+                        
+                        // Build delete operations from finalAssets
+                        if (finalAssets.assignments?.length > 0) {
+                            deleteOperations.push({ type: 'assignments', count: finalAssets.assignments.length, label: 'Assignments', ids: finalAssets.assignments });
+                        }
+                        if (finalAssets.attachments?.length > 0) {
+                            deleteOperations.push({ type: 'attachments', count: finalAssets.attachments.length, label: 'Attachments', ids: finalAssets.attachments });
+                        }
+                        if (finalAssets.folders?.length > 0) {
+                            deleteOperations.push({ type: 'folders', count: finalAssets.folders.length, label: 'Folders', ids: finalAssets.folders });
+                        }
+                        if (finalAssets.discussions?.length > 0) {
+                            deleteOperations.push({ type: 'discussions', count: finalAssets.discussions.length, label: 'Discussions', ids: finalAssets.discussions });
+                        }
+                        if (finalAssets.quizzes?.length > 0) {
+                            deleteOperations.push({ type: 'quizzes', count: finalAssets.quizzes.length, label: 'Quizzes', ids: finalAssets.quizzes });
+                        }
+                        if (finalAssets.modules?.length > 0) {
+                            deleteOperations.push({ type: 'modules', count: finalAssets.modules.length, label: 'Modules', ids: finalAssets.modules });
+                        }
+                        if (finalAssets.gradingStandards?.length > 0) {
+                            deleteOperations.push({ type: 'gradingStandards', count: finalAssets.gradingStandards.length, label: 'Grading Standards', ids: finalAssets.gradingStandards });
+                        }
+                        
+                        const totalItems = deleteOperations.reduce((sum, op) => sum + op.count, 0);
+                        let completedItems = 0;
+                        let currentOperationIndex = 0;
+                        let currentOperationItemsProcessed = 0;
+                        
+                        // Setup progress listener
+                        const progressListener = (payload) => {
+                            if (deleteOperations[currentOperationIndex]) {
+                                const currentOp = deleteOperations[currentOperationIndex];
+                                
+                                let progressValue = 0;
+                                if (typeof payload === 'number') {
+                                    progressValue = payload / 100;
+                                } else if (payload && typeof payload === 'object') {
+                                    if (typeof payload.value === 'number') {
+                                        progressValue = payload.value;
+                                    } else if (typeof payload.processed === 'number' && typeof payload.total === 'number' && payload.total > 0) {
+                                        progressValue = payload.processed / payload.total;
+                                    } else if (typeof payload.percent === 'number') {
+                                        progressValue = payload.percent / 100;
+                                    }
+                                }
+                                
+                                progressValue = Math.max(0, Math.min(1, progressValue));
+                                if (isNaN(progressValue)) progressValue = 0;
+                                
+                                currentOperationItemsProcessed = Math.floor(progressValue * currentOp.count);
+                                if (isNaN(currentOperationItemsProcessed) || currentOperationItemsProcessed < 0) {
+                                    currentOperationItemsProcessed = 0;
+                                }
+                                if (currentOperationItemsProcessed > currentOp.count) {
+                                    currentOperationItemsProcessed = currentOp.count;
+                                }
+                                
+                                const itemsFromPreviousOps = deleteOperations
+                                    .slice(0, currentOperationIndex)
+                                    .reduce((sum, op) => sum + op.count, 0);
+                                
+                                const totalCompletedSoFar = itemsFromPreviousOps + currentOperationItemsProcessed;
+                                const overallPercent = totalItems > 0 ? (totalCompletedSoFar / totalItems) * 100 : 0;
+                                
+                                globalStatusSpan.textContent = `Deleting ${currentOp.label}... (${currentOperationItemsProcessed}/${currentOp.count})`;
+                                globalProgressBar.style.width = `${overallPercent}%`;
+                                globalProgressBar.setAttribute('aria-valuenow', overallPercent);
+                                globalProgressPercent.textContent = `${Math.round(overallPercent)}%`;
+                            }
+                        };
+                        
+                        if (window.progressAPI && window.progressAPI.onUpdateProgress) {
+                            window.progressAPI.onUpdateProgress(progressListener);
+                        }
+                        
+                        // Process deletions
+                        for (let opIndex = 0; opIndex < deleteOperations.length; opIndex++) {
+                            const operation = deleteOperations[opIndex];
+                            currentOperationIndex = opIndex;
+                            currentOperationItemsProcessed = 0;
+                            
+                            if (globalCancelFlag.cancelled) {
+                                globalProgressDiv.className = 'alert alert-warning mt-3';
+                                globalProgressDiv.innerHTML = `
+                                    <i class="bi bi-exclamation-triangle me-2"></i>
+                                    <strong>Deletion cancelled by user.</strong><br>
+                                    <small>Completed: ${completedItems} of ${totalItems} items. Some items were deleted before cancellation.</small>
+                                `;
+                                if (window.progressAPI && window.progressAPI.removeProgressListener) {
+                                    window.progressAPI.removeProgressListener(progressListener);
+                                }
+                                return;
+                            }
+                            
+                            globalStatusSpan.textContent = `Deleting ${operation.label}... (0/${operation.count})`;
+                            
+                            if (operation.type === 'assignments') {
+                                const payload = { domain, token, course_id, number: operation.ids.length, assignments: operation.ids.map(id => ({ id })) };
+                                const response = await window.axios.deleteAssignments(payload);
+                                if (response) batchResults.push(response);
+                            }
+                            
+                            if (operation.type === 'attachments') {
+                                const payload = { domain, token, attachments: operation.ids.map(id => ({ id })) };
+                                const response = await window.axios.deleteAttachments(payload);
+                                if (response) batchResults.push(response);
+                            }
+                            
+                            if (operation.type === 'folders') {
+                                const payload = { domain, token, course_id, folders: operation.ids.map(id => ({ id })) };
+                                const response = await window.axios.deleteFolders(payload);
+                                if (response) batchResults.push(response);
+                            }
+                            
+                            if (operation.type === 'discussions') {
+                                const payload = { domain, token, course_id, discussions: operation.ids };
+                                const response = await window.axios.deleteDiscussions(payload);
+                                if (response) batchResults.push(response);
+                            }
+                            
+                            if (operation.type === 'quizzes') {
+                                const payload = { domain, token, courseID: course_id, quizzes: operation.ids.map(id => ({ _id: id })) };
+                                const response = await window.axios.deleteClassicQuizzes(payload);
+                                if (response) batchResults.push(response);
+                            }
+                            
+                            if (operation.type === 'modules') {
+                                const payload = { domain, token, course_id, number: operation.ids.length, module_ids: operation.ids.map(id => ({ id })) };
+                                const response = await window.axios.deleteModules(payload);
+                                if (response) batchResults.push(response);
+                            }
+                            
+                            if (operation.type === 'gradingStandards') {
+                                const payload = { domain, token, course_id, grading_standards: operation.ids.map(id => ({ id })) };
+                                const response = await window.axios.deleteGradingStandards(payload);
+                                if (response) batchResults.push(response);
+                            }
+                            
+                            globalStatusSpan.textContent = `Deleting ${operation.label}... (${operation.count}/${operation.count}) Done`;
+                            completedItems += operation.count;
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+                        
+                        // Process results
+                        let totalSuccess = 0;
+                        let totalFailed = 0;
+                        const deletedItemsList = [];
+                        const failedItemsList = [];
+                        
+                        for (let i = 0; i < deleteOperations.length; i++) {
+                            const operation = deleteOperations[i];
+                            const result = batchResults[i];
+                            
+                            if (!result) continue;
+                            
+                            const succeeded = Array.isArray(result.succeeded) ? result.succeeded : [];
+                            const failed = Array.isArray(result.failed) ? result.failed : [];
+                            
+                            totalSuccess += succeeded.length;
+                            totalFailed += failed.length;
+                            
+                            if (succeeded.length > 0) {
+                                deletedItemsList.push(`${succeeded.length} ${operation.label}`);
+                            }
+                            if (failed.length > 0) {
+                                failedItemsList.push(`${failed.length} ${operation.label}`);
+                            }
+                        }
+                        
+                        globalProgressBar.style.width = '100%';
+                        globalProgressBar.setAttribute('aria-valuenow', 100);
+                        globalProgressPercent.textContent = '100%';
+                        
+                        if (totalFailed > 0) {
+                            globalProgressDiv.className = 'alert alert-warning mt-3';
+                            globalProgressDiv.innerHTML = `
+                                <h6 class="alert-heading mb-3">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>Deletion Completed with Failures
+                                </h6>
+                                ${deletedItemsList.length > 0 ? `<div class="mb-2"><strong>Successfully deleted:</strong> ${deletedItemsList.join(', ')}</div>` : ''}
+                                ${failedItemsList.length > 0 ? `<div class="mb-2 text-danger"><strong>Failed to delete:</strong> ${failedItemsList.join(', ')}</div>` : ''}
+                            `;
+                        } else {
+                            globalProgressDiv.className = 'alert alert-success mt-3';
+                            globalProgressDiv.innerHTML = `
+                                <h6 class="alert-heading mb-2">
+                                    <i class="bi bi-check-circle me-2"></i>Successfully Deleted
+                                </h6>
+                                ${deletedItemsList.length > 0 ? `<div class="mb-2">${deletedItemsList.join(', ')}</div>` : ''}
+                            `;
+                        }
+                        
+                        // Deselect all toggles
+                        const allToggles = document.querySelectorAll('.import-assets-container .toggle-tile.active');
+                        allToggles.forEach(toggle => {
+                            toggle.classList.remove('active');
+                            toggle.setAttribute('aria-pressed', 'false');
+                        });
+                        
+                        // Update all button states
+                        document.querySelectorAll('.import-assets-container').forEach(cont => updateDeleteButtonState(cont));
+                        updateGlobalDeleteButtonState();
+                        
+                        if (window.progressAPI && window.progressAPI.removeProgressListener) {
+                            window.progressAPI.removeProgressListener(progressListener);
+                        }
+                        
+                    } catch (error) {
+                        console.error('Global delete error:', error);
+                        globalProgressDiv.className = 'alert alert-danger mt-3';
+                        globalProgressDiv.innerHTML = `
+                            <h6 class="alert-heading mb-2">
+                                <i class="bi bi-exclamation-circle me-2"></i>Error During Deletion
+                            </h6>
+                            <div>${error.message || 'An unexpected error occurred while deleting content.'}</div>
+                        `;
+                        
+                        if (window.progressAPI && window.progressAPI.removeProgressListener) {
+                            window.progressAPI.removeProgressListener(progressListener);
+                        }
+                    }
+                });
+            }
 
         } catch (err) {
             errorHandler(err, progressInfo);

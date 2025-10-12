@@ -13,12 +13,20 @@ body {
     body {
         padding-top: 130px;
     }
+    
+    #main-row {
+        height: calc(100vh - 130px);
+    }
 }
 
 /* Further adjust for very small screens */
 @media (max-width: 575px) {
     body {
         padding-top: 140px;
+    }
+    
+    #main-row {
+        height: calc(100vh - 140px);
     }
 }
 
@@ -68,10 +76,11 @@ header #sidebar-toggle {
     display: flex !important;
     width: 100%;
     margin: 0;
+    height: calc(100vh - 110px); /* Match body padding-top minus some buffer */
 }
 
 .scrollable {
-    height: 80vh;
+    height: 100%;
     overflow: auto;
 }
 
@@ -87,6 +96,7 @@ header #sidebar-toggle {
     position: relative;
     padding-left: 15px;
     padding-right: 15px;
+    height: 100%;
 }
 
 #endpoint-content {
@@ -95,6 +105,9 @@ header #sidebar-toggle {
     transition: opacity 0.25s ease;
     padding-left: 15px;
     padding-right: 15px;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 /* Resize handle */
@@ -271,4 +284,26 @@ header .input-group .form-floating {
 .table-responsive ::-webkit-scrollbar-thumb:hover,
 #sidebar ::-webkit-scrollbar-thumb:hover {
     background: rgba(0, 0, 0, 0.2);
+}
+
+/* Prevent table headers and cell data from wrapping */
+.table thead th,
+.table tbody td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Add alternating column colors with better contrast - white and light gray */
+.table tbody td:nth-child(odd) {
+    background-color: #ffffff;
+}
+
+.table tbody td:nth-child(even) {
+    background-color: #f0f0f0;
+}
+
+/* Add subtle row variation for grid effect */
+.table-striped tbody tr:nth-of-type(even) td {
+    filter: brightness(0.97);
 }

@@ -10,8 +10,9 @@ const { waitFunc } = require('./utilities');
  * @returns {Promise<Object>} Object with successful and failed arrays
  */
 async function batchHandler(requests, batchSize = 35, timeDelay) {
-    // Support options overload: batchHandler(reqs, { batchSize, timeDelay, isCancelled })
+    // Support options overload: batchHandler(reqs, { batchSize, timeDelay, isCancelled, operationId })
     let isCancelled = null;
+    let operationId = null;
     const getEnvNumber = (name, fallback) => {
         const n = Number(process.env[name]);
         return Number.isFinite(n) && n >= 0 ? n : fallback;
@@ -20,17 +21,27 @@ async function batchHandler(requests, batchSize = 35, timeDelay) {
     if (typeof batchSize === 'object' && batchSize !== null) {
         const opts = batchSize;
         isCancelled = typeof opts.isCancelled === 'function' ? opts.isCancelled : null;
+        operationId = opts.operationId || null;
         timeDelay = typeof opts.timeDelay === 'number' ? opts.timeDelay : envTimeDelay;
         batchSize = typeof opts.batchSize === 'number' ? opts.batchSize : 35;
     } else if (typeof timeDelay === 'object' && timeDelay !== null) {
         const opts = timeDelay;
         isCancelled = typeof opts.isCancelled === 'function' ? opts.isCancelled : null;
+        operationId = opts.operationId || null;
         timeDelay = typeof opts.timeDelay === 'number' ? opts.timeDelay : envTimeDelay;
     }
 
     if (!Number.isFinite(timeDelay)) {
         timeDelay = envTimeDelay;
     }
+
+    const log = (msg) => {
+        if (operationId) {
+            console.log(`[${operationId}] ${msg}`);
+        } else {
+            console.log(msg);
+        }
+    };
 
     let myRequests = requests
     let successful = [];
@@ -42,6 +53,13 @@ async function batchHandler(requests, batchSize = 35, timeDelay) {
         console.log('Inside processBatchRequests');
 
         retryRequests = []; // zeroing out failed requests
+        
+        // On retries, remove the failed entries for requests we're about to retry
+        if (counter > 0) {
+            const retryIds = new Set(myRequests.map(r => r.id));
+            failed = failed.filter(f => !retryIds.has(f.id));
+        }
+        
         // const results = [];
         for (let i = 0; i < myRequests.length; i += batchSize) {
             if (isCancelled && isCancelled()) break;
@@ -96,20 +114,41 @@ async function batchHandler(requests, batchSize = 35, timeDelay) {
     };
 
     do {
-        if (isCancelled && isCancelled()) break;
+        if (isCancelled && isCancelled()) {
+            log('Batch handler cancelled by user');
+            break;
+        }
+        
         if (retryRequests.length > 0) {
             myRequests = requests.filter(request => retryRequests.some(r => r.id === request.id)); // find the request data to process the failed requests
             counter++;
-            await waitFunc(timeDelay); // wait for the time delay before attempting a retry
+            
+            // Exponential backoff: 5s, 15s, 30s for retry attempts
+            let retryDelay = timeDelay;
+            if (counter === 1) {
+                retryDelay = timeDelay * 2.5; // First retry: 5s (2s * 2.5)
+            } else if (counter === 2) {
+                retryDelay = timeDelay * 7.5; // Second retry: 15s (2s * 7.5)
+            } else if (counter === 3) {
+                retryDelay = timeDelay * 15; // Third retry: 30s (2s * 15)
+            }
+              
+            log(`Retry attempt ${counter}/3 - waiting ${retryDelay}ms before retrying ${myRequests.length} requests...`);
+            await waitFunc(retryDelay); // wait for the exponentially increasing delay before attempting a retry
+              
+            log(`Starting retry attempt ${counter}/3...`);
             await processBatchRequests(myRequests);
             retryRequests = failed.filter(request => shouldRetry(request)); // only retry requests that should be retried
+            log(`Retry attempt ${counter}/3 complete. ${retryRequests.length} requests still need retry.`);
         } else {
+            log('Processing initial batch requests...');
             await processBatchRequests(myRequests);
             retryRequests = failed.filter(request => shouldRetry(request)); // only retry requests that should be retried
+            log(`Initial batch complete. ${retryRequests.length} requests need retry.`);
         }
-    }
-    while (counter < 3 && retryRequests.length > 0) // loop through if there are failed requests until the counter is over 3
+    } while (counter < 3 && retryRequests.length > 0); // loop through if there are failed requests until the counter is over 3
 
+    log(`Batch handler complete. Successful: ${successful.length}, Failed: ${failed.length}`);
     return { successful, failed };
 }
 

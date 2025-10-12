@@ -46,8 +46,8 @@ function emptyAssignmentGroups(e) {
                     <small class="text-muted">Remove assignment groups that contain no assignments</small>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 align-items-start">
-                        <div class="col-md-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-auto">
                             <label class="form-label fw-bold" for="course-id">
                                 <i class="bi bi-book me-1"></i>Course ID
                             </label>
@@ -57,12 +57,12 @@ function emptyAssignmentGroups(e) {
                                 <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
                             </div>
                         </div>
-                        <div class="col-md-8 d-flex align-items-end">
-                            <div class="d-grid w-100">
-                                <button id="action-btn" class="btn btn-warning">
-                                    <i class="bi bi-search me-2"></i>Check for Empty Groups
-                                </button>
-                            </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-auto">
+                            <button id="action-btn" class="btn btn-warning">
+                                <i class="bi bi-search me-2"></i>Check for Empty Groups
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -93,19 +93,17 @@ function emptyAssignmentGroups(e) {
         `;
 
         eContent.append(deleteEmptyAssignmentGroupsForm);
-    }
-    deleteEmptyAssignmentGroupsForm.hidden = false;
 
-    const cID = deleteEmptyAssignmentGroupsForm.querySelector('#course-id');
-    cID.addEventListener('change', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        const cID = deleteEmptyAssignmentGroupsForm.querySelector('#course-id');
+        cID.addEventListener('change', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
 
-        checkCourseID(cID, eContent);
-    })
+            checkCourseID(cID, eContent);
+        })
 
-    // checkCourseID function - validates course ID input and provides feedback
-    function checkCourseID(courseIDField, container) {
+        // checkCourseID function - validates course ID input and provides feedback
+        function checkCourseID(courseIDField, container) {
         const trimmedValue = courseIDField.value.trim();
         const isValid = !isNaN(Number(trimmedValue)) && Number(trimmedValue) > 0 && Number.isInteger(Number(trimmedValue));
 
@@ -138,23 +136,188 @@ function emptyAssignmentGroups(e) {
             feedbackElement.textContent = 'Course ID must be a positive number';
             feedbackElement.style.display = 'block';
         }
-    }
+        }
 
-    // const eResponse = document.createElement('div');
-    // eResponse.id = "response-container";
-    // eResponse.classList.add('mt-5');
-    // eContent.append(eResponse);
+        // Prevent concurrent check and delete operations
+        let isChecking = false;
+        let isDeleting = false;
 
-    const deagBtn = deleteEmptyAssignmentGroupsForm.querySelector('#action-btn');
-    deagBtn.removeEventListener('click', handleCheckBtnClick); // Remove previous event listener if any
-    deagBtn.addEventListener('click', handleCheckBtnClick);
+        const deagBtn = deleteEmptyAssignmentGroupsForm.querySelector('#action-btn');
+        
+        // Handler for deleting empty assignment groups
+        async function handleDeleteClick(e) {
+            e.preventDefault();
+            e.stopPropagation();
 
-    async function handleCheckBtnClick(e) {
-        e.stopPropagation();
-        e.preventDefault();
+            // Prevent double-click or concurrent executions
+            if (isDeleting) {
+                console.log('Already deleting empty assignment groups, ignoring duplicate click');
+                return;
+            }
 
-        deagBtn.disabled = true;
-        console.log('Inside renderer check');
+            console.log('inside remove');
+            isDeleting = true;
+
+            const eagResponseContainer = deleteEmptyAssignmentGroupsForm.querySelector('#eag-response-container');
+            const eagResponseContainerCard = deleteEmptyAssignmentGroupsForm.querySelector('#eag-response-container-card');
+            const eagProgressDiv = deleteEmptyAssignmentGroupsForm.querySelector('#eag-progress-div');
+            const eagProgressBar = eagProgressDiv.querySelector('.progress-bar');
+            const eagProgressInfo = deleteEmptyAssignmentGroupsForm.querySelector('#eag-progress-info');
+            
+            const removeDeagBtn = eagResponseContainer.querySelector('#remove-btn');
+            const cancelDeagBtn = eagResponseContainer.querySelector('#cancel-btn');
+            
+            removeDeagBtn.disabled = true;
+            // Keep cancel button enabled so user can cancel the delete operation
+            cancelDeagBtn.disabled = false;
+
+            // Update the results card to show only the cancel button
+            eagResponseContainer.innerHTML = `
+                <div class="alert alert-info" role="alert">
+                    <i class="bi bi-hourglass-split me-2"></i>
+                    <strong>Deleting empty assignment groups...</strong>
+                </div>
+                <div class="row g-2">
+                    <div class="col-auto">
+                        <button id="cancel-delete-btn" class="btn btn-secondary">
+                            <i class="bi bi-x-circle me-2"></i>Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Re-attach the cancel event listener to the new button
+            const newCancelBtn = eagResponseContainer.querySelector('#cancel-delete-btn');
+            newCancelBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                console.log('Cancelling delete empty assignment groups request...');
+                newCancelBtn.disabled = true;
+                newCancelBtn.innerHTML = '<i class="bi bi-hourglass me-2"></i>Cancelling...';
+                
+                try {
+                    await window.axios.cancelDeleteEmptyAssignmentGroups();
+                } catch (error) {
+                    console.error('Error cancelling request:', error);
+                }
+            });
+
+            // Show progress below the results card
+            eagProgressDiv.hidden = false;
+            eagProgressBar.parentElement.hidden = false;
+            eagProgressInfo.innerHTML = `Removing empty assignment groups....`;
+
+            const domain = document.querySelector('#domain').value.trim();
+            const apiToken = document.querySelector('#token').value.trim();
+            const course = cID.value.trim();
+            const emptyAssignmentGroups = window.emptyAssignmentGroupsCache || [];
+
+            const messageData = {
+                url: `https://${domain}/api/v1/courses/${course}/assignment_groups`,
+                token: apiToken,
+                content: emptyAssignmentGroups
+            }
+
+            window.progressAPI.onUpdateProgress((progress) => {
+                updateProgressWithPercent(eagProgressBar, progress);
+            });
+
+            try {
+                const result = await window.axios.deleteEmptyAssignmentGroups(messageData);
+
+                // Handle different result structures
+                if (result && typeof result === 'object') {
+                    if (result.successful && Array.isArray(result.successful)) {
+                        // Structure with successful/failed arrays
+                        if (result.successful.length > 0) {
+                            eagProgressInfo.innerHTML = `Successfully removed ${result.successful.length} assignment group(s).`
+                        }
+                        if (result.failed && Array.isArray(result.failed) && result.failed.length > 0) {
+                            eagProgressBar.parentElement.hidden = true;
+                            eagProgressInfo.innerHTML += ` Failed to remove ${result.failed.length} empty assignment group(s)`;
+                            errorHandler({ message: `${result.failed[0].reason}` }, eagProgressInfo);
+                        }
+                    } else if (result.success === true) {
+                        // Single success result structure
+                        eagProgressInfo.innerHTML = `Successfully removed assignment group.`
+                    } else if (Array.isArray(result)) {
+                        // Array of results
+                        const successCount = result.filter(r => r && (r.success === true || (r.status >= 200 && r.status < 300))).length;
+                        const failCount = result.length - successCount;
+
+                        if (successCount > 0) {
+                            eagProgressInfo.innerHTML = `Successfully removed ${successCount} assignment group(s).`
+                        }
+                        if (failCount > 0) {
+                            eagProgressBar.parentElement.hidden = true;
+                            eagProgressInfo.innerHTML += ` Failed to remove ${failCount} assignment group(s).`;
+                            const failedResults = result.filter(r => r && r.error);
+                            if (failedResults.length > 0) {
+                                errorHandler({ message: failedResults[0].error }, eagProgressInfo);
+                            }
+                        }
+                    } else {
+                        // Unknown result structure, show generic success message
+                        eagProgressInfo.innerHTML = `Operation completed. Check the result for details.`;
+                    }
+                } else {
+                    eagProgressInfo.innerHTML = `Operation completed, but result structure is unexpected.`;
+                }
+            } catch (error) {
+                eagProgressBar.parentElement.hidden = true;
+                if (error.message === 'Request cancelled') {
+                    eagProgressInfo.innerHTML = 'Request cancelled by user.';
+                } else {
+                    errorHandler(error, eagProgressInfo);
+                }
+            } finally {
+                isDeleting = false;
+                deagBtn.disabled = false;
+                eagProgressBar.parentElement.hidden = true;
+                
+                // Add a close button to the results after operation completes
+                eagResponseContainer.innerHTML += `
+                    <div class="row g-2 mt-2">
+                        <div class="col-auto">
+                            <button id="close-results-btn" class="btn btn-secondary">
+                                <i class="bi bi-x-circle me-2"></i>Close
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                // Attach close button event listener
+                const closeBtn = eagResponseContainer.querySelector('#close-results-btn');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        cID.value = '';
+                        eagResponseContainer.innerHTML = '';
+                        eagProgressDiv.hidden = true;
+                        eagResponseContainerCard.hidden = true;
+                        window.emptyAssignmentGroupsCache = null;
+                    });
+                }
+            }
+        }
+        
+        async function handleCheckBtnClick(e) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            // Prevent double-click or concurrent executions
+            if (isChecking) {
+                console.log('Already checking for empty assignment groups, ignoring duplicate click');
+                return;
+            }
+
+            // Set flag and disable button immediately
+            isChecking = true;
+            deagBtn.disabled = true;
+            console.log('Inside renderer check');
 
         const eagResponseContainer = deleteEmptyAssignmentGroupsForm.querySelector('#eag-response-container');
         const domain = document.querySelector('#domain').value.trim();
@@ -186,6 +349,8 @@ function emptyAssignmentGroups(e) {
             hasError = true;
             errorHandler(error, eagProgressInfo);
         } finally {
+            // Reset flag and re-enable button
+            isChecking = false;
             deagBtn.disabled = false;
         }
 
@@ -193,116 +358,89 @@ function emptyAssignmentGroups(e) {
         if (!hasError) {
             console.log('found emtpy groups', emptyAssignmentGroups.length);
 
-            //const eContent = document.querySelector('#endpoint-content');
-            eagResponseContainer.innerHTML = `
-                <div>
-                    <div class="row align-items-center">
-                        <div id="eag-response-details" class="col-auto">
-                            <span>Found ${emptyAssignmentGroups.length} empty assignment groups.</span>
-                        </div>
+            // Cache the empty groups for the delete handler
+            window.emptyAssignmentGroupsCache = emptyAssignmentGroups;
 
-                        <div class="w-100"></div>
+            // Hide progress and show results
+            eagProgressDiv.hidden = true;
+            const eagResponseContainerCard = deleteEmptyAssignmentGroupsForm.querySelector('#eag-response-container-card');
+            eagResponseContainerCard.hidden = false;
 
-                        <div class="col-2">
-                            <button id="remove-btn" type="button" class="btn btn-danger">Remove</button>
+            if (emptyAssignmentGroups.length === 0) {
+                // No empty groups found
+                eagResponseContainer.innerHTML = `
+                    <div class="alert alert-success" role="alert">
+                        <i class="bi bi-check-circle me-2"></i>
+                        <strong>No empty assignment groups found!</strong>
+                        <br>All assignment groups in this course contain at least one assignment.
+                    </div>
+                `;
+            } else {
+                // Empty groups found - show count and action buttons
+                eagResponseContainer.innerHTML = `
+                    <div class="alert alert-warning" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Found ${emptyAssignmentGroups.length} empty assignment group${emptyAssignmentGroups.length !== 1 ? 's' : ''}.</strong>
+                        <br>Click "Remove" to permanently delete them.
+                    </div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-auto">
+                            <button id="remove-btn" type="button" class="btn btn-danger">
+                                <i class="bi bi-trash me-2"></i>Remove
+                            </button>
                         </div>
-                        <div class="col-2">
-                            <button id="cancel-btn" type="button" class="btn btn-secondary">Cancel</button>
+                        <div class="col-auto">
+                            <button id="cancel-btn" type="button" class="btn btn-secondary">
+                                <i class="bi bi-x-circle me-2"></i>Cancel
+                            </button>
                         </div>
                     </div>
-                </div>    
-            `;
+                `;
 
-            const cancelDeagBtn = eagResponseContainer.querySelector('#cancel-btn');
-            cancelDeagBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
+                // Attach event listeners to the newly created buttons
+                const cancelDeagBtn = eagResponseContainer.querySelector('#cancel-btn');
+                cancelDeagBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
 
-                cID.value = '';
-                eagResponseContainer.innerHTML = '';
-                deagBtn.disabled = false;
-                eagProgressDiv.hidden = true;
-                //clearData(courseID, responseContent);
-            });
-
-            const removeDeagBtn = eagResponseContainer.querySelector('#remove-btn');
-            removeDeagBtn.addEventListener('click', async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-
-                console.log('inside remove');
-                removeDeagBtn.disabled = true;
-                cancelDeagBtn.disabled = true;
-
-                const eagResponseDetails = eagResponseContainer.querySelector('#eag-response-details');
-                eagResponseDetails.innerHTML = ``;
-
-                eagProgressBar.parentElement.hidden = false;
-                eagProgressInfo.innerHTML = `Removing empty assignment groups....`;
-
-                const messageData = {
-                    url: `https://${domain}/api/v1/courses/${course}/assignment_groups`,
-                    token: apiToken,
-                    content: emptyAssignmentGroups
-                }
-
-                window.progressAPI.onUpdateProgress((progress) => {
-                    updateProgressWithPercent(eagProgressBar, progress);
-                });
-
-                try {
-                    const result = await window.axios.deleteEmptyAssignmentGroups(messageData);
-
-                    // Handle different result structures
-                    if (result && typeof result === 'object') {
-                        if (result.successful && Array.isArray(result.successful)) {
-                            // Structure with successful/failed arrays
-                            if (result.successful.length > 0) {
-                                eagProgressInfo.innerHTML = `Successfully removed ${result.successful.length} assignment group(s).`
-                            }
-                            if (result.failed && Array.isArray(result.failed) && result.failed.length > 0) {
-                                eagProgressBar.parentElement.hidden = true;
-                                eagProgressInfo.innerHTML += `Failed to remove ${result.failed.length} empty assignment group(s)`;
-                                errorHandler({ message: `${result.failed[0].reason}` }, eagProgressInfo);
-                            }
-                        } else if (result.success === true) {
-                            // Single success result structure
-                            eagProgressInfo.innerHTML = `Successfully removed assignment group.`
-                        } else if (Array.isArray(result)) {
-                            // Array of results
-                            const successCount = result.filter(r => r && (r.success === true || (r.status >= 200 && r.status < 300))).length;
-                            const failCount = result.length - successCount;
-
-                            if (successCount > 0) {
-                                eagProgressInfo.innerHTML = `Successfully removed ${successCount} assignment group(s).`
-                            }
-                            if (failCount > 0) {
-                                eagProgressBar.parentElement.hidden = true;
-                                eagProgressInfo.innerHTML += ` Failed to remove ${failCount} assignment group(s).`;
-                                const failedResults = result.filter(r => r && r.error);
-                                if (failedResults.length > 0) {
-                                    errorHandler({ message: failedResults[0].error }, eagProgressInfo);
-                                }
-                            }
-                        } else {
-                            // Unknown result structure, show generic success message
-                            eagProgressInfo.innerHTML = `Operation completed. Check the result for details.`;
+                    // If a delete operation is in progress, cancel it
+                    if (isDeleting) {
+                        console.log('Cancelling delete empty assignment groups request...');
+                        
+                        const eagProgressInfo = deleteEmptyAssignmentGroupsForm.querySelector('#eag-progress-info');
+                        if (eagProgressInfo) {
+                            eagProgressInfo.innerHTML = 'Cancelling request...';
+                        }
+                        
+                        // Disable cancel button immediately
+                        cancelDeagBtn.disabled = true;
+                        
+                        try {
+                            await window.axios.cancelDeleteEmptyAssignmentGroups();
+                        } catch (error) {
+                            console.error('Error cancelling request:', error);
                         }
                     } else {
-                        eagProgressInfo.innerHTML = `Operation completed, but result structure is unexpected.`;
+                        // If no delete operation, just clear the results
+                        cID.value = '';
+                        eagResponseContainer.innerHTML = '';
+                        deagBtn.disabled = false;
+                        eagProgressDiv.hidden = true;
+                        eagResponseContainerCard.hidden = true;
+                        window.emptyAssignmentGroupsCache = null;
                     }
-                } catch (error) {
-                    errorHandler(error, eagProgressInfo);
-                } finally {
-                    removeDeagBtn.disabled = false;
-                    cancelDeagBtn.disabled = false;
-                    deagBtn.disabled = false;
-                    eagProgressBar.parentElement.hidden = true;
-                }
-                //const result = await window.axios.deleteTheThings(messageData);
-            });
+                });
+
+                const removeDeagBtn = eagResponseContainer.querySelector('#remove-btn');
+                removeDeagBtn.addEventListener('click', handleDeleteClick);
+            } // End of else block for when empty groups are found
         }
-    }
+        }
+        
+        deagBtn.addEventListener('click', handleCheckBtnClick);
+    } // End of if (!deleteEmptyAssignmentGroupsForm) block - event listeners only added once
+    
+    deleteEmptyAssignmentGroupsForm.hidden = false;
 }
 
 function assignmentGroupCreator(e) {
@@ -334,8 +472,8 @@ function assignmentGroupCreator(e) {
                     <small class="text-muted">Create multiple assignment groups for organizing assignments</small>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 align-items-start">
-                        <div class="col-md-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
                             <label class="form-label fw-bold" for="course-id">
                                 <i class="bi bi-book me-1"></i>Course ID
                             </label>
@@ -345,7 +483,7 @@ function assignmentGroupCreator(e) {
                                 <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-6">
                             <label class="form-label fw-bold" for="assignment-group-number">
                                 <i class="bi bi-hash me-1"></i>How Many
                             </label>
@@ -355,12 +493,31 @@ function assignmentGroupCreator(e) {
                                 <i class="bi bi-info-circle me-1"></i>Number of groups to create
                             </div>
                         </div>
-                        <div class="col-md-5 d-flex align-items-end">
-                            <div class="d-grid w-100">
-                                <button id="action-btn" class="btn btn-success">
-                                    <i class="bi bi-plus-circle me-2"></i>Create Assignment Groups
-                                </button>
+                    </div>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold" for="assignment-group-name">
+                                <i class="bi bi-tag me-1"></i>Assignment Group Name
+                            </label>
+                            <input id="assignment-group-name" type="text" class="form-control" 
+                                   placeholder="e.g., Homework, Quizzes, Labs" />
+                            <div class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>Name for the assignment group(s)
                             </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-2">
+                        <div class="col-auto">
+                            <button id="action-btn" class="btn btn-success">
+                                <i class="bi bi-plus-circle me-2"></i>Create Assignment Groups
+                            </button>
+                        </div>
+                        <div class="col-auto">
+                            <button id="cancel-btn" class="btn btn-secondary">
+                                <i class="bi bi-x-circle me-2"></i>Cancel
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -391,29 +548,65 @@ function assignmentGroupCreator(e) {
         `;
 
         eContent.append(createAssignmentGroupForm);
-    }
-    createAssignmentGroupForm.hidden = false;
 
-    // validate course id
-    const cID = eContent.querySelector('#course-id');
-    cID.addEventListener('change', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        // validate course id
+        const cID = createAssignmentGroupForm.querySelector('#course-id');
+        cID.addEventListener('change', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
 
-        checkCourseID(cID, eContent);
-    })
+            checkCourseID(cID, eContent);
+        })
 
-    const agCreateBtn = createAssignmentGroupForm.querySelector('#action-btn');
-    agCreateBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        // Prevent concurrent executions
+        let isCreating = false;
 
-        agCreateBtn.disabled = true;
+        const agCreateBtn = createAssignmentGroupForm.querySelector('#action-btn');
+        const agCancelBtn = createAssignmentGroupForm.querySelector('#cancel-btn');
+        
+        // Function to validate domain and token and enable/disable create button
+        function validateFormInputs() {
+            const domain = document.querySelector('#domain').value.trim();
+            const token = document.querySelector('#token').value.trim();
+            
+            if (domain === '' || token === '') {
+                agCreateBtn.disabled = true;
+            } else {
+                agCreateBtn.disabled = false;
+            }
+        }
+        
+        // Initial validation check
+        validateFormInputs();
+        
+        // Add event listeners to domain and token fields
+        const domainField = document.querySelector('#domain');
+        const tokenField = document.querySelector('#token');
+        
+        domainField.addEventListener('input', validateFormInputs);
+        tokenField.addEventListener('input', validateFormInputs);
+        agCreateBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Prevent double-click or concurrent executions
+            if (isCreating) {
+                console.log('Already creating assignment groups, ignoring duplicate click');
+                return;
+            }
+
+            // Set flag and disable button immediately
+            isCreating = true;
+            agCreateBtn.disabled = true;
+            
+            // Enable cancel button during operation
+            agCancelBtn.disabled = false;
 
         const domain = document.querySelector('#domain').value.trim();
         const token = document.querySelector('#token').value.trim();
         const courseID = cID.value.trim();
         const number = createAssignmentGroupForm.querySelector('#assignment-group-number').value;
+        const groupName = createAssignmentGroupForm.querySelector('#assignment-group-name').value.trim();
         const agcResponseContainer = createAssignmentGroupForm.querySelector('#agc-response-container');
         const agcProgressDiv = createAssignmentGroupForm.querySelector('#agc-progress-div');
         const agcProgressInfo = createAssignmentGroupForm.querySelector('#agc-progress-info');
@@ -427,7 +620,8 @@ function assignmentGroupCreator(e) {
             domain,
             token,
             course: courseID,
-            number
+            number,
+            name: groupName || 'Assignment Group' // Default name if not provided
         };
 
         window.progressAPI.onUpdateProgress((progress) => {
@@ -448,9 +642,45 @@ function assignmentGroupCreator(e) {
             }
         } catch (error) {
             agcProgressBar.parentElement.hidden = true;
-            errorHandler(error, agcProgressInfo);
+            if (error.message === 'Request cancelled') {
+                agcProgressInfo.innerHTML = 'Request cancelled by user.';
+            } else {
+                errorHandler(error, agcProgressInfo);
+            }
         } finally {
+            // Reset flag and re-enable button
+            isCreating = false;
             agCreateBtn.disabled = false;
+            agCancelBtn.disabled = true;
         }
     });
+
+    // Cancel button handler - abort ongoing requests
+    agCancelBtn.disabled = true; // Initially disabled until a request starts
+    agCancelBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Cancel the ongoing request if one exists
+        if (isCreating) {
+            console.log('Cancelling assignment group creation request...');
+            
+            const agcProgressInfo = createAssignmentGroupForm.querySelector('#agc-progress-info');
+            if (agcProgressInfo) {
+                agcProgressInfo.innerHTML = 'Cancelling request...';
+            }
+            
+            // Disable cancel button immediately
+            agCancelBtn.disabled = true;
+            
+            try {
+                await window.axios.cancelCreateAssignmentGroups();
+            } catch (error) {
+                console.error('Error cancelling request:', error);
+            }
+        }
+    });
+    } // End of if (!createAssignmentGroupForm) block - event listeners only added once
+    
+    createAssignmentGroupForm.hidden = false;
 }

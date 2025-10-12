@@ -178,6 +178,16 @@ contextBridge.exposeInMainWorld('axios', {
 
         return await ipcRenderer.invoke('axios:createAssignmentGroups', data);
     },
+    cancelCreateAssignmentGroups: async () => {
+        console.log('preload.js > cancelCreateAssignmentGroups');
+
+        return await ipcRenderer.invoke('axios:cancelCreateAssignmentGroups');
+    },
+    cancelDeleteEmptyAssignmentGroups: async () => {
+        console.log('preload.js > cancelDeleteEmptyAssignmentGroups');
+
+        return await ipcRenderer.invoke('axios:cancelDeleteEmptyAssignmentGroups');
+    },
     deleteTheThings: async (data) => {
         console.log('preload.js > deleteTheThings');
 
@@ -313,6 +323,14 @@ contextBridge.exposeInMainWorld('axios', {
     deleteDiscussions: async (data) => {
         console.log('preload.js > deleteDiscussions');
         return await ipcRenderer.invoke('axios:deleteDiscussions', data);
+    },
+    getAnnouncements: async (data) => {
+        console.log('preload.js > getAnnouncements');
+        return await ipcRenderer.invoke('axios:getAnnouncements', data);
+    },
+    deleteAnnouncementsGraphQL: async (data) => {
+        console.log('preload.js > deleteAnnouncementsGraphQL');
+        return await ipcRenderer.invoke('axios:deleteAnnouncementsGraphQL', data);
     },
     deleteFolders: async (data) => {
         console.log('preload.js > deleteFolders');

@@ -18,6 +18,8 @@ const assignmentGroups = [];
 
 
 async function createAssignmentGroups(data) {
+    console.log('assignment_groups.js > createAssignmentGroups');
+
     let url = `https://${data.domain}/api/v1/courses/${data.course}/assignment_groups`;
     let token = data.token;
 
@@ -28,8 +30,8 @@ async function createAssignmentGroups(data) {
             'Authorization': `Bearer ${token}`
         },
         data: {
-            name: 'Assignment Group',
-            position: 1
+            name: data.name || 'Assignment Group',
+            position: data.position || 1
         }
     }
 

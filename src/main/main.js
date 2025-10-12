@@ -519,6 +519,8 @@ let suppressedEmails = [];
 // Cancellation flags for comm-channel resets (module-level to avoid scope issues)
 const resetEmailsCancelFlags = new Map(); // key: senderId -> boolean
 const resetPatternCancelFlags = new Map(); // key: senderId -> boolean
+const createAssignmentGroupsCancelFlags = new Map(); // key: senderId -> boolean
+const deleteEmptyAssignmentGroupsCancelFlags = new Map(); // key: senderId -> boolean
 
 const createWindow = () => {
     mainWindow = new BrowserWindow({
@@ -918,9 +920,23 @@ function registerSisIpcHandlers() {
             const differentiationTagOptions = allOptions.differentiationTagOptions || {};
             const differentiationTagMembershipOptions = allOptions.differentiationTagMembershipOptions || {};
 
-            // Pass search data through loginOptions for logins file type
-            if (fileType === 'logins' && allOptions.searchData) {
-                loginOptions.searchData = allOptions.searchData;
+            // Pass search data through options for file types that support it
+            if (allOptions.searchData) {
+                if (fileType === 'logins') {
+                    loginOptions.searchData = allOptions.searchData;
+                }
+                if (fileType === 'change_sis_id' || fileType === 'change_sis_ids') {
+                    changeSisIdOptions.searchData = allOptions.searchData;
+                }
+                if (fileType === 'users') {
+                    userOptions.searchData = allOptions.searchData;
+                }
+                if (fileType === 'courses') {
+                    courseOptions.searchData = allOptions.searchData;
+                }
+                if (fileType === 'accounts') {
+                    accountOptions.searchData = allOptions.searchData;
+                }
             }
 
             // Pass field values to all options for customization
@@ -1063,7 +1079,32 @@ function registerSisIpcHandlers() {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
             const users = await searchUsers(searchTerm, ['email']);
-            return { success: true, users };
+            
+            console.log('Raw Canvas users data:', JSON.stringify(users, null, 2));
+            
+            // Transform Canvas user data to SIS CSV format
+            const sisUsers = users.map(user => {
+                // Split name into parts more carefully
+                const nameParts = (user.name || '').trim().split(/\s+/);
+                const firstName = nameParts[0] || '';
+                const lastName = nameParts.slice(1).join(' ') || '';
+                
+                return {
+                    user_id: user.sis_user_id || '',
+                    login_id: user.login_id || '',
+                    first_name: firstName,
+                    last_name: lastName,
+                    full_name: user.name || '',
+                    sortable_name: user.sortable_name || '',
+                    short_name: user.short_name || '',
+                    email: user.email || '',
+                    status: 'active'
+                };
+            });
+            
+            console.log('Transformed SIS users data:', JSON.stringify(sisUsers, null, 2));
+            
+            return { success: true, data: sisUsers };
         } catch (error) {
             console.error('Error searching users:', error);
             return { success: false, error: error.message };
@@ -1080,7 +1121,16 @@ function registerSisIpcHandlers() {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
             const accounts = await searchAccounts(searchTerm);
-            return { success: true, accounts };
+            
+            // Transform Canvas account data to SIS CSV format
+            const sisAccounts = accounts.map(account => ({
+                account_id: account.sis_account_id || '',
+                parent_account_id: account.parent_account_id || '',
+                name: account.name || '',
+                status: 'active'
+            }));
+            
+            return { success: true, data: sisAccounts };
         } catch (error) {
             console.error('Error searching accounts:', error);
             return { success: false, error: error.message };
@@ -1097,7 +1147,17 @@ function registerSisIpcHandlers() {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
             const terms = await searchTerms(searchTerm);
-            return { success: true, terms };
+            
+            // Transform Canvas term data to SIS CSV format
+            const sisTerms = terms.map(term => ({
+                term_id: term.sis_term_id || '',
+                name: term.name || '',
+                status: 'active',
+                start_date: term.start_at || '',
+                end_date: term.end_at || ''
+            }));
+            
+            return { success: true, data: sisTerms };
         } catch (error) {
             console.error('Error searching terms:', error);
             return { success: false, error: error.message };
@@ -1161,6 +1221,15 @@ app.whenReady().then(() => {
 
     setDebugLogging(true); // Enable debug logging by default; user can toggle via menu
     console.log('BATCH_CONCURRENCY (env):', process.env.BATCH_CONCURRENCY);
+    console.log('TIME_DELAY (env):', process.env.TIME_DELAY);
+    
+    // Helper function to get batch configuration from environment variables
+    const getBatchConfig = (overrides = {}) => {
+        const batchSize = overrides.batchSize || Math.max(1, Number(process.env.BATCH_CONCURRENCY) || 35);
+        const timeDelay = overrides.timeDelay || Math.max(0, Number(process.env.TIME_DELAY) || 2000);
+        return { batchSize, timeDelay, ...overrides };
+    };
+
     // Cancellable subject search (per renderer)
     const getConvosControllers = new Map(); // senderId -> AbortController
 
@@ -1530,7 +1599,7 @@ app.whenReady().then(() => {
         const senderId = event.sender.id;
         const createAssignmentsCancelFlags = new Map();
         const isCancelled = () => createAssignmentsCancelFlags.get(senderId) === true;
-        const batchResponse = await batchHandler(requests, { batchSize: 35, timeDelay: 2000, isCancelled });
+        const batchResponse = await batchHandler(requests, getBatchConfig({ isCancelled }));
 
         return batchResponse;
     });
@@ -1586,7 +1655,7 @@ app.whenReady().then(() => {
         deleteCancelFlags.set(senderId, false); // Reset flag
         const isCancelled = () => deleteCancelFlags.get(senderId) === true;
         
-        const batchResponse = await batchHandler(requests, { batchSize: 35, timeDelay: 100, isCancelled });
+        const batchResponse = await batchHandler(requests, getBatchConfig({ isCancelled }));
         console.log('Finished deleting assignments.');
         
         // Clean up flag
@@ -1611,6 +1680,8 @@ app.whenReady().then(() => {
     ipcMain.handle('axios:deleteEmptyAssignmentGroups', async (event, data) => {
         console.log('Inside axios:deleteEmptyAssignmentGroups')
 
+        const senderId = event.sender.id;
+
         try {
             // Handle single group deletion (called from assignments_renderer.js)
             if (data.groupID && !data.content) {
@@ -1620,6 +1691,8 @@ app.whenReady().then(() => {
 
             // Handle batch deletion (if called with content array)
             if (data.content && Array.isArray(data.content)) {
+                deleteEmptyAssignmentGroupsCancelFlags.set(senderId, false);
+
                 let completedRequests = 0;
                 const totalRequests = data.content.length;
 
@@ -1629,6 +1702,11 @@ app.whenReady().then(() => {
                 }
 
                 const request = async (requestData) => {
+                    // Check if cancellation was requested
+                    if (deleteEmptyAssignmentGroupsCancelFlags.get(senderId)) {
+                        throw new Error('Request cancelled');
+                    }
+                    
                     try {
                         const response = await assignmentGroups.deleteEmptyAssignmentGroup(requestData);
                         return response;
@@ -1663,6 +1741,8 @@ app.whenReady().then(() => {
                         results.push({ error: error.message });
                     }
                 }
+
+                console.log('Finished deleting assignment groups.');
                 return results;
             }
 
@@ -1670,6 +1750,11 @@ app.whenReady().then(() => {
         } catch (error) {
             console.error('Error in deleteEmptyAssignmentGroups handler:', error);
             throw error;
+        } finally {
+            // Clean up the cancellation flag if it was set for batch deletion
+            if (data.content && Array.isArray(data.content)) {
+                deleteEmptyAssignmentGroupsCancelFlags.delete(senderId);
+            }
         }
     });
 
@@ -1700,38 +1785,70 @@ app.whenReady().then(() => {
                 } finally { update(); }
             }
         }));
-        const res = await batchHandler(requests);
+        const res = await batchHandler(requests, getBatchConfig());
         return res;
     });
 
-    ipcMain.handle('axios:createAnnouncements', async (_event, data) => {
-        console.log('inside axios:createAnnouncements');
-        const items = Array.isArray(data.requests) ? data.requests : [];
-        let completed = 0;
-        const total = items.length || 1;
-        const update = () => {
-            completed++;
-            mainWindow?.webContents.send('update-progress', {
-                mode: 'determinate', label: 'Creating announcements', processed: completed, total, value: completed / total
-            });
-        };
-        const requests = items.map((it, idx) => ({
-            id: idx + 1,
-            request: async () => {
-                try {
-                    // Announcements use the discussions endpoint with is_announcement
-                    const payload = {
-                        domain: it.domain, token: it.token, course_id: it.course_id,
-                        title: it.title, message: it.message, published: !!it.published
-                    };
-                    // Reuse discussions.createDiscussion but pass is_announcement via message prefix/body note if needed
-                    const resp = await discussions.createDiscussion({ ...payload, is_announcement: true });
-                    return resp;
-                } finally { update(); }
+    ipcMain.handle('axios:createAnnouncements', async (event, data) => {
+        const operationId = `create-announcements-${Date.now()}`;
+        console.log(`[${operationId}] Starting - ${data.number} announcements requested`);
+        
+        let completedRequests = 0;
+        let totalRequests = data.number;
+        const processedIds = new Set(); // Track which requests have been processed for progress
+
+        const updateProgress = (requestId) => {
+            // Only increment progress once per unique request ID
+            if (!processedIds.has(requestId)) {
+                processedIds.add(requestId);
+                completedRequests++;
+                mainWindow.webContents.send('update-progress', {
+                    mode: 'determinate',
+                    label: `Creating announcements (${completedRequests}/${totalRequests})`,
+                    processed: completedRequests,
+                    total: totalRequests,
+                    value: completedRequests / totalRequests
+                });
             }
-        }));
-        const res = await batchHandler(requests);
-        return res;
+        };
+
+        const request = async (requestData, requestId) => {
+            try {
+                const response = await discussions.createDiscussion(requestData);
+                return response;
+            } catch (error) {
+                throw error;
+            } finally {
+                updateProgress(requestId);
+            }
+        };
+
+        let requests = [];
+        for (let i = 1; i <= data.number; i++) {
+            const requestData = {
+                domain: data.domain,
+                token: data.token,
+                course_id: data.course_id,
+                title: `${data.title} ${i}`,
+                message: data.message || '',
+                published: true,  // Announcements are always published
+                is_announcement: true,
+                delayed_post_at: data.delayed_post_at || null,
+                lock_at: data.lock_at || null
+            };
+            requests.push({ id: i, request: () => request(requestData, i) });
+        }
+
+        // Support cancellation per-sender
+        const senderId = event.sender.id;
+        const createAnnouncementsCancelFlags = new Map();
+        const isCancelled = () => createAnnouncementsCancelFlags.get(senderId) === true;
+        
+        console.log(`[${operationId}] Calling batchHandler...`);
+        const batchResponse = await batchHandler(requests, getBatchConfig({ isCancelled, operationId }));
+
+        console.log(`[${operationId}] Finished creating announcements. Successful: ${batchResponse.successful.length}, Failed: ${batchResponse.failed.length}`);
+        return batchResponse;
     });
 
     ipcMain.handle('axios:createPages', async (_event, data) => {
@@ -1757,7 +1874,7 @@ app.whenReady().then(() => {
                 } finally { update(); }
             }
         }));
-        const res = await batchHandler(requests);
+        const res = await batchHandler(requests, getBatchConfig());
         return res;
     });
 
@@ -1783,7 +1900,7 @@ app.whenReady().then(() => {
                 } finally { update(); }
             }
         }));
-        const res = await batchHandler(requests);
+        const res = await batchHandler(requests, getBatchConfig());
         return res;
     });
 
@@ -1963,8 +2080,83 @@ app.whenReady().then(() => {
             requests.push({ id: i + 1, request: () => request(reqData) });
         }
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         return batchResponse;
+    });
+
+    // Get announcements from a course using GraphQL with pagination
+    ipcMain.handle('axios:getAnnouncements', async (event, data) => {
+        console.log('main.js > axios:getAnnouncements');
+        const { domain, token, course_id } = data;
+        
+        let allAnnouncements = [];
+        let hasNextPage = true;
+        let after = null;
+        let pageCount = 0;
+
+        try {
+            while (hasNextPage) {
+                pageCount++;
+                
+                // Send progress update to renderer
+                mainWindow?.webContents.send('update-progress', {
+                    mode: 'indeterminate',
+                    label: `Fetching announcements (page ${pageCount})...`
+                });
+
+                const response = await discussions.getAnnouncements({
+                    domain,
+                    token,
+                    course_id,
+                    first: 100,
+                    after: after
+                });
+
+                allAnnouncements.push(...response.nodes);
+                hasNextPage = response.pageInfo.hasNextPage;
+                after = response.pageInfo.endCursor;
+            }
+
+            console.log(`Fetched ${allAnnouncements.length} announcements across ${pageCount} page(s)`);
+            return { 
+                announcements: allAnnouncements, 
+                count: allAnnouncements.length 
+            };
+        } catch (error) {
+            console.error('Error getting announcements:', error);
+            throw error.message;
+        }
+    });
+
+    // Delete discussion topics using GraphQL
+    ipcMain.handle('axios:deleteAnnouncementsGraphQL', async (_event, data) => {
+        console.log('main.js > axios:deleteAnnouncementsGraphQL');
+        const items = Array.isArray(data.discussions) ? data.discussions : [];
+        let completed = 0;
+        const total = items.length || 1;
+        const update = () => {
+            completed++;
+            mainWindow?.webContents.send('update-progress', {
+                mode: 'determinate', label: 'Deleting announcements', processed: completed, total, value: completed / total
+            });
+        };
+        const requests = items.map((discussion, idx) => ({
+            id: idx + 1,
+            request: async () => {
+                try {
+                    const resp = await discussions.deleteDiscussionTopic({
+                        domain: data.domain,
+                        token: data.token,
+                        discussion_id: discussion._id || discussion.id
+                    });
+                    return resp;
+                } finally { update(); }
+            }
+        }));
+        const res = await batchHandler(requests, getBatchConfig());
+
+        console.log('Finished deleting announcements.');
+        return res;
     });
 
     // Batch delete attachments (files)
@@ -1998,7 +2190,7 @@ app.whenReady().then(() => {
             requests.push({ id: i + 1, request: () => request(reqData) });
         }
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         return batchResponse;
     });
 
@@ -2032,7 +2224,7 @@ app.whenReady().then(() => {
             requests.push({ id: i + 1, request: () => request(reqData) });
         }
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         return batchResponse;
     });
 
@@ -2081,7 +2273,7 @@ app.whenReady().then(() => {
             requests.push({ id: i + 1, request: () => request(reqData) });
         }
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         return batchResponse;
     });
 
@@ -2093,7 +2285,7 @@ app.whenReady().then(() => {
             id: idx + 1,
             request: async () => folders.getFolder({ domain: data.domain, token: data.token, folder_id: id })
         }));
-        const result = await batchHandler(requests, 35, 200);
+        const result = await batchHandler(requests, getBatchConfig({ timeDelay: 200 }));
         const meta = [];
         // successful is array of {id,status,value}
         for (const s of result.successful) {
@@ -2168,7 +2360,7 @@ app.whenReady().then(() => {
             requestCounter++;
         }
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         return batchResponse;
     });
 
@@ -2227,6 +2419,9 @@ app.whenReady().then(() => {
     ipcMain.handle('axios:createAssignmentGroups', async (event, data) => {
         console.log('Inside axios:createAssignmentGroups')
 
+        const senderId = event.sender.id;
+        createAssignmentGroupsCancelFlags.set(senderId, false);
+
         let completedRequests = 0;
         let totalRequests = data.number;
 
@@ -2235,9 +2430,14 @@ app.whenReady().then(() => {
             mainWindow.webContents.send('update-progress', (completedRequests / totalRequests) * 100);
         }
 
-        const request = async (data) => {
+        const request = async (requestData, index) => {
+            // Check if cancellation was requested
+            if (createAssignmentGroupsCancelFlags.get(senderId)) {
+                throw new Error('Request cancelled');
+            }
+            
             try {
-                const response = await assignmentGroups.createAssignmentGroups(data);
+                const response = await assignmentGroups.createAssignmentGroups(requestData);
                 return response;
             } catch (error) {
                 throw error
@@ -2248,13 +2448,42 @@ app.whenReady().then(() => {
 
         const requests = [];
         for (let i = 0; i < totalRequests; i++) {
-            requests.push({ id: i + 1, request: () => request(data) });
+            // Build request data with name suffix if creating multiple groups
+            const requestData = {
+                domain: data.domain,
+                token: data.token,
+                course: data.course,
+                name: totalRequests > 1 ? `${data.name} ${i + 1}` : data.name,
+                position: i + 1
+            };
+            requests.push({ id: i + 1, request: () => request(requestData, i) });
         }
 
-        const batchResponse = await batchHandler(requests);
-
-        return batchResponse;
+        try {
+            const batchResponse = await batchHandler(requests, getBatchConfig());
+            return batchResponse;
+        } finally {
+            // Clean up the cancellation flag
+            createAssignmentGroupsCancelFlags.delete(senderId);
+        }
     });
+
+    // Cancel assignment group creation
+    ipcMain.handle('axios:cancelCreateAssignmentGroups', async (event) => {
+        const senderId = event.sender.id;
+        console.log(`Cancelling assignment group creation for sender ${senderId}`);
+        createAssignmentGroupsCancelFlags.set(senderId, true);
+        return { cancelled: true };
+    });
+
+    // Cancel delete empty assignment groups
+    ipcMain.handle('axios:cancelDeleteEmptyAssignmentGroups', async (event) => {
+        const senderId = event.sender.id;
+        console.log(`Cancelling delete empty assignment groups for sender ${senderId}`);
+        deleteEmptyAssignmentGroupsCancelFlags.set(senderId, true);
+        return { cancelled: true };
+    });
+
     // ipcMain.handle('axios:deleteTheThings', async (event, data) => {
     //     console.log('Inside axios:deleteTheThings')
 
@@ -2369,7 +2598,7 @@ app.whenReady().then(() => {
             requestID++;
         });
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         return batchResponse;
     });
 
@@ -2407,7 +2636,7 @@ app.whenReady().then(() => {
             requestID++;
         })
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         return batchResponse;
     });
 
@@ -2438,7 +2667,7 @@ app.whenReady().then(() => {
             requests.push({ id: id++, request: () => request(payload) });
         }
 
-        return await batchHandler(requests);
+        return await batchHandler(requests, getBatchConfig());
     }
 
     async function enrollUsers(usersToEnroll, userIDs) {
@@ -2463,7 +2692,7 @@ app.whenReady().then(() => {
             requests.push({ id, request: req });
         }
 
-        return await batchHandler(requests);
+        return await batchHandler(requests, getBatchConfig());
     }
 
     ipcMain.handle('axios:createSupportCourse', async (event, data) => {
@@ -2583,7 +2812,7 @@ app.whenReady().then(() => {
                         }
                     };
                     const progressWrapped = requests.map((r) => ({ id: r.id, request: requestWithProgress(r.request) }));
-                    const newCourses = await batchHandler(progressWrapped);
+                    const newCourses = await batchHandler(progressWrapped, getBatchConfig());
                     const newCourseIDS = newCourses.successful.map(course => course.value.id);
                     console.log('Finished creating associated courses.')
                     mainWindow.webContents.send('update-progress', { label: `Creating ${associatedCourses} associated courses....done` });
@@ -2679,7 +2908,7 @@ app.whenReady().then(() => {
                     requests.push({ id: i + 1, request: req });
                 }
 
-                const assignmentResponses = await batchHandler(requests);
+                const assignmentResponses = await batchHandler(requests, getBatchConfig());
                 console.log('finished creating assignments.');
                 mainWindow.webContents.send('update-progress', { label: `Creating ${assignmentCount} assignments....done` });
             }
@@ -2752,7 +2981,7 @@ app.whenReady().then(() => {
                     requests.push({ id: i + 1, request: () => request(requestData) });
                 }
 
-                const nqBatch = await batchHandler(requests);
+                const nqBatch = await batchHandler(requests, getBatchConfig());
                 console.log('finished creating new quizzes.');
                 mainWindow.webContents.send('update-progress', { label: `Creating ${nqCount} new quizzes....done` });
 
@@ -2823,7 +3052,7 @@ app.whenReady().then(() => {
                     };
                     requests.push({ id: i + 1, request: () => request(requestData) });
                 }
-                await batchHandler(requests);
+                await batchHandler(requests, getBatchConfig());
                 console.log('finished creating discussions.');
                 mainWindow.webContents.send('update-progress', { label: `Creating ${discussionCount} discussions....done` });
             }
@@ -2861,7 +3090,7 @@ app.whenReady().then(() => {
                     };
                     requests.push({ id: i + 1, request: () => request(requestData) });
                 }
-                await batchHandler(requests);
+                await batchHandler(requests, getBatchConfig());
                 console.log('finished creating pages.');
                 mainWindow.webContents.send('update-progress', { label: `Creating ${pageCount} pages....done` });
             }
@@ -2897,7 +3126,7 @@ app.whenReady().then(() => {
                     };
                     requests.push({ id: i + 1, request: () => request(requestData) });
                 }
-                await batchHandler(requests);
+                await batchHandler(requests, getBatchConfig());
                 console.log('finished creating modules.');
                 mainWindow.webContents.send('update-progress', { label: `Creating ${moduleCount} modules....done` });
             }
@@ -2933,7 +3162,7 @@ app.whenReady().then(() => {
                     };
                     requests.push({ id: i + 1, request: () => request(requestData) });
                 }
-                await batchHandler(requests);
+                await batchHandler(requests, getBatchConfig());
                 console.log('finished creating sections.');
                 mainWindow.webContents.send('update-progress', { label: `Creating ${sectionCount} sections....done` });
             }
@@ -2978,7 +3207,7 @@ app.whenReady().then(() => {
             requests.push({ id: i + 1, request: () => request(requestData) });
         }
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         return batchResponse;
     });
 
@@ -3110,7 +3339,7 @@ app.whenReady().then(() => {
             requestID++;
         })
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         let confirmedCount = 0;
         batchResponse.successful.forEach((success) => {
             if (success.id.confirmed) {
@@ -3427,7 +3656,7 @@ app.whenReady().then(() => {
             requests.push({ id: i + 1, request: () => request(requestData) });
         }
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         return batchResponse;
 
     });
@@ -3473,7 +3702,7 @@ app.whenReady().then(() => {
                 };
                 requests.push({ id: i + 1, request: () => request(requestData) });
             }
-            const batchResponse = await batchHandler(requests);
+            const batchResponse = await batchHandler(requests, getBatchConfig());
             return batchResponse;
         } catch (error) {
             throw error.message;
@@ -3525,7 +3754,7 @@ app.whenReady().then(() => {
                 requests.push({ id: i + 1, request: () => request(requestData) });
             }
 
-            const batchResponse = await batchHandler(requests);
+            const batchResponse = await batchHandler(requests, getBatchConfig());
             
             // batchHandler returns { successful: [], failed: [] }
             // Convert to simple array of results
@@ -3587,7 +3816,7 @@ app.whenReady().then(() => {
             requests.push({ id: i + 1, request: () => request(requestData) });
         }
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
 
         return batchResponse;
     })
@@ -3634,7 +3863,7 @@ app.whenReady().then(() => {
                 requests.push({ id: i + 1, request: () => request(requestData) });
             }
 
-            const batchResponse = await batchHandler(requests);
+            const batchResponse = await batchHandler(requests, getBatchConfig());
             return batchResponse;
         } catch (error) {
             throw error.message;
@@ -3682,7 +3911,7 @@ app.whenReady().then(() => {
                 requests.push({ id: i + 1, request: () => request(requestData) });
             }
 
-            const batchResponse = await batchHandler(requests);
+            const batchResponse = await batchHandler(requests, getBatchConfig());
             return batchResponse;
         } catch (error) {
             throw error.message;
@@ -3745,7 +3974,7 @@ app.whenReady().then(() => {
             requests.push({ id: i + 1, request: () => request(requestData) });
         }
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         console.log('Finished deleting assignments.');
         return batchResponse;
     })
@@ -3785,7 +4014,7 @@ app.whenReady().then(() => {
                 requests.push({ id: i + 1, request: () => request(requestData) });
             }
 
-            const batchResponse = await batchHandler(requests);
+            const batchResponse = await batchHandler(requests, getBatchConfig());
             return batchResponse;
         } catch (error) {
             throw error.message;
@@ -3835,7 +4064,7 @@ app.whenReady().then(() => {
             requests.push({ id: i + 1, request: () => request(requestData) });
         }
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         console.log('Finished relocking modules.');
         return batchResponse;
     })
@@ -3958,7 +4187,7 @@ app.whenReady().then(() => {
             requests.push(() => request(data));
         };
 
-        const batchResponse = await batchHandler(requests);
+        const batchResponse = await batchHandler(requests, getBatchConfig());
         let confirmedCount = 0;
         batchResponse.successful.forEach((success) => {
             if (success.id.confirmed) {
@@ -4363,7 +4592,7 @@ async function createClassicQuizzes(data) {
         requests.push({ id: i + 1, request: () => request(requestData) });
     }
 
-    const batchResponse = await batchHandler(requests);
+    const batchResponse = await batchHandler(requests, getBatchConfig());
     console.log('Classic quizzes created:', batchResponse.successful.map(s => s.value?.id));
     console.log('Questions requested?', { addQuestions: data.addQuestions, questionTypes: data.questionTypes });
 

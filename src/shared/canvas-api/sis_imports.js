@@ -35,9 +35,56 @@ function generateDate(daysFromNow = 0) {
 }
 
 // CSV Generators
+// Helper function to escape CSV values containing commas, quotes, or newlines
+function escapeCSVValue(value) {
+    // Convert to string and handle empty values
+    const strValue = value == null ? '' : String(value);
+    
+    // If value contains comma, quote, or newline, wrap in quotes and escape any quotes inside
+    if (strValue.includes(',') || strValue.includes('"') || strValue.includes('\n') || strValue.includes('\r')) {
+        // Escape double quotes by doubling them
+        const escaped = strValue.replace(/"/g, '""');
+        return `"${escaped}"`;
+    }
+    
+    return strValue;
+}
+
 function generateUsersCSV(rowCount, emailDomain = '@school.edu', authProviderId = '', userOptions = {}) {
     const headers = 'user_id,login_id,authentication_provider_id,password,ssha_password,first_name,last_name,full_name,sortable_name,short_name,email,status,integration_id,pronouns,declared_user_type,canvas_password_notification,home_account';
     const rows = [headers];
+
+    // If search data is available, use it instead of generating random data
+    if (userOptions.searchData && Array.isArray(userOptions.searchData)) {
+        console.log('Using search data for users CSV generation');
+        
+        userOptions.searchData.forEach(user => {
+            // Map from the search API response format to SIS CSV format
+            // Ensure ALL columns are included, even if empty
+            const userId = escapeCSVValue(user.user_id || '');
+            const loginId = escapeCSVValue(user.login_id || '');
+            const authProviderIdToUse = escapeCSVValue(user.authentication_provider_id || '');
+            const password = escapeCSVValue(user.password || ''); // Leave blank unless specified
+            const sshaPassword = escapeCSVValue(user.ssha_password || '');
+            const firstName = escapeCSVValue(user.first_name || '');
+            const lastName = escapeCSVValue(user.last_name || '');
+            const fullName = escapeCSVValue(user.full_name || '');
+            const sortableName = escapeCSVValue(user.sortable_name || '');
+            const shortName = escapeCSVValue(user.short_name || '');
+            const email = escapeCSVValue(user.email || '');
+            const status = escapeCSVValue(user.status || 'active');
+            const integrationId = escapeCSVValue(user.integration_id || '');
+            const pronouns = escapeCSVValue(user.pronouns || '');
+            const declaredUserType = escapeCSVValue(user.declared_user_type || '');
+            const canvasPasswordNotification = escapeCSVValue(user.canvas_password_notification || '');
+            const homeAccount = escapeCSVValue(user.home_account || '');
+
+            const row = `${userId},${loginId},${authProviderIdToUse},${password},${sshaPassword},${firstName},${lastName},${fullName},${sortableName},${shortName},${email},${status},${integrationId},${pronouns},${declaredUserType},${canvasPasswordNotification},${homeAccount}`;
+            rows.push(row);
+        });
+
+        return rows.join('\n');
+    }
 
     const statuses = ['active', 'suspended', 'deleted'];
 
@@ -66,7 +113,8 @@ function generateUsersCSV(rowCount, emailDomain = '@school.edu', authProviderId 
         const canvasPasswordNotification = 'specificCanvasPasswordNotification' in userOptions ? userOptions.specificCanvasPasswordNotification : '';
         const homeAccount = 'specificHomeAccount' in userOptions ? userOptions.specificHomeAccount : '';
 
-        const row = `${userId},${loginId},${authProviderIdToUse},${password},${sshaPassword},${firstNameToUse},${lastNameToUse},${fullName},${sortableName},${shortName},${email},${status},${integrationId},${pronouns},${declaredUserType},${canvasPasswordNotification},${homeAccount}`;
+        // Escape all values for CSV
+        const row = `${escapeCSVValue(userId)},${escapeCSVValue(loginId)},${escapeCSVValue(authProviderIdToUse)},${escapeCSVValue(password)},${escapeCSVValue(sshaPassword)},${escapeCSVValue(firstNameToUse)},${escapeCSVValue(lastNameToUse)},${escapeCSVValue(fullName)},${escapeCSVValue(sortableName)},${escapeCSVValue(shortName)},${escapeCSVValue(email)},${escapeCSVValue(status)},${escapeCSVValue(integrationId)},${escapeCSVValue(pronouns)},${escapeCSVValue(declaredUserType)},${escapeCSVValue(canvasPasswordNotification)},${escapeCSVValue(homeAccount)}`;
         rows.push(row);
     }
 
@@ -76,6 +124,25 @@ function generateUsersCSV(rowCount, emailDomain = '@school.edu', authProviderId 
 function generateAccountsCSV(rowCount, accountOptions = {}) {
     const headers = 'account_id,parent_account_id,name,status';
     const rows = [headers];
+
+    // If search data is available, use it instead of generating random data
+    if (accountOptions.searchData && Array.isArray(accountOptions.searchData)) {
+        console.log('Using search data for accounts CSV generation');
+        
+        accountOptions.searchData.forEach(account => {
+            // Map from the search API response format to SIS CSV format
+            // Ensure ALL columns are included, even if empty
+            const accountId = escapeCSVValue(account.account_id || '');
+            const parentAccountId = escapeCSVValue(account.parent_account_id || '');
+            const name = escapeCSVValue(account.name || '');
+            const status = escapeCSVValue(account.status || 'active');
+
+            const row = `${accountId},${parentAccountId},${name},${status}`;
+            rows.push(row);
+        });
+
+        return rows.join('\n');
+    }
 
     const departments = ['Humanities', 'Sciences', 'Engineering', 'Business', 'Arts', 'Social Sciences'];
 
@@ -95,7 +162,7 @@ function generateAccountsCSV(rowCount, accountOptions = {}) {
         const name = accountOptions.specificName || (departments[i % departments.length] + (i > 5 ? ` ${Math.floor(i / 6) + 1}` : ''));
         const status = accountOptions.specificStatus || 'active';
 
-        const row = `${accountId},${parentId},${name},${status}`;
+        const row = `${escapeCSVValue(accountId)},${escapeCSVValue(parentId)},${escapeCSVValue(name)},${escapeCSVValue(status)}`;
         rows.push(row);
     }
 
@@ -106,6 +173,28 @@ function generateTermsCSV(rowCount, termOptions = {}) {
     const headers = 'term_id,name,status,start_date,end_date,integration_id,date_override_enrollment_type';
     const rows = [headers];
 
+    // If search data is available, use it instead of generating random data
+    if (termOptions.searchData && Array.isArray(termOptions.searchData)) {
+        console.log('Using search data for terms CSV generation');
+        
+        termOptions.searchData.forEach(term => {
+            // Map from the search API response format to SIS CSV format
+            // Ensure ALL columns are included, even if empty
+            const termId = escapeCSVValue(term.term_id || '');
+            const name = escapeCSVValue(term.name || '');
+            const status = escapeCSVValue(term.status || 'active');
+            const startDate = escapeCSVValue(term.start_date || '');
+            const endDate = escapeCSVValue(term.end_date || '');
+            const integrationId = escapeCSVValue(term.integration_id || '');
+            const dateOverrideEnrollmentType = escapeCSVValue(term.date_override_enrollment_type || '');
+
+            const row = `${termId},${name},${status},${startDate},${endDate},${integrationId},${dateOverrideEnrollmentType}`;
+            rows.push(row);
+        });
+
+        return rows.join('\n');
+    }
+
     const seasons = ['Fall', 'Spring', 'Summer', 'Winter'];
     const currentYear = new Date().getFullYear();
 
@@ -114,7 +203,7 @@ function generateTermsCSV(rowCount, termOptions = {}) {
         const baseData = termOptions._termBaseData;
 
         // Add base term row (without enrollment type override)
-        const baseRow = `${baseData.term_id || ''},${baseData.name || ''},${baseData.status || 'active'},${baseData.start_date || ''},${baseData.end_date || ''},${baseData.integration_id || ''},`;
+        const baseRow = `${escapeCSVValue(baseData.term_id || '')},${escapeCSVValue(baseData.name || '')},${escapeCSVValue(baseData.status || 'active')},${escapeCSVValue(baseData.start_date || '')},${escapeCSVValue(baseData.end_date || '')},${escapeCSVValue(baseData.integration_id || '')},`;
         rows.push(baseRow);
 
         // Add override rows
@@ -123,7 +212,7 @@ function generateTermsCSV(rowCount, termOptions = {}) {
             const overrideStartDate = termOptions[`specificOverride${i}StartDate`] || '';
             const overrideEndDate = termOptions[`specificOverride${i}EndDate`] || '';
 
-            const overrideRow = `${baseData.term_id || ''},${baseData.name || ''},${baseData.status || 'active'},${overrideStartDate},${overrideEndDate},${baseData.integration_id || ''},${enrollmentType}`;
+            const overrideRow = `${escapeCSVValue(baseData.term_id || '')},${escapeCSVValue(baseData.name || '')},${escapeCSVValue(baseData.status || 'active')},${escapeCSVValue(overrideStartDate)},${escapeCSVValue(overrideEndDate)},${escapeCSVValue(baseData.integration_id || '')},${escapeCSVValue(enrollmentType)}`;
             rows.push(overrideRow);
         }
 
@@ -167,7 +256,7 @@ function generateTermsCSV(rowCount, termOptions = {}) {
         const status = termOptions.specificStatus || 'active';
         const integrationId = termOptions.specificIntegrationId || '';
         const dateOverrideEnrollmentType = termOptions.specificDateOverrideEnrollmentType || '';
-        const row = `${termId},${name},${status},${startDate},${endDate},${integrationId},${dateOverrideEnrollmentType}`;
+        const row = `${escapeCSVValue(termId)},${escapeCSVValue(name)},${escapeCSVValue(status)},${escapeCSVValue(startDate)},${escapeCSVValue(endDate)},${escapeCSVValue(integrationId)},${escapeCSVValue(dateOverrideEnrollmentType)}`;
         rows.push(row);
     }
 
@@ -177,6 +266,35 @@ function generateTermsCSV(rowCount, termOptions = {}) {
 function generateCoursesCSV(rowCount, courseOptions = {}) {
     const headers = 'course_id,short_name,long_name,account_id,term_id,status,integration_id,start_date,end_date,course_format,blueprint_course_id,grade_passback_setting,homeroom_course,friendly_name';
     const rows = [headers];
+
+    // If search data is available, use it instead of generating random data
+    if (courseOptions.searchData && Array.isArray(courseOptions.searchData)) {
+        console.log('Using search data for courses CSV generation');
+        
+        courseOptions.searchData.forEach(course => {
+            // Map from the search API response format to SIS CSV format
+            // Ensure ALL columns are included, even if empty
+            const courseId = escapeCSVValue(course.course_id || '');
+            const shortName = escapeCSVValue(course.short_name || '');
+            const longName = escapeCSVValue(course.long_name || '');
+            const accountId = escapeCSVValue(course.account_id || '');
+            const termId = escapeCSVValue(course.term_id || '');
+            const status = escapeCSVValue(course.status || 'active');
+            const integrationId = escapeCSVValue(course.integration_id || '');
+            const startDate = escapeCSVValue(course.start_date || '');
+            const endDate = escapeCSVValue(course.end_date || '');
+            const courseFormat = escapeCSVValue(course.course_format || '');
+            const blueprintCourseId = escapeCSVValue(course.blueprint_course_id || '');
+            const gradePassbackSetting = escapeCSVValue(course.grade_passback_setting || '');
+            const homeroomCourse = escapeCSVValue(course.homeroom_course || '');
+            const friendlyName = escapeCSVValue(course.friendly_name || '');
+
+            const row = `${courseId},${shortName},${longName},${accountId},${termId},${status},${integrationId},${startDate},${endDate},${courseFormat},${blueprintCourseId},${gradePassbackSetting},${homeroomCourse},${friendlyName}`;
+            rows.push(row);
+        });
+
+        return rows.join('\n');
+    }
 
     for (let i = 0; i < rowCount; i++) {
         // Use specific course_id if provided, otherwise generate random one
@@ -201,7 +319,7 @@ function generateCoursesCSV(rowCount, courseOptions = {}) {
         const homeroom = courseOptions.specificHomeroom || '';
         const friendlyName = courseOptions.specificFriendlyName || '';
 
-        const row = `${courseId},${shortName},"${longName}",${accountId},${termId},${status},${integrationId},${startDate},${endDate},${courseFormat},${blueprintId},${gradePassback},${homeroom},${friendlyName}`;
+        const row = `${escapeCSVValue(courseId)},${escapeCSVValue(shortName)},${escapeCSVValue(longName)},${escapeCSVValue(accountId)},${escapeCSVValue(termId)},${escapeCSVValue(status)},${escapeCSVValue(integrationId)},${escapeCSVValue(startDate)},${escapeCSVValue(endDate)},${escapeCSVValue(courseFormat)},${escapeCSVValue(blueprintId)},${escapeCSVValue(gradePassback)},${escapeCSVValue(homeroom)},${escapeCSVValue(friendlyName)}`;
         rows.push(row);
     }
 
@@ -223,7 +341,7 @@ function generateSectionsCSV(rowCount, sectionOptions = {}) {
         const startDate = sectionOptions.specificStartDate || '';
         const endDate = sectionOptions.specificEndDate || '';
 
-        const row = `${sectionId},${courseId},${name},${status},${startDate},${endDate},${integrationId}`;
+        const row = `${escapeCSVValue(sectionId)},${escapeCSVValue(courseId)},${escapeCSVValue(name)},${escapeCSVValue(status)},${escapeCSVValue(startDate)},${escapeCSVValue(endDate)},${escapeCSVValue(integrationId)}`;
         rows.push(row);
     }
 
@@ -247,7 +365,7 @@ function generateEnrollmentsCSV(rowCount, enrollmentOptions = {}) {
         const roleId = enrollmentOptions.specificRoleId || '';
         const rootAccount = enrollmentOptions.specificRootAccount || '';
 
-        const row = `${courseId},${userId},${role},${sectionId},${status},${userIntegrationId},${roleId},${rootAccount}`;
+        const row = `${escapeCSVValue(courseId)},${escapeCSVValue(userId)},${escapeCSVValue(role)},${escapeCSVValue(sectionId)},${escapeCSVValue(status)},${escapeCSVValue(userIntegrationId)},${escapeCSVValue(roleId)},${escapeCSVValue(rootAccount)}`;
         rows.push(row);
     }
 
@@ -284,7 +402,7 @@ function generateGroupCategoriesCSV(rowCount, groupCategoryOptions = {}) {
         // Use specific status if provided
         const status = groupCategoryOptions.specificStatus || 'active';
 
-        const row = `${categoryId},${accountId},${courseId},${categoryName},${status}`;
+        const row = `${escapeCSVValue(categoryId)},${escapeCSVValue(accountId)},${escapeCSVValue(courseId)},${escapeCSVValue(categoryName)},${escapeCSVValue(status)}`;
         rows.push(row);
     }
 
@@ -306,7 +424,7 @@ function generateGroupsCSV(rowCount, groupOptions = {}) {
         // Use specific status if provided
         const status = groupOptions.specificStatus || 'available';
 
-        const row = `${groupId},${accountId},${name},${status}`;
+        const row = `${escapeCSVValue(groupId)},${escapeCSVValue(accountId)},${escapeCSVValue(name)},${escapeCSVValue(status)}`;
         rows.push(row);
     }
 
@@ -332,7 +450,7 @@ function generateAdminsCSV(rowCount, emailDomain = '@school.edu', adminOptions =
         // Use specific status if provided
         const status = adminOptions.specificStatus || 'active';
 
-        const row = `${userId},${accountId},${role},${status}`;
+        const row = `${escapeCSVValue(userId)},${escapeCSVValue(accountId)},${escapeCSVValue(role)},${escapeCSVValue(status)}`;
         rows.push(row);
     }
 
@@ -361,7 +479,7 @@ function generateGroupMembershipsCSV(rowCount, groupMembershipOptions = {}) {
             status = statuses[Math.floor(Math.random() * (statuses.length - 1))];
         }
 
-        const row = `${groupId},${userId},${status}`;
+        const row = `${escapeCSVValue(groupId)},${escapeCSVValue(userId)},${escapeCSVValue(status)}`;
         rows.push(row);
     }
 
@@ -380,7 +498,7 @@ function generateDifferentiationTagSetsCSV(rowCount, differentiationTagSetOption
         const setName = setNames[i % setNames.length] + (i >= setNames.length ? ` ${Math.floor(i / setNames.length) + 1}` : '');
         const status = differentiationTagSetOptions.specificStatus || 'active';
 
-        const row = `${tagSetId},${courseId},${setName},${status}`;
+        const row = `${escapeCSVValue(tagSetId)},${escapeCSVValue(courseId)},${escapeCSVValue(setName)},${escapeCSVValue(status)}`;
         rows.push(row);
     }
 
@@ -400,7 +518,7 @@ function generateDifferentiationTagsCSV(rowCount, differentiationTagOptions = {}
         const name = tagNames[i % tagNames.length] + (i >= tagNames.length ? ` ${Math.floor(i / tagNames.length) + 1}` : '');
         const status = differentiationTagOptions.specificStatus || 'available';
 
-        const row = `${tagId},${tagSetId},${courseId},${name},${status}`;
+        const row = `${escapeCSVValue(tagId)},${escapeCSVValue(tagSetId)},${escapeCSVValue(courseId)},${escapeCSVValue(name)},${escapeCSVValue(status)}`;
         rows.push(row);
     }
 
@@ -418,7 +536,7 @@ function generateDifferentiationTagMembershipCSV(rowCount, differentiationTagMem
         const userId = differentiationTagMembershipOptions.specificUserId || generateRandomId('U', 6);
         const status = differentiationTagMembershipOptions.specificStatus || statuses[Math.floor(Math.random() * (statuses.length - 1))]; // Avoid 'deleted' most of the time
 
-        const row = `${tagId},${userId},${status}`;
+        const row = `${escapeCSVValue(tagId)},${escapeCSVValue(userId)},${escapeCSVValue(status)}`;
         rows.push(row);
     }
 
@@ -439,7 +557,7 @@ function generateXlistsCSV(rowCount, crossListingOptions = {}) {
         // Use specific status if provided
         const status = crossListingOptions.specificStatus || 'active';
 
-        const row = `${xlistCourseId},${sectionId},${status}`;
+        const row = `${escapeCSVValue(xlistCourseId)},${escapeCSVValue(sectionId)},${escapeCSVValue(status)}`;
         rows.push(row);
     }
 
@@ -460,7 +578,7 @@ function generateUserObserversCSV(rowCount, userObserverOptions = {}) {
         // Use specific status if provided
         const status = userObserverOptions.specificStatus || 'active';
 
-        const row = `${observerId},${studentId},${status}`;
+        const row = `${escapeCSVValue(observerId)},${escapeCSVValue(studentId)},${escapeCSVValue(status)}`;
         rows.push(row);
     }
 
@@ -477,14 +595,14 @@ function generateLoginsCSV(rowCount, emailDomain = '@school.edu', authProviderId
         
         loginOptions.searchData.forEach(login => {
             // Map from the search API response format to SIS CSV format
-            const userId = login.sis_user_id || '';
-            const loginId = login.unique_id || '';
-            const authProvider = login.authentication_provider_id || '';
-            const password = 'temppass123'; // Default password for import
-            const existingUserId = login.existing_user_id || '';
-            const existingIntegrationId = login.existing_integration_id || '';
-            const canvasUserId = login.existing_canvas_user_id || '';
-            const email = login.email || (login.unique_id && login.unique_id.includes('@') ? login.unique_id : '');
+            const userId = escapeCSVValue(login.sis_user_id || '');
+            const loginId = escapeCSVValue(login.unique_id || '');
+            const authProvider = escapeCSVValue(login.authentication_provider_id || '');
+            const password = escapeCSVValue('temppass123'); // Default password for import
+            const existingUserId = escapeCSVValue(login.existing_user_id || '');
+            const existingIntegrationId = escapeCSVValue(login.existing_integration_id || '');
+            const canvasUserId = escapeCSVValue(login.existing_canvas_user_id || '');
+            const email = escapeCSVValue(login.email || (login.unique_id && login.unique_id.includes('@') ? login.unique_id : ''));
 
             const row = `${userId},${loginId},${authProvider},${password},${existingUserId},${existingIntegrationId},${canvasUserId},${email}`;
             rows.push(row);
@@ -507,7 +625,7 @@ function generateLoginsCSV(rowCount, emailDomain = '@school.edu', authProviderId
         const canvasUserId = loginOptions.existing_canvas_user_id || (1000 + i); // Sequential Canvas user IDs
         const email = loginOptions.email || generateRandomEmail(firstName, lastName, emailDomain);
 
-        const row = `${userId},${loginId},${authProviderToUse},${password},${existingUserId},${existingIntegrationId},${canvasUserId},${email}`;
+        const row = `${escapeCSVValue(userId)},${escapeCSVValue(loginId)},${escapeCSVValue(authProviderToUse)},${escapeCSVValue(password)},${escapeCSVValue(existingUserId)},${escapeCSVValue(existingIntegrationId)},${escapeCSVValue(canvasUserId)},${escapeCSVValue(email)}`;
         rows.push(row);
     }
 
@@ -518,6 +636,28 @@ function generateChangeSisIdCSV(rowCount, changeSisIdOptions = {}) {
     const headers = 'old_id,new_id,old_integration_id,new_integration_id,type';
     const rows = [headers];
 
+    // If search data is available, use it instead of generating random data
+    if (changeSisIdOptions.searchData && Array.isArray(changeSisIdOptions.searchData)) {
+        console.log('Using search data for change_sis_ids CSV generation');
+        console.log('Search data:', JSON.stringify(changeSisIdOptions.searchData, null, 2));
+        
+        changeSisIdOptions.searchData.forEach(item => {
+            const oldId = escapeCSVValue(item.old_id || '');
+            const newId = escapeCSVValue(item.new_id || '');
+            const oldIntegrationId = escapeCSVValue(item.old_integration_id || '');
+            const newIntegrationId = escapeCSVValue(item.new_integration_id || '');
+            const type = escapeCSVValue(item.type || 'user');
+
+            console.log(`Processing item: old_id=${oldId}, new_id=${newId}, old_integration_id=${oldIntegrationId}, new_integration_id=${newIntegrationId}, type=${type}`);
+            
+            const row = `${oldId},${newId},${oldIntegrationId},${newIntegrationId},${type}`;
+            rows.push(row);
+        });
+
+        return rows.join('\n');
+    }
+
+    // If no search data, generate sample data as before
     const types = ['user', 'course', 'section', 'term', 'account'];
 
     for (let i = 0; i < rowCount; i++) {
@@ -539,12 +679,12 @@ function generateChangeSisIdCSV(rowCount, changeSisIdOptions = {}) {
 
         // If specific IDs are provided, use old_id/new_id format, otherwise 50% use old_id/new_id, 50% use integration_ids
         if (changeSisIdOptions.specificOldId || changeSisIdOptions.specificNewId || Math.random() > 0.5) {
-            const row = `${oldId},${newId},,,${type}`;
+            const row = `${escapeCSVValue(oldId)},${escapeCSVValue(newId)},,,${escapeCSVValue(type)}`;
             rows.push(row);
         } else {
             const oldIntegrationId = generateRandomId('INT', 6);
             const newIntegrationId = generateRandomId('INT', 6);
-            const row = `,,${oldIntegrationId},${newIntegrationId},${type}`;
+            const row = `,,${escapeCSVValue(oldIntegrationId)},${escapeCSVValue(newIntegrationId)},${escapeCSVValue(type)}`;
             rows.push(row);
         }
     }
@@ -606,6 +746,7 @@ async function createSISImportFile(fileType, rowCount, outputPath, emailDomain =
             csvContent = generateLoginsCSV(rowCount, emailDomain, authProviderId, loginOptions);
             break;
         case 'change_sis_id':
+        case 'change_sis_ids':
             csvContent = generateChangeSisIdCSV(rowCount, changeSisIdOptions);
             break;
         case 'admins':

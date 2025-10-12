@@ -77,15 +77,22 @@ async function deleteModules(e) {
     createModuleDeleteForm.hidden = false;
 
     const courseID = createModuleDeleteForm.querySelector('#course-id');
+    const checkModulesBtn = createModuleDeleteForm.querySelector('#check-modules-btn');
+
+    // Enable button when valid course ID is entered
+    courseID.addEventListener('input', (e) => {
+        const trimmedValue = courseID.value.trim();
+        const isValid = !isNaN(Number(trimmedValue)) && Number(trimmedValue) > 0 && Number.isInteger(Number(trimmedValue));
+        checkModulesBtn.disabled = !isValid;
+    });
+
     courseID.addEventListener('change', (e) => {
         e.preventDefault();
         e.stopPropagation();
 
-
         checkCourseID(courseID, createModuleDeleteForm);
     });
 
-    const checkModulesBtn = createModuleDeleteForm.querySelector('button');
     checkModulesBtn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -150,9 +157,9 @@ async function deleteModules(e) {
                         </div>    
                     `;
 
-            const responseDetails = responseContainer.querySelector('#response-details');
+            const cancelBtn = responseContainer.querySelector('#cancel-btn');
+            const removeBtn = responseContainer.querySelector('#remove-btn');
 
-            const cancelBtn = responseDetails.querySelector('#cancel-btn');
             cancelBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -164,16 +171,25 @@ async function deleteModules(e) {
                 //clearData(courseID, responseContent);
             });
 
-            const removeBtn = responseDetails.querySelector('#remove-btn');
             if (courseModules.length > 0) {
                 removeBtn.disabled = false;
                 cancelBtn.disabled = false;
             }
+            
             removeBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
 
-                responseDetails.innerHTML = ``;
+                // Disable buttons to prevent multiple clicks
+                removeBtn.disabled = true;
+                cancelBtn.disabled = true;
+                checkModulesBtn.disabled = true;
+
+                // Clear the response area and show progress
+                const responseDetails = responseContainer.querySelector('#response-details');
+                if (responseDetails) {
+                    responseDetails.innerHTML = ``;
+                }
                 progressBar.parentElement.hidden = false;
                 progressInfo.innerHTML = `Removing ${courseModules.length} modules...`;
 
@@ -214,7 +230,7 @@ async function deleteModules(e) {
                     cancelBtn.hidden = true;
                     cancelBtn.disabled = true;
                 }
-            });
+            }, { once: true });
         }
     })
 }

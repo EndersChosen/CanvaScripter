@@ -275,21 +275,21 @@ async function errorCheck(request) {
             newError = {
                 status: '404',
                 message: `${error.code} - Check the domain to make sure it's valid.`,
-                request: error.config.url
+                request: error.config?.url
             }
             throw newError;
         } else if (error.code === 'ECONNRESET') {
             newError = {
                 status: '',
                 message: `${error.code}: ${error.message} - Check to make sure you're not connected to a VPN`,
-                request: error.config.url
+                request: error.config?.url
             }
             throw newError;
         } else if (error.response?.data?.errors?.sis_source_id?.[0]) {
             newError = {
                 status: error.response.status,
                 message: error.response.data.errors.sis_source_id[0].message,
-                request: error.config.url
+                request: error.config?.url
             };
             throw newError;
         } else if (error.response?.status) {
@@ -301,14 +301,14 @@ async function errorCheck(request) {
                         status: error.response.status,
                         statusText: error.response.statusText,
                         message: error.message,
-                        request: error.config.url
+                        request: error.config?.url
                     }
                     throw newError;
                 case '502':
                     newError = {
                         status: error.response.status,
                         message: error.message,
-                        request: error.config.url
+                        request: error.config?.url
                     }
                     throw newError;
                 case '409':
@@ -318,14 +318,14 @@ async function errorCheck(request) {
                         not_found: error.response.data.errors.not_found?.length || 0,
                         status: error.response.status,
                         message: 'Some emails were not reset due to conflicts',
-                        request: error.config.url
+                        request: error.config?.url
                     }
                     return newError;
                 default:
                     newError = {
                         status: error.response.status,
                         message: error.message,
-                        request: error.config.url
+                        request: error.config?.url
                     }
                     throw newError;
             }
@@ -333,7 +333,7 @@ async function errorCheck(request) {
             newError = {
                 status: error?.status || null,
                 message: error.message,
-                request: error.config.url
+                request: error.config?.url
             }
             throw newError;
         }

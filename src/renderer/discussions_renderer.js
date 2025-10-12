@@ -321,7 +321,8 @@ function discussionTemplate(e) {
         progressDetail.textContent = `Preparing ${i} of ${number} discussions...`;
       }
 
-      progressInfo.textContent = 'Sending requests to Canvas...';
+      progressInfo.textContent = 'Sending GraphQL requests to Canvas...';
+      progressDetail.textContent = 'Processing discussions via GraphQL API...';
       const res = await window.axios.createDiscussions({ requests });
 
       // Show results
