@@ -306,6 +306,38 @@ async function deleteEmptyAssignmentGroup(data) {
 //     console.log('Done.');
 // })();
 
+async function getAssignmentGroupById(data) {
+    console.log('assignment_groups.js > getAssignmentGroupById');
+
+    const url = `https://${data.domain}/api/v1/courses/${data.course}/assignment_groups/${data.groupId}`;
+    const token = data.token;
+
+    const axiosConfig = {
+        method: 'get',
+        url: url,
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    };
+
+    try {
+        const request = async () => {
+            return await axios(axiosConfig);
+        };
+
+        const response = await errorCheck(request);
+
+        return {
+            id: response.data.id,
+            name: response.data.name,
+            position: response.data.position,
+            group_weight: response.data.group_weight
+        };
+    } catch (error) {
+        throw error;
+    }
+}
+
 module.exports = {
-    createAssignmentGroups, getAssignmentGroups, getEmptyAssignmentGroups, deleteEmptyAssignmentGroup
+    createAssignmentGroups, getAssignmentGroups, getEmptyAssignmentGroups, deleteEmptyAssignmentGroup, getAssignmentGroupById
 }

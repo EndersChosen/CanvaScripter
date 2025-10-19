@@ -75,7 +75,7 @@ async function createAssignments(data) {
     //
     //********************************************
 
-    const createAssignmentMutation = `mutation createAssignments($courseId: ID!,$name: String!, $submissionTypes: [SubmissionType!], $gradingType: GradingType, $pointsPossible: Float, $state: AssignmentState, $peerReviews: Boolean, $anonymous: Boolean) {
+    const createAssignmentMutation = `mutation createAssignments($courseId: ID!,$name: String!, $submissionTypes: [SubmissionType!], $gradingType: GradingType, $pointsPossible: Float, $state: AssignmentState, $peerReviews: Boolean, $peerReviewCount: Int, $anonymous: Boolean) {
         createAssignment(input: {
             courseId: $courseId,
             name: $name,
@@ -85,7 +85,7 @@ async function createAssignments(data) {
             submissionTypes: $submissionTypes
             state: $state,
             anonymousGrading: $anonymous,
-            peerReviews: {enabled: $peerReviews},
+            peerReviews: {enabled: $peerReviews, automaticReviews: $peerReviews, count: $peerReviewCount},
             postToSis: false
         }) {
             assignment {
@@ -106,6 +106,7 @@ async function createAssignments(data) {
         "pointsPossible": data.points,
         "state": data.publish,
         "peerReviews": data.peer_reviews,
+        "peerReviewCount": data.peer_review_count || 1,
         "anonymous": data.anonymous
     };
 

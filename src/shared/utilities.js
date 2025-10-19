@@ -2,8 +2,30 @@
 // const { instance, getMyRegion } = require('./Canvas/config');
 
 const axios = require('axios');
-const { getNextPage } = require('./pagination');
 // add utilities here
+
+// uses the 'link' header response to find
+// the 'next' page of api responses
+function getNextPage(links) {
+    if (!links) return false;
+
+    const arrayLinks = links.split(',');
+    const json = arrayLinks.map(element => {
+        const [link, rel] = element.split(';');
+        return {
+            link: link.trim().replace(/[<>]/g, ''),
+            rel: rel.split('=')[1].trim().replace(/\"/g, '')
+        };
+    });
+    
+    for (let obj of json) {
+        if (obj.rel === 'next') {
+            console.log('Getting next page');
+            return obj.link;
+        }
+    }
+    return false;
+}
 
 async function createRequester(method, url, params, num, endpoint) {
     let index = 1;
@@ -313,9 +335,9 @@ async function errorCheck(request) {
                     throw newError;
                 case '409':
                     newError = {
-                        removed: error.response.data.removed?.length || 0,
-                        not_removed: error.response.data.errors.not_removed?.length || 0,
-                        not_found: error.response.data.errors.not_found?.length || 0,
+                        removed: error.response.data.removed || [],
+                        not_removed: error.response.data.errors.not_removed || [],
+                        not_found: error.response.data.errors.not_found || [],
                         status: error.response.status,
                         message: 'Some emails were not reset due to conflicts',
                         request: error.config?.url
@@ -417,5 +439,5 @@ function createDownloadLink(data, filename, linkText = 'Download') {
 }
 
 module.exports = {
-    createRequester, deleteRequester, waitFunc, getRegion, errorCheck, getAPIData, getUTCTime, createDownloadLink
+    createRequester, deleteRequester, waitFunc, getRegion, errorCheck, getAPIData, getUTCTime, createDownloadLink, getNextPage
 };

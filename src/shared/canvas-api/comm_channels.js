@@ -381,21 +381,39 @@ async function bulkAWSReset(data) {
         };
         const response = await errorCheck(request);
 
-        // Return the full response data including specific email arrays
-        if (response.data) {
-            return {
-                status: response.status,
-                removed: response.data.removed?.length || 0,
-                not_found: response.data.not_found?.length || 0,
-                not_removed: response.data.not_removed?.length || 0,
-                data: {
-                    removed: response.data.removed || [],
-                    not_found: response.data.not_found || [],
-                    not_removed: response.data.not_removed || []
-                }
-            };
-        }
-        return response;
+        // Return normalized structure whether response.data exists or not
+        const message = response.data?.message || response.message || '';
+        const removed = response.data?.removed || response.removed || [];
+        const not_found = response.data?.not_found || response.not_found || [];
+        const not_removed = response.data?.not_removed || response.not_removed || [];
+
+        return {
+            message: message,
+            status: response.status,
+            removed: removed.length || 0,
+            not_found: not_found.length || 0,
+            not_removed: not_removed.length || 0,
+            data: {
+                removed: Array.isArray(removed) ? removed : [],
+                not_found: Array.isArray(not_found) ? not_found : [],
+                not_removed: Array.isArray(not_removed) ? not_removed : []
+            }
+        };
+        // // Return the full response data including specific email arrays
+        // if (response.data) {
+        //     return {
+        //         status: response.status,
+        //         removed: response.data.removed?.length || 0,
+        //         not_found: response.data.not_found?.length || 0,
+        //         not_removed: response.data.not_removed?.length || 0,
+        //         data: {
+        //             removed: response.data.removed || [],
+        //             not_found: response.data.not_found || [],
+        //             not_removed: response.data.not_removed || []
+        //         }
+        //     };
+        // }
+        // return response;
     } catch (error) {
         if (error.status === 409) {
             return {

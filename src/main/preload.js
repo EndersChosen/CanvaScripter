@@ -159,6 +159,11 @@ contextBridge.exposeInMainWorld('axios', {
 
         return await ipcRenderer.invoke('axios:moveAssignmentsToSingleGroup', data);
     },
+    getAssignmentGroupById: async (data) => {
+        console.log('preload > getAssignmentGroupById');
+
+        return await ipcRenderer.invoke('axios:getAssignmentGroupById', data);
+    },
     getAssignmentsInGroup: async (data) => {
         console.log('preload > getAssignmentsInGroup');
         return await ipcRenderer.invoke('axios:getAssignmentsInGroup', data);
@@ -331,6 +336,10 @@ contextBridge.exposeInMainWorld('axios', {
     deleteAnnouncementsGraphQL: async (data) => {
         console.log('preload.js > deleteAnnouncementsGraphQL');
         return await ipcRenderer.invoke('axios:deleteAnnouncementsGraphQL', data);
+    },
+    cancelOperation: async (operationId) => {
+        console.log('preload.js > cancelOperation');
+        return await ipcRenderer.invoke('axios:cancelOperation', operationId);
     },
     deleteFolders: async (data) => {
         console.log('preload.js > deleteFolders');
@@ -589,8 +598,8 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args)
 });
 
-// Small utilities
-window.utilities = {
+// Small utilities - Properly exposed via contextBridge
+contextBridge.exposeInMainWorld('utilities', {
     createDownloadLink: function (data, filename, linkText = 'Download') {
         const csv = typeof data === 'string' ? data : data.map(row =>
             Array.isArray(row) ? row.join(',') : String(row)
@@ -613,4 +622,4 @@ window.utilities = {
 
         return link;
     }
-};
+});

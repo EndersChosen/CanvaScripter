@@ -62,14 +62,20 @@ async function batchHandler(requests, batchSize = 35, timeDelay) {
         
         // const results = [];
         for (let i = 0; i < myRequests.length; i += batchSize) {
-            if (isCancelled && isCancelled()) break;
+            if (isCancelled && isCancelled()) {
+                console.log('BatchHandler: Cancellation detected before batch', i);
+                break;
+            }
             const batch = myRequests.slice(i, i + batchSize);
             await Promise.allSettled(batch.map(request => request.request()
                 .then(response => successful.push(handleSuccess(response, request)))
                 .catch(error => failed.push(handleError(error, request)))));
             // results.push(...batchResults);
             if (i + batchSize < myRequests.length) {
-                if (isCancelled && isCancelled()) break;
+                if (isCancelled && isCancelled()) {
+                    console.log('BatchHandler: Cancellation detected after batch', i);
+                    break;
+                }
                 await waitFunc(timeDelay);
             }
         }

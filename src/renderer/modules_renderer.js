@@ -6,7 +6,7 @@ function moduleTemplate(e) {
         case 'create-modules':
             createModules(e);
             break;
-        case 'unlock-modules':
+        case 'relock-modules':
             reLockModules(e);
             break;
         default:
@@ -411,7 +411,7 @@ async function reLockModules(e) {
                     <!-- Module checkboxes will be populated here -->
                 </div>
             </div>
-            <div class="mt-3">
+            <div class="mt-3" id="relock-btn-container" hidden>
                 <button id="relock-btn" class="btn btn-warning mt-3" disabled>Re-lock Selected Modules</button>
             </div>
             <div hidden id="relock-progress-div">
@@ -503,11 +503,6 @@ async function reLockModules(e) {
         }
     }
 
-    // Set initial button and container state
-    relockBtn.textContent = 'Re-lock Selected Modules';
-    relockBtn.style.display = 'inline-block';
-    relockBtn.disabled = true;
-
     // Fetch modules button
     fetchModulesBtn.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -547,6 +542,10 @@ async function reLockModules(e) {
             moduleSelectionContainer.hidden = false;
             const modulesList = reLockModulesForm.querySelector('#modules-list');
             modulesList.innerHTML = '';
+
+            // Show the relock button container
+            const relockBtnContainer = reLockModulesForm.querySelector('#relock-btn-container');
+            relockBtnContainer.hidden = false;
 
             allModules.forEach((module) => {
                 const moduleDiv = document.createElement('div');

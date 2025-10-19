@@ -729,6 +729,19 @@ function deleteAnnouncementsUI(e) {
 
     // Prevent concurrent delete operations
     let isDeleting = false;
+    let currentOperationId = null;
+
+    // Add cancel button to progress card
+    const progressCardBody = progressCard.querySelector('.card-body');
+    let cancelDeleteBtn = progressCard.querySelector('#cancel-delete-btn');
+    if (!cancelDeleteBtn) {
+      cancelDeleteBtn = document.createElement('button');
+      cancelDeleteBtn.id = 'cancel-delete-btn';
+      cancelDeleteBtn.className = 'btn btn-warning mt-3';
+      cancelDeleteBtn.innerHTML = '<i class="bi bi-x-circle me-2"></i>Cancel Deletion';
+      cancelDeleteBtn.hidden = true;
+      progressCardBody.appendChild(cancelDeleteBtn);
+    }
 
     deleteBtn.addEventListener('click', async () => {
       if (foundAnnouncements.length === 0) return;
@@ -742,10 +755,15 @@ function deleteAnnouncementsUI(e) {
       const domain = document.querySelector('#domain').value.trim();
       const token = document.querySelector('#token').value.trim();
 
+      // Generate unique operation ID for this deletion
+      currentOperationId = `delete-announcements-${Date.now()}`;
+
       // Set flag immediately
       isDeleting = true;
       deleteBtn.disabled = true;
       cancelBtn.disabled = true;
+      cancelDeleteBtn.hidden = false;
+      cancelDeleteBtn.disabled = false;
       resultsCard.hidden = true;
       progressCard.hidden = false;
       deleteResultsCard.hidden = true;
@@ -775,20 +793,27 @@ function deleteAnnouncementsUI(e) {
         const res = await window.axios.deleteAnnouncementsGraphQL({
           domain,
           token,
-          discussions: foundAnnouncements
+          discussions: foundAnnouncements,
+          operationId: currentOperationId
         });
 
         progressCard.hidden = true;
+        cancelDeleteBtn.hidden = true;
         deleteResultsCard.hidden = false;
 
         const successful = res.successful.length;
         const failed = res.failed ? res.failed.length : 0;
+        const wasCancelled = res.cancelled || false;
 
         let icon = 'bi bi-check-circle';
         let alertClass = 'alert-success';
         let message = '';
 
-        if (failed === 0) {
+        if (wasCancelled) {
+          icon = 'bi bi-exclamation-circle';
+          alertClass = 'alert-warning';
+          message = `<i class="${icon} me-2"></i><strong>Cancelled:</strong> Deleted ${successful} announcement${successful !== 1 ? 's' : ''} before cancellation. ${failed} were not processed.`;
+        } else if (failed === 0) {
           message = `<i class="${icon} me-2"></i><strong>Success!</strong> Deleted ${successful} announcement${successful !== 1 ? 's' : ''}.`;
         } else if (successful > 0) {
           icon = 'bi bi-exclamation-triangle';
@@ -802,11 +827,14 @@ function deleteAnnouncementsUI(e) {
 
         deleteResponseDiv.innerHTML = `<div class="alert ${alertClass}" role="alert">${message}</div>`;
 
-        // Clear the found announcements
-        foundAnnouncements = [];
+        // Clear the found announcements only if not cancelled
+        if (!wasCancelled) {
+          foundAnnouncements = [];
+        }
 
       } catch (err) {
         progressCard.hidden = true;
+        cancelDeleteBtn.hidden = true;
         deleteResultsCard.hidden = false;
         errorHandler(err, progressInfo, deleteResponseDiv);
       } finally {
@@ -816,6 +844,30 @@ function deleteAnnouncementsUI(e) {
         isDeleting = false;
         deleteBtn.disabled = false;
         cancelBtn.disabled = false;
+        cancelDeleteBtn.hidden = true;
+        currentOperationId = null;
+      }
+    });
+
+    // Handle cancel deletion button
+    cancelDeleteBtn.addEventListener('click', async () => {
+      if (!currentOperationId || cancelDeleteBtn.disabled) return;
+      
+      // Disable button and update UI immediately
+      cancelDeleteBtn.disabled = true;
+      cancelDeleteBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Cancelling...';
+      progressInfo.textContent = 'Cancelling...';
+      
+      try {
+        await window.axios.cancelOperation(currentOperationId);
+      } catch (err) {
+        console.error('Error cancelling operation:', err);
+        // Only re-enable if the operation is still running
+        if (isDeleting) {
+          cancelDeleteBtn.innerHTML = '<i class="bi bi-x-circle me-2"></i>Cancel Deletion';
+          cancelDeleteBtn.disabled = false;
+          progressInfo.textContent = 'Deleting announcements...';
+        }
       }
     });
   }

@@ -522,6 +522,9 @@ const resetPatternCancelFlags = new Map(); // key: senderId -> boolean
 const createAssignmentGroupsCancelFlags = new Map(); // key: senderId -> boolean
 const deleteEmptyAssignmentGroupsCancelFlags = new Map(); // key: senderId -> boolean
 
+// Global operation cancellation map (for operations identified by operationId)
+const operationCancelFlags = new Map(); // key: operationId -> boolean
+
 const createWindow = () => {
     mainWindow = new BrowserWindow({
         width: 1400,
@@ -541,11 +544,11 @@ const createWindow = () => {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
     // Mirror renderer console messages to log when enabled
-    mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    mainWindow.webContents.on('console-message', (event) => {
         if (!debugLoggingEnabled) return;
         const levels = ['log', 'warn', 'error', 'info'];
-        const lvl = levels[level] || 'log';
-        logDebug(`[renderer.${lvl}] ${message}`, { line, sourceId });
+        const lvl = levels[event.level] || 'log';
+        logDebug(`[renderer.${lvl}] ${event.message}`, { line: event.line, sourceId: event.sourceId });
     });
 
     // When DevTools closes, blur any currently focused element to avoid unwanted focus jumps
@@ -1546,6 +1549,18 @@ app.whenReady().then(() => {
     // Create assignments (per renderer)
     ipcMain.handle('axios:createAssignments', async (event, data) => {
         console.log('inside axios:createAssignments');
+        console.log('Received operation ID:', data.operationId);
+
+        const operationId = data.operationId || null;
+        
+        // Initialize cancellation flag for this operation
+        if (operationId) {
+            console.log('Initializing cancellation flag for:', operationId);
+            operationCancelFlags.set(operationId, false);
+            console.log('Current cancel flags after init:', Array.from(operationCancelFlags.entries()));
+        } else {
+            console.log('No operation ID provided - cancellation not available');
+        }
 
         let completedRequests = 0;
         let totalRequests = data.number;
@@ -1588,6 +1603,7 @@ app.whenReady().then(() => {
                 grade_type: data.grade_type,
                 name: assignmentName,
                 peer_reviews: data.peer_reviews,
+                peer_review_count: data.peer_review_count,
                 points: data.points,
                 publish: data.publish,
                 submissionTypes: data.submissionTypes
@@ -1595,13 +1611,26 @@ app.whenReady().then(() => {
             requests.push({ id: i + 1, request: () => request(requestData) });
         }
 
-        // Support cancellation per-sender
-        const senderId = event.sender.id;
-        const createAssignmentsCancelFlags = new Map();
-        const isCancelled = () => createAssignmentsCancelFlags.get(senderId) === true;
-        const batchResponse = await batchHandler(requests, getBatchConfig({ isCancelled }));
+        // Cancellation check function for batchHandler
+        const isCancelled = operationId ? () => operationCancelFlags.get(operationId) === true : null;
+        
+        const batchConfig = getBatchConfig();
+        const batchResponse = await batchHandler(requests, {
+            ...batchConfig,
+            isCancelled,
+            operationId
+        });
 
-        return batchResponse;
+        // Check if operation was cancelled
+        const wasCancelled = operationId && operationCancelFlags.get(operationId) === true;
+        
+        // Clean up cancellation flag
+        if (operationId) {
+            operationCancelFlags.delete(operationId);
+        }
+
+        console.log(`Finished creating assignments. ${wasCancelled ? '(Cancelled)' : ''}`);
+        return { ...batchResponse, cancelled: wasCancelled };
     });
 
     // Global cancellation flags for delete operations
@@ -1617,6 +1646,18 @@ app.whenReady().then(() => {
     // 
     ipcMain.handle('axios:deleteAssignments', async (event, data) => {
         console.log('inside axios:deleteAssignments');
+        console.log('Received operation ID:', data.operationId);
+
+        const operationId = data.operationId || null;
+        
+        // Initialize cancellation flag for this operation
+        if (operationId) {
+            console.log('Initializing cancellation flag for:', operationId);
+            operationCancelFlags.set(operationId, false);
+            console.log('Current cancel flags after init:', Array.from(operationCancelFlags.entries()));
+        } else {
+            console.log('No operation ID provided - cancellation not available');
+        }
 
         let completedRequests = 0;
         let totalRequests = data.number;
@@ -1650,18 +1691,21 @@ app.whenReady().then(() => {
             requests.push({ id: i + 1, request: () => request(requestData) });
         }
 
-        // Support cancellation
-        const senderId = event.sender.id;
-        deleteCancelFlags.set(senderId, false); // Reset flag
-        const isCancelled = () => deleteCancelFlags.get(senderId) === true;
+        // Cancellation check function for batchHandler
+        const isCancelled = operationId ? () => operationCancelFlags.get(operationId) === true : null;
         
-        const batchResponse = await batchHandler(requests, getBatchConfig({ isCancelled }));
-        console.log('Finished deleting assignments.');
+        const batchResponse = await batchHandler(requests, getBatchConfig({ isCancelled, operationId }));
         
-        // Clean up flag
-        deleteCancelFlags.delete(senderId);
+        // Check if operation was cancelled
+        const wasCancelled = operationId && operationCancelFlags.get(operationId) === true;
         
-        return batchResponse;
+        // Clean up cancellation flag
+        if (operationId) {
+            operationCancelFlags.delete(operationId);
+        }
+        
+        console.log(`Finished deleting assignments. ${wasCancelled ? '(Cancelled)' : ''}`);
+        return { ...batchResponse, cancelled: wasCancelled };
     });
 
     ipcMain.handle('axios:getEmptyAssignmentGroups', async (event, data) => {
@@ -2132,6 +2176,13 @@ app.whenReady().then(() => {
     ipcMain.handle('axios:deleteAnnouncementsGraphQL', async (_event, data) => {
         console.log('main.js > axios:deleteAnnouncementsGraphQL');
         const items = Array.isArray(data.discussions) ? data.discussions : [];
+        const operationId = data.operationId || null;
+        
+        // Initialize cancellation flag for this operation
+        if (operationId) {
+            operationCancelFlags.set(operationId, false);
+        }
+        
         let completed = 0;
         const total = items.length || 1;
         const update = () => {
@@ -2140,6 +2191,10 @@ app.whenReady().then(() => {
                 mode: 'determinate', label: 'Deleting announcements', processed: completed, total, value: completed / total
             });
         };
+        
+        // Cancellation check function for batchHandler
+        const isCancelled = operationId ? () => operationCancelFlags.get(operationId) === true : null;
+        
         const requests = items.map((discussion, idx) => ({
             id: idx + 1,
             request: async () => {
@@ -2153,10 +2208,39 @@ app.whenReady().then(() => {
                 } finally { update(); }
             }
         }));
-        const res = await batchHandler(requests, getBatchConfig());
+        
+        const batchConfig = getBatchConfig();
+        const res = await batchHandler(requests, {
+            ...batchConfig,
+            isCancelled,
+            operationId
+        });
 
-        console.log('Finished deleting announcements.');
-        return res;
+        // Check if operation was cancelled
+        const wasCancelled = operationId && operationCancelFlags.get(operationId) === true;
+        
+        // Clean up cancellation flag
+        if (operationId) {
+            operationCancelFlags.delete(operationId);
+        }
+        
+        console.log(`Finished deleting announcements. ${wasCancelled ? '(Cancelled)' : ''}`);
+        return { ...res, cancelled: wasCancelled };
+    });
+
+    // Cancel an operation by operationId
+    ipcMain.handle('axios:cancelOperation', async (_event, operationId) => {
+        console.log(`main.js > axios:cancelOperation - ${operationId}`);
+        console.log('Operation exists in map:', operationCancelFlags.has(operationId));
+        console.log('Current cancel flags:', Array.from(operationCancelFlags.entries()));
+        
+        if (operationId && operationCancelFlags.has(operationId)) {
+            console.log('Setting cancellation flag to true for:', operationId);
+            operationCancelFlags.set(operationId, true);
+            return { cancelled: true, operationId };
+        }
+        console.log('Cannot cancel - operation not found in map');
+        return { cancelled: false, operationId };
     });
 
     // Batch delete attachments (files)
@@ -2362,6 +2446,17 @@ app.whenReady().then(() => {
 
         const batchResponse = await batchHandler(requests, getBatchConfig());
         return batchResponse;
+    });
+
+    ipcMain.handle('axios:getAssignmentGroupById', async (event, data) => {
+        console.log('main.js > axios:getAssignmentGroupById');
+
+        try {
+            const result = await assignmentGroups.getAssignmentGroupById(data);
+            return result;
+        } catch (error) {
+            throw error.message;
+        }
     });
 
     ipcMain.handle('axios:getAssignmentsInGroup', async (event, data) => {
@@ -3483,46 +3578,72 @@ app.whenReady().then(() => {
         // bulk awsReset
         // const bulkEmailArray = [{ "value": [] }]; // copy
         const chunksize = 200;
-        let progressPercent = 0;
         const awsResetResponse = {
             removed: 0,
             not_removed: 0,
             not_found: 0,
             errors: 0,
-            notFoundEmails: [],
-            notRemovedEmails: []
+            failed_messages: [],
+            data: {
+                removed: [],
+                not_removed: [],
+                not_found: []
+            }
         };
+        
+        // Reset progress for AWS stage
+        let awsProcessed = 0;
+        const awsTotal = emails.length;
+        
         for (let i = 0; i < emails.length; i += chunksize) {
-            progressPercent = Math.min(1, (processed + (i / emails.length)) / total);
+            awsProcessed = i;
             mainWindow.webContents.send('update-progress', {
                 mode: 'determinate',
                 label: 'Resetting emails (AWS suppression list)...',
-                processed: processed + i,
-                total,
-                value: progressPercent
+                processed: awsProcessed,
+                total: awsTotal,
+                value: awsTotal > 0 ? awsProcessed / awsTotal : 0
             });
             const bulkArray = [{ value: emails.slice(i, i + chunksize) }];
             let awsRes = [];
 
             if (isCancelled()) break;
             await waitFunc(process.env.TIME_DELAY); // to avoid throttling
-            awsRes = await bulkAWSReset({ region: data.region, token: data.token, emails: bulkArray });
-            if (awsRes.status === 204) {
-                awsResetResponse.removed += bulkArray[0].value.length;
-            } else {
-                awsResetResponse.removed += awsRes.removed || 0;
-                awsResetResponse.not_removed += awsRes.not_removed || 0;
-                awsResetResponse.not_found += awsRes.not_found || 0;
-
-                // Track specific emails that were not found or not removed
-                if (awsRes.data && awsRes.data.not_found) {
-                    awsResetResponse.notFoundEmails.push(...awsRes.data.not_found);
+            try {
+                awsRes = await bulkAWSReset({ region: data.region, token: data.token, emails: bulkArray });
+                if (awsRes.status === 204) {
+                    awsResetResponse.removed += bulkArray[0].value.length;
+                } else {
+                    awsResetResponse.removed += awsRes.removed || 0;
+                    awsResetResponse.not_removed += awsRes.not_removed || 0;
+                    awsResetResponse.not_found += awsRes.not_found || 0;
+                    awsResetResponse.data.not_removed.push(...awsRes.data.not_removed);
+                    awsResetResponse.data.not_found.push(...awsRes.data.not_found);
+                    awsResetResponse.data.removed.push(...awsRes.data.removed);
                 }
-                if (awsRes.data && awsRes.data.not_removed) {
-                    awsResetResponse.notRemovedEmails.push(...awsRes.data.not_removed);
-                }
+                
+                // // Track specific emails that were not found or not removed (regardless of status)
+                // if (awsRes.data && awsRes.data.not_found) {
+                //     awsResetResponse.notFoundEmails.push(...awsRes.data.not_found);
+                // }
+                // if (awsRes.data && awsRes.data.not_removed) {
+                //     awsResetResponse.notRemovedEmails.push(...awsRes.data.not_removed);
+                // }
+            } catch (err) {
+                awsResetResponse.errors++;
+                awsResetResponse.failed_messages.push(err?.message || String(err));
+                continue;
             }
         }
+        
+        // Send final AWS progress update showing completion
+        mainWindow.webContents.send('update-progress', {
+            mode: 'determinate',
+            label: 'Resetting emails (AWS suppression list)...',
+            processed: awsTotal,
+            total: awsTotal,
+            value: 1
+        });
 
         // console.log('Bulk AWS reset response:', awsResetResponse);
         // const awsResetResponse = await batchHandler(awsResetRequests, { batchSize: concurrency, timeDelay: process.env.TIME_DELAY, isCancelled });
@@ -4880,8 +5001,9 @@ function combineResetResults(awsResetResponse, batchResponse) {
             bounceResults: batchResponse,
             suppressionResults: {
                 ...awsResetResponse,
-                notFoundEmails: awsResetResponse.notFoundEmails || [],
-                notRemovedEmails: awsResetResponse.notRemovedEmails || []
+                // Use the data arrays that are actually being populated
+                // notFoundEmails: awsResetResponse.data?.not_found || [],
+                // notRemovedEmails: awsResetResponse.data?.not_removed || []
             }
         }
     };

@@ -72,7 +72,7 @@ function emptyAssignmentGroups(e) {
             <div class="card mt-3" id="eag-progress-div" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-gear me-2"></i>Checking Assignment Groups
+                        <i class="bi bi-gear me-2"></i>Processing
                     </h5>
                 </div>
                 <div class="card-body">
@@ -144,6 +144,22 @@ function emptyAssignmentGroups(e) {
 
         const deagBtn = deleteEmptyAssignmentGroupsForm.querySelector('#action-btn');
         
+        // Get references to progress elements
+        const eagProgressDiv = deleteEmptyAssignmentGroupsForm.querySelector('#eag-progress-div');
+        const eagProgressInfo = deleteEmptyAssignmentGroupsForm.querySelector('#eag-progress-info');
+        const progressCardBody = eagProgressDiv.querySelector('.card-body');
+        
+        // Add cancel button to progress card
+        let cancelDeleteBtn = eagProgressDiv.querySelector('#cancel-delete-btn');
+        if (!cancelDeleteBtn) {
+            cancelDeleteBtn = document.createElement('button');
+            cancelDeleteBtn.id = 'cancel-delete-btn';
+            cancelDeleteBtn.className = 'btn btn-warning mt-3';
+            cancelDeleteBtn.innerHTML = '<i class="bi bi-x-circle me-2"></i>Cancel Deletion';
+            cancelDeleteBtn.hidden = true;
+            progressCardBody.appendChild(cancelDeleteBtn);
+        }
+        
         // Handler for deleting empty assignment groups
         async function handleDeleteClick(e) {
             e.preventDefault();
@@ -160,53 +176,19 @@ function emptyAssignmentGroups(e) {
 
             const eagResponseContainer = deleteEmptyAssignmentGroupsForm.querySelector('#eag-response-container');
             const eagResponseContainerCard = deleteEmptyAssignmentGroupsForm.querySelector('#eag-response-container-card');
-            const eagProgressDiv = deleteEmptyAssignmentGroupsForm.querySelector('#eag-progress-div');
             const eagProgressBar = eagProgressDiv.querySelector('.progress-bar');
-            const eagProgressInfo = deleteEmptyAssignmentGroupsForm.querySelector('#eag-progress-info');
-            
-            const removeDeagBtn = eagResponseContainer.querySelector('#remove-btn');
-            const cancelDeagBtn = eagResponseContainer.querySelector('#cancel-btn');
-            
-            removeDeagBtn.disabled = true;
-            // Keep cancel button enabled so user can cancel the delete operation
-            cancelDeagBtn.disabled = false;
 
-            // Update the results card to show only the cancel button
-            eagResponseContainer.innerHTML = `
-                <div class="alert alert-info" role="alert">
-                    <i class="bi bi-hourglass-split me-2"></i>
-                    <strong>Deleting empty assignment groups...</strong>
-                </div>
-                <div class="row g-2">
-                    <div class="col-auto">
-                        <button id="cancel-delete-btn" class="btn btn-secondary">
-                            <i class="bi bi-x-circle me-2"></i>Cancel
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            // Re-attach the cancel event listener to the new button
-            const newCancelBtn = eagResponseContainer.querySelector('#cancel-delete-btn');
-            newCancelBtn.addEventListener('click', async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                console.log('Cancelling delete empty assignment groups request...');
-                newCancelBtn.disabled = true;
-                newCancelBtn.innerHTML = '<i class="bi bi-hourglass me-2"></i>Cancelling...';
-                
-                try {
-                    await window.axios.cancelDeleteEmptyAssignmentGroups();
-                } catch (error) {
-                    console.error('Error cancelling request:', error);
-                }
-            });
-
-            // Show progress below the results card
+            // Hide results card and show progress card with cancel button
+            eagResponseContainerCard.hidden = true;
             eagProgressDiv.hidden = false;
+            cancelDeleteBtn.hidden = false;
+            cancelDeleteBtn.disabled = false;
+            deagBtn.disabled = true;
+            
             eagProgressBar.parentElement.hidden = false;
-            eagProgressInfo.innerHTML = `Removing empty assignment groups....`;
+            eagProgressInfo.innerHTML = `Deleting empty assignment groups...`;
+            eagProgressBar.style.width = '0%';
+            eagProgressBar.setAttribute('aria-valuenow', '0');
 
             const domain = document.querySelector('#domain').value.trim();
             const apiToken = document.querySelector('#token').value.trim();
@@ -226,83 +208,136 @@ function emptyAssignmentGroups(e) {
             try {
                 const result = await window.axios.deleteEmptyAssignmentGroups(messageData);
 
+                // Hide progress card and show clean results
+                eagProgressDiv.hidden = true;
+                eagResponseContainerCard.hidden = false;
+
+                // Build clean summary message
+                let summaryHTML = '';
+                let successCount = 0;
+                let failCount = 0;
+
                 // Handle different result structures
                 if (result && typeof result === 'object') {
                     if (result.successful && Array.isArray(result.successful)) {
                         // Structure with successful/failed arrays
-                        if (result.successful.length > 0) {
-                            eagProgressInfo.innerHTML = `Successfully removed ${result.successful.length} assignment group(s).`
-                        }
-                        if (result.failed && Array.isArray(result.failed) && result.failed.length > 0) {
-                            eagProgressBar.parentElement.hidden = true;
-                            eagProgressInfo.innerHTML += ` Failed to remove ${result.failed.length} empty assignment group(s)`;
-                            errorHandler({ message: `${result.failed[0].reason}` }, eagProgressInfo);
-                        }
+                        successCount = result.successful.length;
+                        failCount = result.failed ? result.failed.length : 0;
                     } else if (result.success === true) {
                         // Single success result structure
-                        eagProgressInfo.innerHTML = `Successfully removed assignment group.`
+                        successCount = 1;
+                        failCount = 0;
                     } else if (Array.isArray(result)) {
                         // Array of results
-                        const successCount = result.filter(r => r && (r.success === true || (r.status >= 200 && r.status < 300))).length;
-                        const failCount = result.length - successCount;
+                        successCount = result.filter(r => r && (r.success === true || (r.status >= 200 && r.status < 300))).length;
+                        failCount = result.length - successCount;
+                    }
+                }
 
-                        if (successCount > 0) {
-                            eagProgressInfo.innerHTML = `Successfully removed ${successCount} assignment group(s).`
-                        }
-                        if (failCount > 0) {
-                            eagProgressBar.parentElement.hidden = true;
-                            eagProgressInfo.innerHTML += ` Failed to remove ${failCount} assignment group(s).`;
-                            const failedResults = result.filter(r => r && r.error);
-                            if (failedResults.length > 0) {
-                                errorHandler({ message: failedResults[0].error }, eagProgressInfo);
-                            }
-                        }
-                    } else {
-                        // Unknown result structure, show generic success message
-                        eagProgressInfo.innerHTML = `Operation completed. Check the result for details.`;
+                // Create appropriate alert based on results
+                if (failCount === 0 && successCount > 0) {
+                    summaryHTML = `
+                        <div class="alert alert-success" role="alert">
+                            <i class="bi bi-check-circle me-2"></i>
+                            <strong>Success!</strong> Deleted ${successCount} empty assignment group${successCount !== 1 ? 's' : ''}.
+                        </div>
+                    `;
+                } else if (successCount > 0 && failCount > 0) {
+                    summaryHTML = `
+                        <div class="alert alert-warning" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Partial Success:</strong> Deleted ${successCount} assignment group${successCount !== 1 ? 's' : ''}, but ${failCount} failed.
+                        </div>
+                    `;
+                    // Add error details if available
+                    if (result.failed && result.failed.length > 0) {
+                        summaryHTML += `
+                            <div class="alert alert-danger mt-2" role="alert">
+                                <strong>Error:</strong> ${result.failed[0].reason || 'Unknown error'}
+                            </div>
+                        `;
+                    }
+                } else if (failCount > 0) {
+                    summaryHTML = `
+                        <div class="alert alert-danger" role="alert">
+                            <i class="bi bi-x-circle me-2"></i>
+                            <strong>Error:</strong> Failed to delete assignment groups.
+                        </div>
+                    `;
+                    if (result.failed && result.failed.length > 0) {
+                        summaryHTML += `
+                            <div class="alert alert-danger mt-2" role="alert">
+                                <strong>Details:</strong> ${result.failed[0].reason || 'Unknown error'}
+                            </div>
+                        `;
                     }
                 } else {
-                    eagProgressInfo.innerHTML = `Operation completed, but result structure is unexpected.`;
+                    summaryHTML = `
+                        <div class="alert alert-info" role="alert">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Operation completed.</strong>
+                        </div>
+                    `;
                 }
+
+                eagResponseContainer.innerHTML = summaryHTML;
+
             } catch (error) {
-                eagProgressBar.parentElement.hidden = true;
+                // Hide progress card and show error in results
+                eagProgressDiv.hidden = true;
+                eagResponseContainerCard.hidden = false;
+
+                let errorHTML = '';
                 if (error.message === 'Request cancelled') {
-                    eagProgressInfo.innerHTML = 'Request cancelled by user.';
+                    errorHTML = `
+                        <div class="alert alert-warning" role="alert">
+                            <i class="bi bi-exclamation-circle me-2"></i>
+                            <strong>Cancelled:</strong> Request cancelled by user.
+                        </div>
+                    `;
                 } else {
-                    errorHandler(error, eagProgressInfo);
+                    errorHTML = `
+                        <div class="alert alert-danger" role="alert">
+                            <i class="bi bi-x-circle me-2"></i>
+                            <strong>Error:</strong> ${error.message || 'An error occurred while deleting assignment groups.'}
+                        </div>
+                    `;
                 }
+
+                eagResponseContainer.innerHTML = errorHTML;
             } finally {
                 isDeleting = false;
                 deagBtn.disabled = false;
-                eagProgressBar.parentElement.hidden = true;
-                
-                // Add a close button to the results after operation completes
-                eagResponseContainer.innerHTML += `
-                    <div class="row g-2 mt-2">
-                        <div class="col-auto">
-                            <button id="close-results-btn" class="btn btn-secondary">
-                                <i class="bi bi-x-circle me-2"></i>Close
-                            </button>
-                        </div>
-                    </div>
-                `;
-                
-                // Attach close button event listener
-                const closeBtn = eagResponseContainer.querySelector('#close-results-btn');
-                if (closeBtn) {
-                    closeBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        
-                        cID.value = '';
-                        eagResponseContainer.innerHTML = '';
-                        eagProgressDiv.hidden = true;
-                        eagResponseContainerCard.hidden = true;
-                        window.emptyAssignmentGroupsCache = null;
-                    });
-                }
+                cancelDeleteBtn.hidden = true;
             }
         }
+
+        // Handle cancel deletion button (attached once)
+        cancelDeleteBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (!isDeleting || cancelDeleteBtn.disabled) return;
+            
+            console.log('Cancelling delete empty assignment groups request...');
+            
+            // Disable button and update UI immediately
+            cancelDeleteBtn.disabled = true;
+            cancelDeleteBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Cancelling...';
+            eagProgressInfo.innerHTML = 'Cancelling...';
+            
+            try {
+                await window.axios.cancelDeleteEmptyAssignmentGroups();
+            } catch (error) {
+                console.error('Error cancelling request:', error);
+                // Only re-enable if the operation is still running
+                if (isDeleting) {
+                    cancelDeleteBtn.innerHTML = '<i class="bi bi-x-circle me-2"></i>Cancel Deletion';
+                    cancelDeleteBtn.disabled = false;
+                    eagProgressInfo.innerHTML = 'Deleting empty assignment groups...';
+                }
+            }
+        });
         
         async function handleCheckBtnClick(e) {
             e.stopPropagation();
@@ -399,36 +434,17 @@ function emptyAssignmentGroups(e) {
 
                 // Attach event listeners to the newly created buttons
                 const cancelDeagBtn = eagResponseContainer.querySelector('#cancel-btn');
-                cancelDeagBtn.addEventListener('click', async (e) => {
+                cancelDeagBtn.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
 
-                    // If a delete operation is in progress, cancel it
-                    if (isDeleting) {
-                        console.log('Cancelling delete empty assignment groups request...');
-                        
-                        const eagProgressInfo = deleteEmptyAssignmentGroupsForm.querySelector('#eag-progress-info');
-                        if (eagProgressInfo) {
-                            eagProgressInfo.innerHTML = 'Cancelling request...';
-                        }
-                        
-                        // Disable cancel button immediately
-                        cancelDeagBtn.disabled = true;
-                        
-                        try {
-                            await window.axios.cancelDeleteEmptyAssignmentGroups();
-                        } catch (error) {
-                            console.error('Error cancelling request:', error);
-                        }
-                    } else {
-                        // If no delete operation, just clear the results
-                        cID.value = '';
-                        eagResponseContainer.innerHTML = '';
-                        deagBtn.disabled = false;
-                        eagProgressDiv.hidden = true;
-                        eagResponseContainerCard.hidden = true;
-                        window.emptyAssignmentGroupsCache = null;
-                    }
+                    // Clear the results and reset the form
+                    cID.value = '';
+                    eagResponseContainer.innerHTML = '';
+                    deagBtn.disabled = false;
+                    eagProgressDiv.hidden = true;
+                    eagResponseContainerCard.hidden = true;
+                    window.emptyAssignmentGroupsCache = null;
                 });
 
                 const removeDeagBtn = eagResponseContainer.querySelector('#remove-btn');
