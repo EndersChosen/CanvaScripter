@@ -55,20 +55,52 @@ function checkComm(e) {
 
         // const eForm = document.createElement('form');
         checkSuppressionListForm.innerHTML = `
+            <style>
+                #check-suppressionlist-form .card { font-size: 0.875rem; }
+                #check-suppressionlist-form .card-header h3 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+                #check-suppressionlist-form .card-header small { font-size: 0.75rem; }
+                #check-suppressionlist-form .card-body { padding: 0.75rem; }
+                #check-suppressionlist-form .form-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+                #check-suppressionlist-form .form-control, #check-suppressionlist-form .form-select { 
+                    font-size: 0.8rem; 
+                    padding: 0.25rem 0.5rem;
+                    height: auto;
+                }
+                #check-suppressionlist-form .btn { 
+                    font-size: 0.8rem; 
+                    padding: 0.35rem 0.75rem;
+                }
+                #check-suppressionlist-form .form-check { margin-bottom: 0.5rem; }
+                #check-suppressionlist-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+                #check-suppressionlist-form .mt-2 { margin-top: 0.5rem !important; }
+                #check-suppressionlist-form .mt-3 { margin-top: 0.75rem !important; }
+                #check-suppressionlist-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #check-suppressionlist-form .mb-3 { margin-bottom: 0.75rem !important; }
+                #check-suppressionlist-form .mb-4 { margin-bottom: 1rem !important; }
+                #check-suppressionlist-form .progress { height: 12px !important; }
+                #check-suppressionlist-form h5 { font-size: 1rem; }
+                #check-suppressionlist-form h6 { font-size: 0.9rem; }
+                #check-suppressionlist-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
+                #check-suppressionlist-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+                #check-suppressionlist-form .badge { font-size: 0.75rem; }
+                #check-suppressionlist-form hr { margin: 0.5rem 0; }
+                #check-suppressionlist-form .row { margin-bottom: 0.75rem; }
+                #check-suppressionlist-form .g-3 { gap: 0.5rem !important; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-shield-exclamation me-2"></i>Check Suppression and Bounce List
+                        <i class="bi bi-shield-exclamation me-1"></i>Check Suppression and Bounce List
                     </h3>
                     <small class="text-muted">Verify email addresses against suppression and bounce lists</small>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-3">
                             <label for="region" class="form-label fw-bold">
                                 <i class="bi bi-geo me-1"></i>Region
                             </label>
-                            <select id="region" class="form-select" aria-label="Region info">
+                            <select id="region" class="form-select form-select-sm" aria-label="Region info">
                                 <option value="iad_pdx" selected>IAD/PDX</option>
                                 <option value="dub_fra">DUB/FRA</option>
                                 <option value="syd_sin">SYD/SIN</option>
@@ -77,36 +109,36 @@ function checkComm(e) {
                         </div>
                     </div>
                     <!-- Check Method Selection -->
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-12">
                             <label class="form-label fw-bold">
                                 <i class="bi bi-list me-1"></i>Check Method
                             </label>
                             <div class="btn-group w-100" role="group" aria-label="Check method selection" id="email-options">
                                 <input type="radio" class="btn-check" name="check-method" id="single-email-chkbx" value="single">
-                                <label class="btn btn-outline-primary" for="single-email-chkbx">
+                                <label class="btn btn-sm btn-outline-primary" for="single-email-chkbx">
                                     <i class="bi bi-envelope me-1"></i>Single Email
                                 </label>
                                 
                                 <input type="radio" class="btn-check" name="check-method" id="domain-email-chkbx" value="domain">
-                                <label class="btn btn-outline-primary" for="domain-email-chkbx">
+                                <label class="btn btn-sm btn-outline-primary" for="domain-email-chkbx">
                                     <i class="bi bi-globe me-1"></i>Domain
                                 </label>
                                 
                                 <input type="radio" class="btn-check" name="check-method" id="file-upload-chkbx" value="file">
-                                <label class="btn btn-outline-primary" for="file-upload-chkbx">
+                                <label class="btn btn-sm btn-outline-primary" for="file-upload-chkbx">
                                     <i class="bi bi-upload me-1"></i>File Upload
                                 </label>
                             </div>
                         </div>
                     </div>
                     <!-- Single Email Input -->
-                    <div class="row g-3 mb-4 d-none" id="single-email-section">
+                    <div class="row g-3 mb-2 d-none" id="single-email-section">
                         <div class="col-md-6">
                             <label id="email-label" for="email" class="form-label fw-bold">
                                 <i class="bi bi-envelope me-1"></i>Email Address
                             </label>
-                            <input type="text" id="email" class="form-control" 
+                            <input type="text" id="email" class="form-control form-control-sm" 
                                    aria-describedby="email-form-text" placeholder="Enter email address">
                             <div class="form-text text-muted" id="email-form-text">
                                 <i class="bi bi-info-circle me-1"></i>Enter the full email address you want to check
@@ -115,12 +147,12 @@ function checkComm(e) {
                     </div>
                     
                     <!-- Domain Input -->
-                    <div class="row g-3 mb-4 d-none" id="domain-section">
+                    <div class="row g-3 mb-2 d-none" id="domain-section">
                         <div class="col-md-8">
                             <label id="domain-label" for="domain-input" class="form-label fw-bold">
                                 <i class="bi bi-globe me-1"></i>Domain Pattern
                             </label>
-                            <input type="text" id="domain-input" class="form-control" 
+                            <input type="text" id="domain-input" class="form-control form-control-sm" 
                                    aria-describedby="domain-form-text" placeholder="e.g., *student*">
                             <div class="form-text text-muted" id="domain-form-text">
                                 <i class="bi bi-info-circle me-1"></i>
@@ -134,12 +166,12 @@ function checkComm(e) {
                     </div>
                     
                     <!-- File Upload Input -->
-                    <div class="row g-3 mb-4 d-none" id="file-upload-section">
+                    <div class="row g-3 mb-2 d-none" id="file-upload-section">
                         <div class="col-md-6">
                             <label for="email-upload" class="form-label fw-bold">
                                 <i class="bi bi-filetype-csv me-1"></i>Upload File of Emails
                             </label>
-                            <input type="file" id="email-upload" accept=".csv,.xlsx,.xls" class="form-control" />
+                            <input type="file" id="email-upload" accept=".csv,.xlsx,.xls" class="form-control form-control-sm" />
                             <div class="form-text text-muted">
                                 <i class="bi bi-info-circle me-1"></i>Upload a CSV, Excel (.xlsx), or Excel 97-2003 (.xls) file containing email addresses to check
                                 <br><small>Supports Canvas bounce report format with columns: User ID, Name, Path, Date, Bounce reason</small>
@@ -148,13 +180,13 @@ function checkComm(e) {
                     </div>
                     
                     <!-- Action Buttons -->
-                    <div class="row mb-4">
+                    <div class="row mb-2">
                         <div class="col-md-6">
                             <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-success" id="dynamic-check-btn" disabled>
+                                <button type="button" class="btn btn-sm btn-success" id="dynamic-check-btn" disabled>
                                     <i class="bi bi-search me-2"></i>Check
                                 </button>
-                                <button type="button" class="btn btn-outline-danger" id="cancel-btn" hidden>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="cancel-btn" hidden>
                                     <i class="bi bi-x-circle me-2"></i>Cancel
                                 </button>
                             </div>
@@ -164,7 +196,7 @@ function checkComm(e) {
             </div>
             
             <!-- Progress Card -->
-            <div class="card mt-3" id="progress-div" hidden>
+            <div class="card mt-2" id="progress-div" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-gear me-2"></i>Checking Suppression List
@@ -172,7 +204,7 @@ function checkComm(e) {
                 </div>
                 <div class="card-body">
                     <p id="progress-info" class="mb-2"></p>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              style="width: 0%" role="progressbar" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -182,7 +214,7 @@ function checkComm(e) {
             </div>
             
             <!-- Results Card -->
-            <div class="card mt-3" id="response-container-card" hidden>
+            <div class="card mt-2" id="response-container-card" hidden>
                 <div class="card-body" id="response-container"></div>
             </div>
             `
@@ -844,17 +876,46 @@ function resetComm(e) {
         resetCommForm = document.createElement('form');
         resetCommForm.id = 'reset-comm-form';
         resetCommForm.innerHTML = `
+            <style>
+                #reset-comm-form .card { font-size: 0.875rem; }
+                #reset-comm-form .card-header h3 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+                #reset-comm-form .card-header small { font-size: 0.75rem; }
+                #reset-comm-form .card-body { padding: 0.75rem; }
+                #reset-comm-form .form-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+                #reset-comm-form .form-control, #reset-comm-form .form-select { 
+                    font-size: 0.8rem; 
+                    padding: 0.25rem 0.5rem;
+                    height: auto;
+                }
+                #reset-comm-form .btn { 
+                    font-size: 0.8rem; 
+                    padding: 0.35rem 0.75rem;
+                }
+                #reset-comm-form .form-check { margin-bottom: 0.5rem; }
+                #reset-comm-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+                #reset-comm-form .mt-2 { margin-top: 0.5rem !important; }
+                #reset-comm-form .mt-3 { margin-top: 0.75rem !important; }
+                #reset-comm-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #reset-comm-form .mb-3 { margin-bottom: 0.75rem !important; }
+                #reset-comm-form .progress { height: 12px !important; }
+                #reset-comm-form h5 { font-size: 1rem; }
+                #reset-comm-form h6 { font-size: 0.9rem; }
+                #reset-comm-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
+                #reset-comm-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+                #reset-comm-form .badge { font-size: 0.75rem; }
+                #reset-comm-form hr { margin: 0.5rem 0; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
-                    <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-arrow-clockwise me-2"></i>Reset Communication Channels
+                    <h3 class="card-title text-dark">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Reset Communication Channels
                     </h3>
                     <small class="text-muted">Reset communication channel preferences for users</small>
                 </div>
                 <div class="card-body">
         <div>
             <div class="col-2">
-                <select id="region" class="form-select" aria-label="Region info">
+                <select id="region" class="form-select form-select-sm" aria-label="Region info">
                     <option value="iad_pdx" selected>IAD/PDX</option>
                     <option value="dub_fra">DUB/FRA</option>
                     <option value="syd_sin">SYD/SIN</option>
@@ -880,34 +941,34 @@ function resetComm(e) {
             <div id="reset-data-inputs" hidden>
                 <div id="reset-single-div">
                     <label for="reset-single-input" class="form-label">Email Address</label>
-                    <input id="reset-single-input" type="text" class="form-control" placeholder="user@example.com">
+                    <input id="reset-single-input" type="text" class="form-control form-control-sm" placeholder="user@example.com">
                 </div>
                 <div id="reset-pattern-div" hidden>
                     <label for="reset-pattern-input" class="form-label">Email Pattern</label>
-                    <input id="reset-pattern-input" type="text" class="form-control" placeholder="*@domain.edu">
+                    <input id="reset-pattern-input" type="text" class="form-control form-control-sm" placeholder="*@domain.edu">
                     <div class="form-text">Use wildcards (*) to match multiple emails. Examples: *@university.edu, student*@*.edu</div>
                 </div>
             </div>
         </div>
         <div id="reset-btns">
-            <button id="reset-upload-btn" class="btn btn-primary mt-3" hidden>Upload</button>
-            <button id="reset-single-btn" class="btn btn-primary mt-3" hidden>Reset</button>
-            <button id="reset-pattern-btn" class="btn btn-primary mt-3" hidden>Reset by Pattern</button>
-            <button id="reset-cancel-btn" class="btn btn-outline-secondary mt-3" hidden>Cancel</button>
+            <button id="reset-upload-btn" class="btn btn-sm btn-primary mt-2" hidden>Upload</button>
+            <button id="reset-single-btn" class="btn btn-sm btn-primary mt-2" hidden>Reset</button>
+            <button id="reset-pattern-btn" class="btn btn-sm btn-primary mt-2" hidden>Reset by Pattern</button>
+            <button id="reset-cancel-btn" class="btn btn-sm btn-outline-secondary mt-2" hidden>Cancel</button>
         </div>
         </div>
         </div>
         
         <!-- Progress Card -->
-        <div class="card mt-3" id="progress-card" hidden>
+        <div class="card mt-2" id="progress-card" hidden>
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="bi bi-gear me-2"></i><span id="progress-card-title">Processing</span>
+                    <i class="bi bi-gear me-1"></i><span id="progress-card-title">Processing</span>
                 </h5>
             </div>
             <div class="card-body">
-                <p id="progress-info" class="mb-2"></p>
-                <div class="progress mb-2" style="height: 15px;">
+                <p id="progress-info" class="mb-1"></p>
+                <div class="progress mb-1">
                     <div class="progress-bar progress-bar-striped progress-bar-animated" 
                          id="progress-bar" style="width:0%" role="progressbar" 
                          aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -918,7 +979,7 @@ function resetComm(e) {
         </div>
         
         <!-- Results Card -->
-        <div class="card mt-3" id="results-card" hidden>
+        <div class="card mt-2" id="results-card" hidden>
             <div class="card-body">
                 <div id="reset-single-comm-response-container"></div>
                 <div id="reset-pattern-comm-response-container"></div>
@@ -1177,8 +1238,16 @@ function resetComm(e) {
             // Subscribe to progress updates
             const unsub = window.progressAPI?.onUpdateProgress?.((payload) => {
                 try {
-                    if (payload && typeof payload === 'object' && payload.label) {
-                        progressInfo.textContent = payload.label;
+                    if (payload && typeof payload === 'object') {
+                        if (payload.label) {
+                            progressInfo.textContent = payload.label;
+                        }
+                        // Update progress bar if value is provided
+                        if (typeof payload.value === 'number') {
+                            const percentage = Math.round(payload.value * 100);
+                            progressBar.style.width = `${percentage}%`;
+                            progressBar.setAttribute('aria-valuenow', percentage);
+                        }
                     }
                 } catch (e) {
                     console.error('Progress update error:', e);
@@ -1951,10 +2020,40 @@ function unconfirmed(e) {
 
         // const eForm = document.createElement('form');
         unconfirmedEmailForm.innerHTML = `
+            <style>
+                #unconfirmed-emails-form .card { font-size: 0.875rem; }
+                #unconfirmed-emails-form .card-header h3 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+                #unconfirmed-emails-form .card-header small { font-size: 0.75rem; }
+                #unconfirmed-emails-form .card-body { padding: 0.75rem; }
+                #unconfirmed-emails-form .form-label, #unconfirmed-emails-form .form-check-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+                #unconfirmed-emails-form .form-control, #unconfirmed-emails-form .form-select { 
+                    font-size: 0.8rem; 
+                    padding: 0.25rem 0.5rem;
+                    height: auto;
+                }
+                #unconfirmed-emails-form .btn { 
+                    font-size: 0.8rem; 
+                    padding: 0.35rem 0.75rem;
+                }
+                #unconfirmed-emails-form .form-check { margin-bottom: 0.5rem; }
+                #unconfirmed-emails-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+                #unconfirmed-emails-form .mt-2 { margin-top: 0.5rem !important; }
+                #unconfirmed-emails-form .mt-3 { margin-top: 0.75rem !important; }
+                #unconfirmed-emails-form .mt-5 { margin-top: 1.25rem !important; }
+                #unconfirmed-emails-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #unconfirmed-emails-form .mb-3 { margin-bottom: 0.75rem !important; }
+                #unconfirmed-emails-form .progress { height: 12px !important; }
+                #unconfirmed-emails-form h5 { font-size: 1rem; }
+                #unconfirmed-emails-form h6 { font-size: 0.9rem; }
+                #unconfirmed-emails-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
+                #unconfirmed-emails-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+                #unconfirmed-emails-form .badge { font-size: 0.75rem; }
+                #unconfirmed-emails-form hr { margin: 0.5rem 0; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-envelope-exclamation me-2"></i>Unconfirmed Emails
+                        <i class="bi bi-envelope-exclamation me-1"></i>Unconfirmed Emails
                     </h3>
                     <small class="text-muted">Find and manage unconfirmed email addresses</small>
                 </div>
@@ -1964,7 +2063,7 @@ function unconfirmed(e) {
                     <label class="form-check-label" for="uncofirmed-email-switch">Check for unconfirmed emails</label>
                     <input class="form-check-input" type="checkbox" role="switch" id="unconfirmed-email-switch">
                     <div id="email-pattern-div" hidden>
-                        <input id="unconfirmed-email-pattern" type="text" class="form-control" placeholder="email.domain.edu" aria-describedby="unconfirmed-pattern-description">
+                        <input id="unconfirmed-email-pattern" type="text" class="form-control form-control-sm" placeholder="email.domain.edu" aria-describedby="unconfirmed-pattern-description">
                         <div id="email-warning" style="color: red;" class="form-text" hidden>***Must enter a pattern***</div>
                         <span id="unconfirmed-pattern-description" class="form-text">Email domain pattern to search for unconfirmed emails (wildcards accepted *pattern*edu)</span>
                     </div>
@@ -1978,28 +2077,28 @@ function unconfirmed(e) {
                     <label class="form-check-label" for="confirm-email-list-switch">Input list of emails to confirm</label>
                     <input class="form-check-input" type="checkbox" role="switch" id="confirm-email-list-switch" aria-describedby="confirm-email-list-desc">
                     <div id="confirm-email-list-box" hidden>
-                        <textarea class="form-control" id="email-list-box" rows="3" placeholder="example1@example.com,example2@example.com, etc."></textarea>
+                        <textarea class="form-control form-control-sm" id="email-list-box" rows="3" placeholder="example1@example.com,example2@example.com, etc."></textarea>
                     </div>
                 </div>
             </div>
-            <button type="button" class="btn btn-primary mt-3" id="unconfirmed-check-btn" disabled>Check</button>
-            <button type="button" class="btn btn-primary mt-3" id="upload-email-btn" hidden disabled>Upload</button>
-            <button type="button" class="btn btn-primary mt-3" id="confirm-email-btn" hidden disabled>Confirm</button>
+            <button type="button" class="btn btn-sm btn-primary mt-2" id="unconfirmed-check-btn" disabled>Check</button>
+            <button type="button" class="btn btn-sm btn-primary mt-2" id="upload-email-btn" hidden disabled>Upload</button>
+            <button type="button" class="btn btn-sm btn-primary mt-2" id="confirm-email-btn" hidden disabled>Confirm</button>
     
             <div hidden id="progress-div">
                 <p id="progress-info"></p>
                 <div id="loading-wheel" hidden>
-                    <div class="spinner-border" role="status">
+                    <div class="spinner-border spinner-border-sm" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
                 </div>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress mt-2" style="width: 75%; height: 12px;" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div id="response-container" class="mt-5">
+            <div id="response-container" class="mt-3">
                 <div id="loading-wheel" hidden>
-                    <div class="spinner-border" role="status">
+                    <div class="spinner-border spinner-border-sm" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
                 </div>
@@ -2130,7 +2229,24 @@ function unconfirmed(e) {
                 responseContainer.querySelector('div').hidden = false; // showing the spinning wheel
                 const response = await window.axios.checkUnconfirmedEmails(requestData)
                 responseContainer.querySelector('div').hidden = true;
-                responseDetails.innerHTML = 'List of unconfirmed emails saved.';
+                
+                if (response.success && response.data) {
+                    // Create download link for the CSV data
+                    responseDetails.innerHTML = '<p class="mb-2">Unconfirmed emails list ready:</p>';
+                    
+                    if (window.utilities?.createDownloadLink) {
+                        const downloadLink = window.utilities.createDownloadLink(
+                            response.data,
+                            'unconfirmed_emails.csv',
+                            '📥 Download Unconfirmed Emails CSV'
+                        );
+                        responseDetails.appendChild(downloadLink);
+                    } else {
+                        responseDetails.innerHTML += '<p class="text-muted">Download utility not available.</p>';
+                    }
+                } else {
+                    responseDetails.innerHTML = 'No data returned.';
+                }
             } catch (error) {
                 console.log('There was an error', error);
                 responseContainer.querySelector('div').hidden = true;
@@ -2146,54 +2262,162 @@ function unconfirmed(e) {
             e.stopPropagation();
             uploadBtn.disabled = true;
 
-            const domain = document.querySelector('#domain').value.trim();
-            const token = document.querySelector('#token').value.trim();
-            const progresDiv = unconfirmedEmailForm.querySelector('#progress-div');
-            const progressBar = progresDiv.querySelector('.progress-bar');
-            const progressInfo = unconfirmedEmailForm.querySelector('#progress-info');
-            const progressBarWrapper = progresDiv.querySelector('.progress');
+            const responseContainer = unconfirmedEmailForm.querySelector('#response-container');
+            const responseDiv = responseContainer.querySelector('#response');
+            
+            responseDiv.innerHTML = '';
 
-            progressInfo.innerHTML = '';
-
-            const requestData = {
-                domain: domain,
-                token: token
-            }
-
-            progresDiv.hidden = false;
-            // Unknown total during file discovery -> hide progress bar and show live count
-            if (progressBarWrapper) progressBarWrapper.hidden = true;
-            progressInfo.textContent = 'Processing... Processed: 0';
-
-            let totalEmails = 0;
-            window.dataUpdate.onUpdate((data) => {
-                totalEmails = data;
-                progressInfo.textContent = `Processing... Processed: ${totalEmails}`;
-            });
             try {
-                const result = await window.fileUpload.confirmEmails(requestData);
+                // Step 1: Analyze the file
+                const analysis = await window.fileUpload.analyzeEmailFile();
 
-                // Check if the operation was cancelled or failed
-                if (!result.success) {
-                    // Hide progress div and don't show any message for cancelled operations
-                    progresDiv.hidden = true;
+                if (analysis.cancelled) {
+                    uploadBtn.disabled = false;
                     return;
                 }
 
-                progressInfo.innerHTML += `<h5>Results:</h5><p class="mb-1">Processed:  ${totalEmails}</p>`;
-                progressInfo.innerHTML += `<p class="mb-1">Confirmed: ${result.confirmed} <div class="form-text">NOTE: Number of emails confirmed may be different than the number processed if the email didn't need to be confirmed</div></p>`;
-                if (result.failed && result.failed.length > 0) {
-                    progressBar.parentElement.hidden = true;
-                    progressInfo.innerHTML += `Failed to confirm ${result.failed.length} emails`;
-                    errorHandler({ message: `${result.failed[0].reason}` }, progressInfo);
-                }
-            } catch (error) {
-                errorHandler(error, progressInfo);
-            } finally {
-                uploadBtn.disabled = false;
-                if (progressBarWrapper) progressBarWrapper.hidden = false;
-            }
+                const { count, emails, fileName } = analysis;
 
+                // Show analysis results with confirmation
+                responseDiv.innerHTML = `
+                    <div class="card mt-2">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-file-earmark-text me-1"></i>File Analysis
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>File:</strong> ${fileName}</p>
+                            <p><strong>Emails found:</strong> <span class="badge bg-primary">${count}</span></p>
+                            <p class="mb-0">Do you want to confirm these ${count} email(s)?</p>
+                            <div class="mt-2">
+                                <button id="confirm-upload-btn" class="btn btn-sm btn-success">
+                                    <i class="bi bi-check-circle me-1"></i>Yes, Confirm Emails
+                                </button>
+                                <button id="cancel-upload-btn" class="btn btn-sm btn-secondary ms-2">
+                                    <i class="bi bi-x-circle me-1"></i>Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Handle confirmation
+                const confirmUploadBtn = responseDiv.querySelector('#confirm-upload-btn');
+                const cancelUploadBtn = responseDiv.querySelector('#cancel-upload-btn');
+
+                cancelUploadBtn.addEventListener('click', () => {
+                    responseDiv.innerHTML = '<div class="alert alert-info">Operation cancelled.</div>';
+                    uploadBtn.disabled = false;
+                });
+
+                confirmUploadBtn.addEventListener('click', async () => {
+                    // Step 2: Process the emails
+                    const domain = document.querySelector('#domain').value.trim();
+                    const token = document.querySelector('#token').value.trim();
+
+                    // Show progress card
+                    responseDiv.innerHTML = `
+                        <div class="card mt-2" id="progress-card">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-gear me-1"></i>Processing Emails
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-2">Confirming email addresses...</p>
+                                <div class="progress mb-2" style="height: 12px;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                         id="confirm-progress-bar" 
+                                         style="width:0%" 
+                                         role="progressbar" 
+                                         aria-valuenow="0" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                    </div>
+                                </div>
+                                <small class="text-muted" id="progress-detail">Processed: 0 / ${count}</small>
+                            </div>
+                        </div>
+                    `;
+
+                    const progressBar = responseDiv.querySelector('#confirm-progress-bar');
+                    const progressDetail = responseDiv.querySelector('#progress-detail');
+
+                    // Subscribe to progress updates
+                    let processedCount = 0;
+                    let unsubscribeProgress = null;
+                    if (window.progressAPI) {
+                        unsubscribeProgress = window.progressAPI.onUpdateProgress((payload) => {
+                            try {
+                                if (payload && typeof payload === 'object') {
+                                    if (typeof payload.value === 'number') {
+                                        const percentage = Math.round(payload.value * 100);
+                                        progressBar.style.width = `${percentage}%`;
+                                        progressBar.setAttribute('aria-valuenow', percentage);
+                                        processedCount = Math.round(payload.value * count);
+                                        progressDetail.textContent = `Processed: ${processedCount} / ${count}`;
+                                    }
+                                }
+                            } catch (err) {
+                                console.error('Progress update error:', err);
+                            }
+                        });
+                    }
+
+                    try {
+                        const requestData = {
+                            domain: domain,
+                            token: token,
+                            emails: emails
+                        };
+
+                        const result = await window.fileUpload.confirmEmails(requestData);
+
+                        // Show summary card
+                        responseDiv.innerHTML = `
+                            <div class="card mt-2 border-success">
+                                <div class="card-header bg-success text-white">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-check-circle me-1"></i>Confirmation Complete
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Total Processed:</strong> <span class="badge bg-primary">${result.total}</span></p>
+                                    <p><strong>Successfully Confirmed:</strong> <span class="badge bg-success">${result.confirmed}</span></p>
+                                    ${result.failed && result.failed.length > 0 ? 
+                                        `<p><strong>Failed:</strong> <span class="badge bg-danger">${result.failed.length}</span></p>` : 
+                                        '<p class="text-muted mb-0">All emails processed successfully!</p>'
+                                    }
+                                    <div class="form-text mt-2">Note: The number of emails confirmed may differ from the number processed if some emails were already confirmed.</div>
+                                    ${result.failed && result.failed.length > 0 ? 
+                                        `<div class="alert alert-danger mt-2 mb-0">
+                                            <strong>Error Details:</strong> ${result.failed[0].reason || 'Unknown error'}
+                                        </div>` : ''
+                                    }
+                                </div>
+                            </div>
+                        `;
+                    } catch (error) {
+                        responseDiv.innerHTML = `
+                            <div class="alert alert-danger mt-2">
+                                <strong>Error:</strong> ${error.message || 'An error occurred while confirming emails'}
+                            </div>
+                        `;
+                    } finally {
+                        if (unsubscribeProgress) unsubscribeProgress();
+                        uploadBtn.disabled = false;
+                    }
+                });
+
+            } catch (error) {
+                responseDiv.innerHTML = `
+                    <div class="alert alert-danger mt-2">
+                        <strong>Error:</strong> ${error.message || 'An error occurred while analyzing the file'}
+                    </div>
+                `;
+                uploadBtn.disabled = false;
+            }
         }
 
         async function handleConfirmCheck(e) {
@@ -2203,48 +2427,106 @@ function unconfirmed(e) {
 
             const domain = document.querySelector('#domain').value.trim();
             const token = document.querySelector('#token').value.trim();
-            const progresDiv = unconfirmedEmailForm.querySelector('#progress-div');
-            const progressBar = progresDiv.querySelector('.progress-bar');
-            const progressInfo = unconfirmedEmailForm.querySelector('#progress-info');
-            const progressBarWrapper = progresDiv.querySelector('.progress');
+            const responseContainer = unconfirmedEmailForm.querySelector('#response-container');
+            const responseDiv = responseContainer.querySelector('#response');
+            
             const emails = emailBox.value.split(/\r?\n|\n|\,/)
-                .map((email) => email.trim());
+                .map((email) => email.trim())
+                .filter(email => email.length > 0);
 
-            progressInfo.innerHTML = '';
+            responseDiv.innerHTML = '';
+
+            const count = emails.length;
+
+            // Show progress card
+            responseDiv.innerHTML = `
+                <div class="card mt-2" id="progress-card-list">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-gear me-1"></i>Processing Emails
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2">Confirming email addresses...</p>
+                        <div class="progress mb-2" style="height: 12px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 id="confirm-progress-bar-list" 
+                                 style="width:0%" 
+                                 role="progressbar" 
+                                 aria-valuenow="0" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                            </div>
+                        </div>
+                        <small class="text-muted" id="progress-detail-list">Processed: 0 / ${count}</small>
+                    </div>
+                </div>
+            `;
+
+            const progressBar = responseDiv.querySelector('#confirm-progress-bar-list');
+            const progressDetail = responseDiv.querySelector('#progress-detail-list');
+
+            // Subscribe to progress updates
+            let unsubscribeProgress = null;
+            if (window.progressAPI) {
+                unsubscribeProgress = window.progressAPI.onUpdateProgress((payload) => {
+                    try {
+                        if (payload && typeof payload === 'object') {
+                            if (typeof payload.value === 'number') {
+                                const percentage = Math.round(payload.value * 100);
+                                progressBar.style.width = `${percentage}%`;
+                                progressBar.setAttribute('aria-valuenow', percentage);
+                                const processedCount = Math.round(payload.value * count);
+                                progressDetail.textContent = `Processed: ${processedCount} / ${count}`;
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Progress update error:', err);
+                    }
+                });
+            }
 
             const requestData = {
                 domain: domain,
                 token: token,
                 emails: emails
-            }
-
-            progresDiv.hidden = false;
-            // Determinate: show progress bar
-            if (progressBarWrapper) progressBarWrapper.hidden = false;
-            let unsubscribeProgress = null;
-            if (window.progressAPI) {
-                unsubscribeProgress = window.progressAPI.onUpdateProgress((payload) => {
-                    if (payload && typeof payload === 'object' && typeof payload.value === 'number') {
-                        progressBar.style.width = `${Math.round(payload.value * 100)}%`;
-                    } else if (typeof payload === 'number') {
-                        // backward compatibility with numeric payloads
-                        progressBar.style.width = `${Math.round(payload)}%`;
-                    }
-                });
-            }
+            };
 
             try {
                 const result = await window.axios.confirmEmails(requestData);
-                progressInfo.innerHTML += `<h5>Results:</h5><p class="mb-1">Processed:  ${requestData.emails.length}</p>`;
-                progressInfo.innerHTML += `<p class="mb-1">Confirmed: ${result.confirmed} <div class="form-text">NOTE: Number of emails confirmed may be different than the number processed if the email didn't need to be confirmed</div></p>`;
-                if (result.failed.length > 0) {
-                    progressBar.parentElement.hidden = true;
-                    progressInfo.innerHTML += `Failed to confirm ${result.failed.length} emails`;
-                    errorHandler({ message: `${result.failed[0].reason}` }, progressInfo);
-                }
+
+                // Show summary card
+                responseDiv.innerHTML = `
+                    <div class="card mt-2 border-success">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-check-circle me-1"></i>Confirmation Complete
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Total Processed:</strong> <span class="badge bg-primary">${result.total || count}</span></p>
+                            <p><strong>Successfully Confirmed:</strong> <span class="badge bg-success">${result.confirmed}</span></p>
+                            ${result.failed && result.failed.length > 0 ? 
+                                `<p><strong>Failed:</strong> <span class="badge bg-danger">${result.failed.length}</span></p>` : 
+                                '<p class="text-muted mb-0">All emails processed successfully!</p>'
+                            }
+                            <div class="form-text mt-2">Note: The number of emails confirmed may differ from the number processed if some emails were already confirmed.</div>
+                            ${result.failed && result.failed.length > 0 ? 
+                                `<div class="alert alert-danger mt-2 mb-0">
+                                    <strong>Error Details:</strong> ${result.failed[0].reason || 'Unknown error'}
+                                </div>` : ''
+                            }
+                        </div>
+                    </div>
+                `;
             } catch (error) {
-                errorHandler(error, progressInfo);
+                responseDiv.innerHTML = `
+                    <div class="alert alert-danger mt-2">
+                        <strong>Error:</strong> ${error.message || 'An error occurred while confirming emails'}
+                    </div>
+                `;
             } finally {
+                // Re-enable the confirm button so user can process again
                 confirmBtn.disabled = false;
                 if (typeof unsubscribeProgress === 'function') unsubscribeProgress();
             }

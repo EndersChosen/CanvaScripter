@@ -461,6 +461,9 @@ contextBridge.exposeInMainWorld('fileUpload', {
     readFileBuffer: async (fullPath) => {
         return await ipcRenderer.invoke('fileUpload:readFileBuffer', { fullPath });
     },
+    analyzeEmailFile: async () => {
+        return await ipcRenderer.invoke('fileUpload:analyzeEmailFile');
+    },
     confirmEmails: async (data) => {
         return await ipcRenderer.invoke('fileUpload:confirmEmails', data);
     },

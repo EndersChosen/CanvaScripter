@@ -94,20 +94,55 @@ function createAnnouncementsUI(e) {
     form = document.createElement('form');
     form.id = 'create-announcements-form';
     form.innerHTML = `
+            <style>
+                #create-announcements-form .card { font-size: 0.875rem; }
+                #create-announcements-form .card-header h3 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+                #create-announcements-form .card-header small { font-size: 0.75rem; }
+                #create-announcements-form .card-body { padding: 0.75rem; }
+                #create-announcements-form .form-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+                #create-announcements-form .form-control, #create-announcements-form .form-select { 
+                    font-size: 0.8rem; 
+                    padding: 0.25rem 0.5rem;
+                    height: auto;
+                }
+                #create-announcements-form .btn { 
+                    font-size: 0.8rem; 
+                    padding: 0.35rem 0.75rem;
+                }
+                #create-announcements-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+                #create-announcements-form .mt-2 { margin-top: 0.5rem !important; }
+                #create-announcements-form .mt-3 { margin-top: 0.75rem !important; }
+                #create-announcements-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #create-announcements-form .mb-3 { margin-bottom: 0.75rem !important; }
+                #create-announcements-form .mb-4 { margin-bottom: 1rem !important; }
+                #create-announcements-form .progress { height: 12px !important; }
+                #create-announcements-form h5 { font-size: 1rem; }
+                #create-announcements-form h6 { font-size: 0.9rem; }
+                #create-announcements-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
+                #create-announcements-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+                #create-announcements-form .badge { font-size: 0.75rem; }
+                #create-announcements-form hr { margin: 0.5rem 0; }
+                #create-announcements-form .row { margin-bottom: 0.75rem; }
+                #create-announcements-form .g-3 { gap: 0.5rem !important; }
+                #create-announcements-form input[type="number"], #create-announcements-form input[type="datetime-local"] { 
+                    font-size: 0.8rem; 
+                    padding: 0.25rem 0.5rem; 
+                }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-megaphone me-2"></i>Create Course Announcements
+                        <i class="bi bi-megaphone me-1"></i>Create Course Announcements
                     </h3>
                     <small class="text-muted">Add multiple announcements to a course at once</small>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="course-id">
                                 <i class="bi bi-mortarboard-fill me-1"></i>Course ID
                             </label>
-                            <input type="text" class="form-control" id="course-id" 
+                            <input type="text" class="form-control form-control-sm" id="course-id" 
                                    placeholder="Enter course ID (e.g., 12345)" />
                             <div id="course-id-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Course ID must be a positive number.
@@ -117,7 +152,7 @@ function createAnnouncementsUI(e) {
                             <label class="form-label fw-bold" for="num-items">
                                 <i class="bi bi-hash me-1"></i>Number of Announcements
                             </label>
-                            <input type="number" class="form-control" id="num-items" 
+                            <input type="number" class="form-control form-control-sm" id="num-items" 
                                    placeholder="How many announcements?" min="1" max="100" />
                             <div id="num-items-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Enter a number between 1 and 100.
@@ -125,12 +160,12 @@ function createAnnouncementsUI(e) {
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="title">
                                 <i class="bi bi-tag me-1"></i>Title Prefix
                             </label>
-                            <input type="text" class="form-control" id="title" 
+                            <input type="text" class="form-control form-control-sm" id="title" 
                                    placeholder="Announcement" value="Announcement" />
                             <div class="form-text text-muted">
                                 <i class="bi bi-info-circle me-1"></i>
@@ -141,7 +176,7 @@ function createAnnouncementsUI(e) {
                             <label class="form-label fw-bold" for="message">
                                 <i class="bi bi-pencil me-1"></i>Message (Required)
                             </label>
-                            <input type="text" class="form-control" id="message" 
+                            <input type="text" class="form-control form-control-sm" id="message" 
                                    placeholder="Required announcement body" />
                             <div class="form-text text-muted">
                                 <i class="bi bi-info-circle me-1"></i>
@@ -150,12 +185,12 @@ function createAnnouncementsUI(e) {
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="delayed-post-at">
                                 <i class="bi bi-calendar-event me-1"></i>Delay Posting Until (Optional)
                             </label>
-                            <input type="datetime-local" class="form-control" id="delayed-post-at" />
+                            <input type="datetime-local" class="form-control form-control-sm" id="delayed-post-at" />
                             <div id="delayed-post-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Delayed post date must be before lock date.
                             </div>
@@ -168,7 +203,7 @@ function createAnnouncementsUI(e) {
                             <label class="form-label fw-bold" for="lock-at">
                                 <i class="bi bi-lock me-1"></i>Lock Announcements At (Optional)
                             </label>
-                            <input type="datetime-local" class="form-control" id="lock-at" />
+                            <input type="datetime-local" class="form-control form-control-sm" id="lock-at" />
                             <div id="lock-at-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Lock date must be after delayed post date.
                             </div>
@@ -179,10 +214,10 @@ function createAnnouncementsUI(e) {
                         </div>
                     </div>
                     
-                    <div class="row mb-4">
+                    <div class="row mb-2">
                         <div class="col-md-6">
                             <div class="d-grid">
-                                <button type="button" class="btn btn-success" id="create-btn" disabled>
+                                <button type="button" class="btn btn-sm btn-success" id="create-btn" disabled>
                                     <i class="bi bi-plus-circle me-2"></i>Create Announcements
                                 </button>
                             </div>
@@ -192,7 +227,7 @@ function createAnnouncementsUI(e) {
             </div>
 
             <!-- Progress Card -->
-            <div class="card mt-3" id="progress-card" hidden>
+            <div class="card mt-2" id="progress-card" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-gear me-2"></i>Creating Announcements
@@ -200,7 +235,7 @@ function createAnnouncementsUI(e) {
                 </div>
                 <div class="card-body">
                     <p id="progress-info" class="mb-2"></p>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              id="progress-bar" style="width:0%" role="progressbar" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -211,7 +246,7 @@ function createAnnouncementsUI(e) {
             </div>
 
             <!-- Results Card -->
-            <div class="card mt-3" id="results-card" hidden>
+            <div class="card mt-2" id="results-card" hidden>
                 <div class="card-body" id="response"></div>
             </div>
         `;
@@ -499,21 +534,53 @@ function deleteAnnouncementsUI(e) {
     form = document.createElement('form');
     form.id = 'delete-announcements-form';
     form.innerHTML = `
+            <style>
+                #delete-announcements-form .card { font-size: 0.875rem; }
+                #delete-announcements-form .card-header h3, #delete-announcements-form .card-header h5 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+                #delete-announcements-form .card-header small { font-size: 0.75rem; }
+                #delete-announcements-form .card-body { padding: 0.75rem; }
+                #delete-announcements-form .form-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+                #delete-announcements-form .form-control, #delete-announcements-form .form-select { 
+                    font-size: 0.8rem; 
+                    padding: 0.25rem 0.5rem;
+                    height: auto;
+                }
+                #delete-announcements-form .btn { 
+                    font-size: 0.8rem; 
+                    padding: 0.35rem 0.75rem;
+                }
+                #delete-announcements-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+                #delete-announcements-form .mt-2 { margin-top: 0.5rem !important; }
+                #delete-announcements-form .mt-3 { margin-top: 0.75rem !important; }
+                #delete-announcements-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #delete-announcements-form .mb-3 { margin-bottom: 0.75rem !important; }
+                #delete-announcements-form .mb-4 { margin-bottom: 1rem !important; }
+                #delete-announcements-form .progress { height: 12px !important; }
+                #delete-announcements-form h5 { font-size: 1rem; }
+                #delete-announcements-form h6 { font-size: 0.9rem; }
+                #delete-announcements-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
+                #delete-announcements-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+                #delete-announcements-form .badge { font-size: 0.75rem; }
+                #delete-announcements-form hr { margin: 0.5rem 0; }
+                #delete-announcements-form .row { margin-bottom: 0.75rem; }
+                #delete-announcements-form .g-3 { gap: 0.5rem !important; }
+                #delete-announcements-form .gap-2 { gap: 0.25rem !important; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-trash me-2"></i>Delete Course Announcements
+                        <i class="bi bi-trash me-1"></i>Delete Course Announcements
                     </h3>
                     <small class="text-muted">Remove all announcements from a course</small>
                 </div>
                 <div class="card-body">
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="course-id">
                                 <i class="bi bi-mortarboard-fill me-1"></i>Course ID
                             </label>
-                            <input type="text" class="form-control" id="course-id" 
+                            <input type="text" class="form-control form-control-sm" id="course-id" 
                                    placeholder="Enter course ID (e.g., 12345)" />
                             <div id="course-id-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Course ID must be a positive number.
@@ -521,10 +588,10 @@ function deleteAnnouncementsUI(e) {
                         </div>
                     </div>
                     
-                    <div class="row mb-4">
+                    <div class="row mb-2">
                         <div class="col-md-6">
                             <div class="d-grid">
-                                <button type="button" class="btn btn-primary" id="fetch-btn" disabled>
+                                <button type="button" class="btn btn-sm btn-primary" id="fetch-btn" disabled>
                                     <i class="bi bi-search me-2"></i>Find Announcements
                                 </button>
                             </div>
@@ -534,7 +601,7 @@ function deleteAnnouncementsUI(e) {
             </div>
 
             <!-- Results Card -->
-            <div class="card mt-3" id="results-card" hidden>
+            <div class="card mt-2" id="results-card" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-list-ul me-2"></i>Found Announcements
@@ -542,12 +609,12 @@ function deleteAnnouncementsUI(e) {
                 </div>
                 <div class="card-body">
                     <div id="announcements-summary"></div>
-                    <div id="announcements-list" class="mt-3" style="max-height: 400px; overflow-y: auto;"></div>
-                    <div class="mt-3 d-flex gap-2">
-                        <button type="button" class="btn btn-danger" id="delete-btn" disabled>
+                    <div id="announcements-list" class="mt-2" style="max-height: 400px; overflow-y: auto;"></div>
+                    <div class="mt-2 d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-danger" id="delete-btn" disabled>
                             <i class="bi bi-trash me-2"></i>Delete All Announcements
                         </button>
-                        <button type="button" class="btn btn-secondary" id="cancel-btn">
+                        <button type="button" class="btn btn-sm btn-secondary" id="cancel-btn">
                             <i class="bi bi-x-circle me-2"></i>Cancel
                         </button>
                     </div>
@@ -555,7 +622,7 @@ function deleteAnnouncementsUI(e) {
             </div>
 
             <!-- Progress Card -->
-            <div class="card mt-3" id="progress-card" hidden>
+            <div class="card mt-2" id="progress-card" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-gear me-2"></i>Processing
@@ -563,7 +630,7 @@ function deleteAnnouncementsUI(e) {
                 </div>
                 <div class="card-body">
                     <p id="progress-info" class="mb-2"></p>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              id="progress-bar" style="width:0%" role="progressbar" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -574,7 +641,7 @@ function deleteAnnouncementsUI(e) {
             </div>
 
             <!-- Delete Results Card -->
-            <div class="card mt-3" id="delete-results-card" hidden>
+            <div class="card mt-2" id="delete-results-card" hidden>
                 <div class="card-body" id="delete-response"></div>
             </div>
         `;
@@ -737,7 +804,7 @@ function deleteAnnouncementsUI(e) {
     if (!cancelDeleteBtn) {
       cancelDeleteBtn = document.createElement('button');
       cancelDeleteBtn.id = 'cancel-delete-btn';
-      cancelDeleteBtn.className = 'btn btn-warning mt-3';
+      cancelDeleteBtn.className = 'btn btn-sm btn-warning mt-2';
       cancelDeleteBtn.innerHTML = '<i class="bi bi-x-circle me-2"></i>Cancel Deletion';
       cancelDeleteBtn.hidden = true;
       progressCardBody.appendChild(cancelDeleteBtn);

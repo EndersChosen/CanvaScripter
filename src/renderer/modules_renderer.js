@@ -24,10 +24,24 @@ async function deleteModules(e) {
         createModuleDeleteForm = document.createElement('form');
         createModuleDeleteForm.id = 'create-module-delete-form';
         createModuleDeleteForm.innerHTML = `
+            <style>
+                #create-module-delete-form .card-title { font-size: 1.1rem; }
+                #create-module-delete-form .card-header small { font-size: 0.7rem; }
+                #create-module-delete-form .form-label,
+                #create-module-delete-form .form-check-label { font-size: 0.85rem; }
+                #create-module-delete-form .form-text { font-size: 0.7rem; }
+                #create-module-delete-form .card-body { padding: 0.75rem; }
+                #create-module-delete-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #create-module-delete-form .form-control { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #create-module-delete-form .bi { font-size: 0.9rem; }
+                #create-module-delete-form .mt-3 { margin-top: 0.5rem !important; }
+                #create-module-delete-form .mt-2 { margin-top: 0.5rem !important; }
+                #create-module-delete-form .progress { height: 12px; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-trash me-2"></i>Delete Modules
+                        <i class="bi bi-trash me-1"></i>Delete Modules
                     </h3>
                     <small class="text-muted">Remove modules from a course</small>
                 </div>
@@ -36,7 +50,7 @@ async function deleteModules(e) {
                 <div class="row align-items-center">
                         <div class="col-2">
                             <label class="form-label">Course</label>
-                            <input id="course-id" type="text" class="form-control" aria-describedby="input-checker" />
+                            <input id="course-id" type="text" class="form-control form-control-sm" aria-describedby="input-checker" />
                         </div>
                 </div>
                 <div class="col-auto" >
@@ -44,7 +58,7 @@ async function deleteModules(e) {
                 </div>
                 <hr class="mt-2">
                 <div class="row">
-                    <div class="mt-3">
+                    <div class="mt-2">
                         <div class="col-auto form-check form-switch" >
                             <input id="empty-modules" class="form-check-input" type="checkbox" role="switch" checked>
                             <label for="empty-modules" class="form-check-label">Delete Only empty modules</label>
@@ -56,17 +70,17 @@ async function deleteModules(e) {
                 </div>
                 <div class="w-100"></div>
                 <div class="col-auto">
-                    <button id="check-modules-btn" class="btn btn-primary mt-3" disabled>Check</button>
+                    <button id="check-modules-btn" class="btn btn-sm btn-primary mt-2" disabled>Check</button>
                 </div>
             </div>
             <div hidden id="progress-div">
                 <p id="progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress mt-2" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                     
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div id="response-container" class="mt-3">
+            <div id="response-container" class="mt-2">
             </div>
                 </div>
             </div>
@@ -148,10 +162,10 @@ async function deleteModules(e) {
                                 <div class="w-100"></div>
 
                                 <div class="col-2">
-                                    <button id="remove-btn" type="button" class="btn btn-danger" disabled>Remove</button>
+                                    <button id="remove-btn" type="button" class="btn btn-sm btn-danger" disabled>Remove</button>
                                 </div>
                                 <div class="col-2">
-                                    <button id="cancel-btn" type="button" class="btn btn-secondary" disabled>Cancel</button>
+                                    <button id="cancel-btn" type="button" class="btn btn-sm btn-secondary" disabled>Cancel</button>
                                 </div>
                             </div>
                         </div>    
@@ -245,10 +259,22 @@ async function createModules(e) {
         createModuleForm = document.createElement('form');
         createModuleForm.id = 'create-module-form';
         createModuleForm.innerHTML = `
+            <style>
+                #create-module-form .card-title { font-size: 1.1rem; }
+                #create-module-form .card-header small { font-size: 0.7rem; }
+                #create-module-form .form-label { font-size: 0.85rem; }
+                #create-module-form .form-text { font-size: 0.7rem; }
+                #create-module-form .card-body { padding: 0.75rem; }
+                #create-module-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #create-module-form .form-control { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #create-module-form .bi { font-size: 0.9rem; }
+                #create-module-form .mt-3, #create-module-form .mt-2 { margin-top: 0.5rem !important; }
+                #create-module-form .progress { height: 12px; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-plus-circle me-2"></i>Create Modules
+                        <i class="bi bi-plus-circle me-1"></i>Create Modules
                     </h3>
                     <small class="text-muted">Add new modules to a course</small>
                 </div>
@@ -257,32 +283,32 @@ async function createModules(e) {
                 <div class="row align-items-center">
                         <div class="col-2">
                             <label class="form-label">Course</label>
-                            <input id="course-id" type="number" class="form-control" aria-describedby="input-checker" />
+                            <input id="course-id" type="number" class="form-control form-control-sm" aria-describedby="input-checker" />
                         </div>
                 </div>
                 <div class="col-auto" >
                     <span id="input-checker" class="form-text" style="display: none;">Must only contain numbers</span>
                 </div>
                 <div class="row align-items-center">
-                    <div class="col-2 mt-3">
+                    <div class="col-2 mt-2">
                         <label class="form-label">How many</label>
-                        <input id="module-number" type="number" class="form-control" value="1" min="1" max="1000" />
+                        <input id="module-number" type="number" class="form-control form-control-sm" value="1" min="1" max="1000" />
                     </div>
                 </div>
                 <hr class="mt-2">
                 <div class="w-100"></div>
                 <div class="col-auto">
-                    <button id="create-modules-btn" class="btn btn-primary mt-3" disabled>Create</button>
+                    <button id="create-modules-btn" class="btn btn-sm btn-primary mt-2" disabled>Create</button>
                 </div>
             </div>
             <div hidden id="create-progress-div">
                 <p id="create-progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress mt-2" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
 
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div id="create-response-container" class="mt-3">
+            <div id="create-response-container" class="mt-2">
             </div>
                 </div>
             </div>
@@ -378,10 +404,24 @@ async function reLockModules(e) {
         reLockModulesForm = document.createElement('form');
         reLockModulesForm.id = 'relock-modules-form';
         reLockModulesForm.innerHTML = `
+            <style>
+                #relock-modules-form .card-title { font-size: 1.1rem; }
+                #relock-modules-form .card-header small { font-size: 0.7rem; }
+                #relock-modules-form .form-label, #relock-modules-form .form-check-label { font-size: 0.85rem; }
+                #relock-modules-form .form-text { font-size: 0.7rem; }
+                #relock-modules-form .card-body { padding: 0.75rem; }
+                #relock-modules-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #relock-modules-form .form-control { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #relock-modules-form .bi { font-size: 0.9rem; }
+                #relock-modules-form .mt-3, #relock-modules-form .mt-2 { margin-top: 0.5rem !important; }
+                #relock-modules-form .mb-3, #relock-modules-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #relock-modules-form .progress { height: 12px; }
+                #relock-modules-form h5 { font-size: 1rem; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-arrow-clockwise me-2"></i>Reset Module Progressions
+                        <i class="bi bi-arrow-clockwise me-1"></i>Reset Module Progressions
                     </h3>
                     <small class="text-muted">Resets module progressions to their default locked state and recalculates them based on the current requirements</small>
                 </div>
@@ -390,18 +430,18 @@ async function reLockModules(e) {
                 <div class="row align-items-end">
                     <div class="col-12 col-sm-6 col-md-5 col-lg-4">
                         <label class="form-label">Course ID</label>
-                        <input id="course-id" type="text" class="form-control" aria-describedby="input-checker" />
+                        <input id="course-id" type="text" class="form-control form-control-sm" aria-describedby="input-checker" />
                         <div>
                             <span id="input-checker" class="form-text" style="display: none;">Must only contain numbers</span>
                         </div>
                     </div>
                     <div class="col-auto ms-2 ms-md-3">
-                        <button id="fetch-modules-btn" class="btn btn-primary mt-2 mt-sm-0">Fetch Modules</button>
+                        <button id="fetch-modules-btn" class="btn btn-sm btn-primary mt-2 mt-sm-0">Fetch Modules</button>
                     </div>
                 </div>
                 <hr class="mt-2">
             </div>
-            <div id="module-selection-container" class="mt-3" hidden>
+            <div id="module-selection-container" class="mt-2" hidden>
                 <h5>Select Modules to Re-lock:</h5>
                 <div class="form-check mb-2">
                     <input type="checkbox" class="form-check-input" id="select-all-modules-chbx">
@@ -411,16 +451,16 @@ async function reLockModules(e) {
                     <!-- Module checkboxes will be populated here -->
                 </div>
             </div>
-            <div class="mt-3" id="relock-btn-container" hidden>
-                <button id="relock-btn" class="btn btn-warning mt-3" disabled>Re-lock Selected Modules</button>
+            <div class="mt-2" id="relock-btn-container" hidden>
+                <button id="relock-btn" class="btn btn-sm btn-warning mt-2" disabled>Re-lock Selected Modules</button>
             </div>
             <div hidden id="relock-progress-div">
                 <p id="relock-progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress mt-2" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div id="relock-response-container" class="mt-3">
+            <div id="relock-response-container" class="mt-2">
             </div>
                 </div>
             </div>

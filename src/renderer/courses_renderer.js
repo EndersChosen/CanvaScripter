@@ -33,10 +33,23 @@ async function restoreContent(e) {
         restoreContentForm = document.createElement('form');
         restoreContentForm.id = 'restore-content-form';
         restoreContentForm.innerHTML = `
+            <style>
+                #restore-content-form .card-title { font-size: 1.1rem; }
+                #restore-content-form .card-header small { font-size: 0.7rem; }
+                #restore-content-form .form-label { font-size: 0.85rem; }
+                #restore-content-form .form-text { font-size: 0.7rem; }
+                #restore-content-form .card-body { padding: 0.75rem; }
+                #restore-content-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #restore-content-form .form-control,
+                #restore-content-form .form-select { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #restore-content-form .bi { font-size: 0.9rem; }
+                #restore-content-form .mt-3 { margin-top: 0.5rem !important; }
+                #restore-content-form .progress { height: 12px; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-arrow-counterclockwise me-2"></i>Restore Content
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Restore Content
                     </h3>
                     <small class="text-muted">Restore deleted course content by providing content IDs</small>
                 </div>
@@ -47,14 +60,14 @@ async function restoreContent(e) {
                         </div>
                         <div class="w-100"></div>
                         <div class="col-2">
-                            <input id="course-id" type="text" class="form-control" aria-describedby="input-checker" />
+                            <input id="course-id" type="text" class="form-control form-control-sm" aria-describedby="input-checker" />
                         </div>
                         <div class="col-auto" >
                             <span id="input-checker" class="form-text" style="display: none;">Must only contain numbers</span>
                         </div>
-                        <div class="mt-3">
+                        <div class="mt-2">
                             <label class="form-label" for="restore-content">Content</label>
-                            <select id="restore-context" class="form-select col-auto custom-select-width">
+                            <select id="restore-context" class="form-select form-select-sm col-auto custom-select-width">
                                 <option value="assignment_" selected>Assignment</option>
                                 <option value="assignment_group_">Assignment Group</option>
                                 <option value="discussion_topic_">Announcement</option>
@@ -67,15 +80,15 @@ async function restoreContent(e) {
                                 <option value="group_category_">Entire Group Set</option>
                             </select>
                         </div>
-                        <div id="restore-ids-div" class="mt-3">
+                        <div id="restore-ids-div" class="mt-2">
                             <span>Enter comma separated IDs of the content you want to restore</span>
-                            <textarea class="form-control" id="restore-content-area" rows="3"></textarea>
+                            <textarea class="form-control form-control-sm" id="restore-content-area" rows="3"></textarea>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-primary mt-3" id="restore-btn" disabled>Restore</button>
+                    <button type="button" class="btn btn-sm btn-primary mt-2" id="restore-btn" disabled>Restore</button>
                     <div id="rcf-progress-div" hidden>
                         <p id="rcf-progress-info"></p>
-                        <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress mt-2" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                             <div class="progress-bar" style="width: 0%"></div>
                         </div>
                     </div>
@@ -196,16 +209,30 @@ async function resetCourses(e) {
 
 
         resetCourseForm.innerHTML = `
+            <style>
+                #reset-course-form .card-title { font-size: 1.1rem; }
+                #reset-course-form .card-header small { font-size: 0.7rem; }
+                #reset-course-form .form-label,
+                #reset-course-form .form-check-label { font-size: 0.85rem; }
+                #reset-course-form .form-text { font-size: 0.7rem; }
+                #reset-course-form .card-body { padding: 0.75rem; }
+                #reset-course-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #reset-course-form .form-control { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #reset-course-form .bi { font-size: 0.9rem; }
+                #reset-course-form .mb-3 { margin-bottom: 0.5rem !important; }
+                #reset-course-form .mt-3 { margin-top: 0.5rem !important; }
+                #reset-course-form .progress { height: 12px; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-arrow-clockwise me-2"></i>Reset Courses
+                        <i class="bi bi-arrow-clockwise me-1"></i>Reset Courses
                     </h3>
                     <small class="text-muted">Reset course content and settings to default state</small>
                 </div>
                 <div class="card-body">
                 <div class="row">
-                    <div class="mb-3" id="reset-switches">
+                    <div class="mb-2" id="reset-switches">
                         <div class="form-check form-switch">
                             <label class="form-check-label" for="course-reset-file">Upload file of courses to reset</label>
                             <input class="form-check-input" type="checkbox" role="switch" id="upload-courses-switch" aria-describedby="course-reset-description">
@@ -217,14 +244,14 @@ async function resetCourses(e) {
                         </div>
                     </div>
                     <div id="course-text-div" hidden>
-                        <textarea class="form-control" id="reset-courses-area" rows="3" placeholder="course1,course2,course3, etc."></textarea>
+                        <textarea class="form-control form-control-sm" id="reset-courses-area" rows="3" placeholder="course1,course2,course3, etc."></textarea>
                     </div>
                 </div>
-            <button type="button" class="btn btn-primary mt-3" id="resetBtn" disabled hidden>Reset</button>
-            <button type="button" class="btn btn-primary mt-3" id="uploadBtn" disabled hidden>Upload</button>
+            <button type="button" class="btn btn-sm btn-primary mt-2" id="resetBtn" disabled hidden>Reset</button>
+            <button type="button" class="btn btn-sm btn-primary mt-2" id="uploadBtn" disabled hidden>Upload</button>
             <div id="progress-div" hidden>
                 <p id="progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress mt-2" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>
@@ -425,22 +452,44 @@ async function createSupportCourse(e) {
         // const eForm = document.createElement('form');
 
         createSupportCourseForm.innerHTML = `
+            <style>
+                #create-support-courses-form .card-title { font-size: 1.1rem; }
+                #create-support-courses-form .card-header small { font-size: 0.7rem; }
+                #create-support-courses-form .form-label,
+                #create-support-courses-form .form-check-label { font-size: 0.85rem; }
+                #create-support-courses-form .form-text { font-size: 0.7rem; }
+                #create-support-courses-form .card-body { padding: 0.75rem; }
+                #create-support-courses-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #create-support-courses-form .form-control,
+                #create-support-courses-form .form-select { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #create-support-courses-form .bi { font-size: 0.9rem; }
+                #create-support-courses-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #create-support-courses-form .mb-3 { margin-bottom: 0.5rem !important; }
+                #create-support-courses-form .mt-2 { margin-top: 0.5rem !important; }
+                #create-support-courses-form .mt-3 { margin-top: 0.5rem !important; }
+                #create-support-courses-form .g-3 { gap: 0.5rem !important; }
+                #create-support-courses-form .progress { height: 12px; }
+                #create-support-courses-form .spinner-border-sm { width: 0.9rem; height: 0.9rem; }
+                #create-support-courses-form h6 { font-size: 0.9rem; }
+                #create-support-courses-form .card .card-header { padding: 0.5rem 0.75rem; }
+                #create-support-courses-form .card .card-body { padding: 0.5rem 0.75rem; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-plus-circle me-2"></i>Create Support Course
+                        <i class="bi bi-plus-circle me-1"></i>Create Support Course
                     </h3>
                     <small class="text-muted">Create a new support course with predefined settings</small>
                 </div>
                 <div class="card-body">
             <div id="course-options">
-                <div class="row mb-3">
+                <div class="row mb-2">
                     <div class="col-6">
                         <label for="course-name" class="form-label">Course name</label>
-                        <input type="text" class="form-control" id="course-name" placeholder="e.g., Support Course">
+                        <input type="text" class="form-control form-control-sm" id="course-name" placeholder="e.g., Support Course">
                     </div>
                 </div>
-                <div class="row g-3 align-items-center mb-3">
+                <div class="row g-3 align-items-center mb-2">
                     <div class="col-auto form-check form-switch">
                         <label for="course-publish" class="form-label">Publish</label>
                         <input type="checkbox" class="form-check-input" role="switch" id="course-publish">
@@ -453,33 +502,33 @@ async function createSupportCourse(e) {
                 <div id="add-ac-courses-div" class="row hidden">
                     <div class="col-auto">
                         <label class="form-label">Number of courses to associate</label>
-                        <input id="csc-ac-input" class="form-control" type="text" />
+                        <input id="csc-ac-input" class="form-control form-control-sm" type="text" />
                         <div class="col-auto">
                             <span id="ac-course-text" class="form-text" hidden style="color: red;">Must be a number</span>
                         </div>
                     </div>
                 </div>
                 <!-- Users section now visible -->
-                <div class="col-auto form-check form-switch mb-2 mt-3">
+                <div class="col-auto form-check form-switch mb-2 mt-2">
                     <label for="course-add-users" class="form-label">Add Users</label>
                     <input type="checkbox" class="form-check-input" role="switch" id="course-add-users">
                 </div>
                 <div id="add-users-div" class="row hidden">
                     <div class="col-4">
                         <label for="user-email" class="form-label">Email</label>
-                        <input type="text" class="form-control" role="switch" id="user-email">
+                        <input type="text" class="form-control form-control-sm" role="switch" id="user-email">
                         <div id="course-reset-description" class="form-text">NOTE: Your instructure email. Used to create emails for the new users so they can receive notifications.</div>
                     </div>
                     <div class="col-2">
                         <label for="course-add-students" class="form-label">Students</label>
-                        <input type="text" class="form-control" role="switch" id="course-add-students">
+                        <input type="text" class="form-control form-control-sm" role="switch" id="course-add-students">
                         <div class="col-auto">
                             <span id="add-students-text" class="form-text" hidden style="color: red;">Must be a number</span>
                         </div>
                     </div>
                     <div class="col-2">
                         <label for="course-add-teachers" class="form-label">Teachers</label>
-                        <input type="text" class="form-control" role="switch" id="course-add-teachers">
+                        <input type="text" class="form-control form-control-sm" role="switch" id="course-add-teachers">
                         <div class="col-auto">
                             <span id="add-teachers-text" class="form-text" hidden style="color: red;">Must be a number</span>
                         </div>
@@ -487,10 +536,10 @@ async function createSupportCourse(e) {
                 </div>
 
                 <!-- Content selection: pick a type and quantity -->
-                <div class="row mt-3">
+                <div class="row mt-2">
                     <div class="col-2">
                         <label for="csc-content-type" class="form-label">Content type</label>
-                        <select id="csc-content-type" class="form-select">
+                        <select id="csc-content-type" class="form-select form-select-sm">
                             <option value="assignments">Assignments</option>
                             <option value="classicQuizzes">Classic Quizzes</option>
                             <option value="newQuizzes">New Quizzes</option>
@@ -502,7 +551,7 @@ async function createSupportCourse(e) {
                     </div>
                     <div class="col-1">
                         <label for="csc-content-qty" class="form-label">Quantity</label>
-                        <input id="csc-content-qty" type="text" class="form-control" placeholder="e.g., 5">
+                        <input id="csc-content-qty" type="text" class="form-control form-control-sm" placeholder="e.g., 5">
                         <div id="csc-content-qty-feedback" class="invalid-feedback">
                             Please enter a positive number
                         </div>
@@ -530,13 +579,13 @@ async function createSupportCourse(e) {
                     </div>
                     
                     <div class="col-auto d-flex align-items-end">
-                        <button type="button" class="btn btn-secondary me-2" id="csc-content-add">Add/Update</button>
-                        <button type="button" class="btn btn-link" id="csc-content-clear">Clear all</button>
+                        <button type="button" class="btn btn-sm btn-secondary me-1" id="csc-content-add">Add/Update</button>
+                        <button type="button" class="btn btn-sm btn-link" id="csc-content-clear">Clear all</button>
                     </div>
                 </div>
                 
                 <!-- Quiz Questions Selection Panel -->
-                <div id="csc-quiz-questions-panel" class="mt-3" hidden>
+                <div id="csc-quiz-questions-panel" class="mt-2" hidden>
                     <div class="card">
                         <div class="card-header">
                             <h6 class="mb-0">Question Types for Classic Quizzes</h6>
@@ -625,7 +674,7 @@ async function createSupportCourse(e) {
                 </div>
 
                 <!-- New Quizzes Questions Selection Panel -->
-                <div id="csc-newq-questions-panel" class="mt-3" hidden>
+                <div id="csc-newq-questions-panel" class="mt-2" hidden>
                     <div class="card">
                         <div class="card-header">
                             <h6 class="mb-0">Question Types for New Quizzes</h6>
@@ -713,7 +762,7 @@ async function createSupportCourse(e) {
                     <div id="add-assignments-div" class="row hidden">
                         <div class="col-2">
                             <label for="course-add-assignments" class="form-label">How many</label>
-                            <input type="text" class="form-control" role="switch" id="course-add-assignments">
+                            <input type="text" class="form-control form-control-sm" role="switch" id="course-add-assignments">
                         </div>
                     </div>
                     <div class="col-auto form-check form-switch">
@@ -723,7 +772,7 @@ async function createSupportCourse(e) {
                     <div id="add-cq-div" class="row hidden">
                         <div class="col-2">
                             <label for="course-add-cq-num" class="form-label">How many</label>
-                            <input type="text" class="form-control" id="course-add-cq-num" aria-describedby="cq-num-help">
+                            <input type="text" class="form-control form-control-sm" id="course-add-cq-num" aria-describedby="cq-num-help">
                             <div id="cq-num-help" class="form-text">Enter a positive number</div>
                         </div>
                     </div>
@@ -734,7 +783,7 @@ async function createSupportCourse(e) {
                     <div id="add-nq-div" class="row hidden">
                         <div class="col-2">
                             <label for="course-add-nq-num" class="form-label">How many</label>
-                            <input type="text" class="form-control" id="course-add-nq-num" aria-describedby="nq-num-help">
+                            <input type="text" class="form-control form-control-sm" id="course-add-nq-num" aria-describedby="nq-num-help">
                             <div id="nq-num-help" class="form-text">Enter a positive number</div>
                         </div>
                     </div>
@@ -745,7 +794,7 @@ async function createSupportCourse(e) {
                     <div id="add-discussions-div" class="row hidden">
                         <div class="col-2">
                             <label for="course-add-discussions-num" class="form-label">How many</label>
-                            <input type="text" class="form-control" id="course-add-discussions-num" aria-describedby="discussions-num-help">
+                            <input type="text" class="form-control form-control-sm" id="course-add-discussions-num" aria-describedby="discussions-num-help">
                             <div id="discussions-num-help" class="form-text">Enter a positive number</div>
                         </div>
                     </div>
@@ -756,7 +805,7 @@ async function createSupportCourse(e) {
                     <div id="add-pages-div" class="row hidden">
                         <div class="col-2">
                             <label for="course-add-pages-num" class="form-label">How many</label>
-                            <input type="text" class="form-control" id="course-add-pages-num" aria-describedby="pages-num-help">
+                            <input type="text" class="form-control form-control-sm" id="course-add-pages-num" aria-describedby="pages-num-help">
                             <div id="pages-num-help" class="form-text">Enter a positive number</div>
                         </div>
                     </div>
@@ -767,7 +816,7 @@ async function createSupportCourse(e) {
                     <div id="add-modules-div" class="row hidden">
                         <div class="col-2">
                             <label for="course-add-modules-num" class="form-label">How many</label>
-                            <input type="text" class="form-control" id="course-add-modules-num" aria-describedby="modules-num-help">
+                            <input type="text" class="form-control form-control-sm" id="course-add-modules-num" aria-describedby="modules-num-help">
                             <div id="modules-num-help" class="form-text">Enter a positive number</div>
                         </div>
                     </div>
@@ -778,7 +827,7 @@ async function createSupportCourse(e) {
                     <div id="add-sections-div" class="row hidden">
                         <div class="col-2">
                             <label for="course-add-sections-num" class="form-label">How many</label>
-                            <input type="text" class="form-control" id="course-add-sections-num" aria-describedby="sections-num-help">
+                            <input type="text" class="form-control form-control-sm" id="course-add-sections-num" aria-describedby="sections-num-help">
                             <div id="sections-num-help" class="form-text">Enter a positive number</div>
                         </div>
                     </div>
@@ -788,11 +837,11 @@ async function createSupportCourse(e) {
                     </div>
                 </div>
             </div>
-            <button type="button" class="btn btn-primary mt-3" id="create-course-btn">Create</button>
+            <button type="button" class="btn btn-sm btn-primary mt-2" id="create-course-btn">Create</button>
             <div id="csc-progress-div" hidden>
                 <p id="csc-progress-info"></p>
-                <div id="csc-status-list" class="mb-3" style="max-height: 300px; overflow-y: auto; border: 1px solid #e9ecef; border-radius: 0.375rem; padding: 0.75rem; background-color: #f8f9fa;"></div>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div id="csc-status-list" class="mb-2" style="max-height: 300px; overflow-y: auto; border: 1px solid #e9ecef; border-radius: 0.375rem; padding: 0.75rem; background-color: #f8f9fa;"></div>
+                <div class="progress mt-2" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>
@@ -1459,7 +1508,7 @@ async function createSupportCourse(e) {
 
         createCourseBtn.disabled = true;
         const originalBtnHTML = createCourseBtn.innerHTML;
-        createCourseBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Creating...';
+        createCourseBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Creating...';
 
         // Setup progress UI
         const cscProgressDiv = createSupportCourseForm.querySelector('#csc-progress-div');
@@ -1702,22 +1751,35 @@ async function createAssociatedCourses(e) {
         createAssociatedCoursesForm.id = 'create-associated-courses-form';
 
         createAssociatedCoursesForm.innerHTML = `
+            <style>
+                #create-associated-courses-form .card-title { font-size: 1.1rem; }
+                #create-associated-courses-form .card-header small { font-size: 0.7rem; }
+                #create-associated-courses-form .form-label { font-size: 0.85rem; }
+                #create-associated-courses-form .form-text { font-size: 0.7rem; }
+                #create-associated-courses-form .card-body { padding: 0.75rem; }
+                #create-associated-courses-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #create-associated-courses-form .form-control { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #create-associated-courses-form .bi { font-size: 0.9rem; }
+                #create-associated-courses-form .mb-3 { margin-bottom: 0.5rem !important; }
+                #create-associated-courses-form .mt-3 { margin-top: 0.5rem !important; }
+                #create-associated-courses-form .progress { height: 12px; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-diagram-3 me-2"></i>Create Associated Courses
+                        <i class="bi bi-diagram-3 me-1"></i>Create Associated Courses
                     </h3>
                     <small class="text-muted">Create multiple courses and associate them with a blueprint course</small>
                 </div>
                 <div class="card-body">
             <div id="ac-container">
                 <div class="row flex-column">
-                    <div class="mb-3 col-auto">
+                    <div class="mb-2 col-auto">
                         <label class="form-label" for="bp-course-id">Blueprint Course ID to associated courses to</label>
                     </div>
                     <div class="row">
-                        <div class="mb-3 col-2">
-                            <input type="text" class="form-control" id="bp-course-id" aria-describedby="bp-course-text">
+                        <div class="mb-2 col-2">
+                            <input type="text" class="form-control form-control-sm" id="bp-course-id" aria-describedby="bp-course-text">
                         </div>
                         <div class="col-auto">
                             <span id="bp-course-text" class="form-text" hidden style="color: red;">Must be a number</span>
@@ -1725,12 +1787,12 @@ async function createAssociatedCourses(e) {
                     </div>
                 </div>
                 <div class="row flex-column">
-                    <div class="mb-3 col-auto">
+                    <div class="mb-2 col-auto">
                         <label class="form-label" for="num-ac-courses">How many courses do you want to associate</label>
                     </div>
                     <div class="row">
-                        <div class="mb-3 col-2">
-                            <input type="text" class="form-control" id="num-ac-courses" aria-describedby="ac-course-text">
+                        <div class="mb-2 col-2">
+                            <input type="text" class="form-control form-control-sm" id="num-ac-courses" aria-describedby="ac-course-text">
                         </div>
                         <div class="col-auto">
                             <span id="ac-course-text" class="form-text" hidden style="color: red;">Must be a number</span>
@@ -1738,10 +1800,10 @@ async function createAssociatedCourses(e) {
                     </div>
                 </div>
             </div>
-            <button type="button" class="btn btn-primary mt-3" id="associateBtn">Associate</button>
+            <button type="button" class="btn btn-sm btn-primary mt-2" id="associateBtn">Associate</button>
             <div id="assc-progress-div" hidden>
                 <p id="assc-progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress mt-2" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>

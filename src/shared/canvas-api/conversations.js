@@ -513,6 +513,8 @@ async function bulkDeleteNew(messages, url, token) {
 //   into smaller segments (monthly first, then binary split) and retry until the entire
 //   range is covered or the window reaches a minimum size.
 async function getDeletedConversations(data) {
+    console.log('conversations.js > getDeletedConversations');
+
     const { domain, token, user_id, signal } = data;
     const deleted_before = data.deleted_before;
     const deleted_after = data.deleted_after;
@@ -561,6 +563,11 @@ async function getDeletedConversations(data) {
                 const e = new Error('Aborted');
                 e.name = 'AbortError';
                 throw e;
+            }
+            // Check for SSL certificate mismatch (common typo in domain)
+            if (err?.code === 'ERR_TLS_CERT_ALTNAME_INVALID' || 
+                (err?.message && err.message.includes("does not match certificate's altnames"))) {
+                throw new Error(`Domain name error: The domain "${domain}" appears to be incorrect or contains a typo. Please verify the spelling (common mistake: "instructuer.com" instead of "instructure.com").`);
             }
             // Surface Canvas error message if available (non-504)
             if (!is504(err)) {
@@ -706,6 +713,11 @@ async function restoreConversation({ domain, token, user_id, message_id, convers
         const response = await axios({ method: 'put', url, headers, data: body });
         return response.data;
     } catch (err) {
+        // Check for SSL certificate mismatch (common typo in domain)
+        if (err?.code === 'ERR_TLS_CERT_ALTNAME_INVALID' || 
+            (err?.message && err.message.includes("does not match certificate's altnames"))) {
+            throw new Error(`Domain name error: The domain "${domain}" appears to be incorrect or contains a typo. Please verify the spelling (common mistake: "instructuer.com" instead of "instructure.com").`);
+        }
         const status = err?.response?.status;
         if (err?.response?.data?.errors) {
             const msg = err.response.data.errors.map(e => e.message).join('; ');

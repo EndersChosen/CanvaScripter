@@ -8,20 +8,36 @@ function pagesTemplate(e) {
     form = document.createElement('form');
     form.id = 'create-pages-form';
     form.innerHTML = `
+            <style>
+                #create-pages-form .card-title { font-size: 1.1rem; }
+                #create-pages-form .card-header small { font-size: 0.7rem; }
+                #create-pages-form .form-label, #create-pages-form .form-check-label { font-size: 0.85rem; }
+                #create-pages-form .form-text { font-size: 0.7rem; }
+                #create-pages-form .card-body { padding: 0.75rem; }
+                #create-pages-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #create-pages-form .form-control { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #create-pages-form .bi { font-size: 0.9rem; }
+                #create-pages-form .mt-3, #create-pages-form .mt-2 { margin-top: 0.5rem !important; }
+                #create-pages-form .mb-4, #create-pages-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #create-pages-form .g-3 { gap: 0.5rem !important; }
+                #create-pages-form .progress { height: 12px; }
+                #create-pages-form h5, #create-pages-form h6 { font-size: 1rem; }
+                #create-pages-form .alert { padding: 0.5rem 0.75rem; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-file-text me-2"></i>Create Course Pages
+                        <i class="bi bi-file-text me-1"></i>Create Course Pages
                     </h3>
                     <small class="text-muted">Add multiple pages to a course at once</small>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="course-id">
                                 <i class="bi bi-mortarboard-fill me-1"></i>Course ID
                             </label>
-                            <input type="text" class="form-control" id="course-id" 
+                            <input type="text" class="form-control form-control-sm" id="course-id" 
                                    placeholder="Enter course ID (e.g., 12345)" />
                             <div id="course-id-help" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Course ID must be a positive number.
@@ -31,7 +47,7 @@ function pagesTemplate(e) {
                             <label class="form-label fw-bold" for="num-items">
                                 <i class="bi bi-hash me-1"></i>Number of Pages
                             </label>
-                            <input type="number" class="form-control" id="num-items" 
+                            <input type="number" class="form-control form-control-sm" id="num-items" 
                                    placeholder="How many pages?" min="1" max="100" />
                             <div id="num-items-help" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Enter a number between 1 and 100.
@@ -39,12 +55,12 @@ function pagesTemplate(e) {
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="title">
                                 <i class="bi bi-tag me-1"></i>Page Title Prefix
                             </label>
-                            <input type="text" class="form-control" id="title" 
+                            <input type="text" class="form-control form-control-sm" id="title" 
                                    placeholder="Page" value="Page" />
                             <div class="form-text text-muted">
                                 <i class="bi bi-info-circle me-1"></i>
@@ -55,7 +71,7 @@ function pagesTemplate(e) {
                             <label class="form-label fw-bold" for="body">
                                 <i class="bi bi-pencil me-1"></i>Page Body (Optional)
                             </label>
-                            <input type="text" class="form-control" id="body" 
+                            <input type="text" class="form-control form-control-sm" id="body" 
                                    placeholder="Optional HTML content" />
                             <div class="form-text text-muted">
                                 <i class="bi bi-info-circle me-1"></i>
@@ -64,7 +80,7 @@ function pagesTemplate(e) {
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" role="switch" 
@@ -80,11 +96,11 @@ function pagesTemplate(e) {
                         </div>
                     </div>
                     
-                    <div class="row mb-4">
+                    <div class="row mb-2">
                         <div class="col-md-6">
                             <div class="d-grid">
-                                <button type="button" class="btn btn-success" id="create-btn" disabled>
-                                    <i class="bi bi-plus-circle me-2"></i>Create Pages
+                                <button type="button" class="btn btn-sm btn-success" id="create-btn" disabled>
+                                    <i class="bi bi-plus-circle me-1"></i>Create Pages
                                 </button>
                             </div>
                         </div>
@@ -93,15 +109,15 @@ function pagesTemplate(e) {
             </div>
 
             <!-- Progress Card -->
-            <div class="card mt-3" id="progress-card" hidden>
+            <div class="card mt-2" id="progress-card" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-gear me-2"></i>Creating Pages
+                        <i class="bi bi-gear me-1"></i>Creating Pages
                     </h5>
                 </div>
                 <div class="card-body">
                     <p id="progress-info" class="mb-2"></p>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              id="progress-bar" style="width:0%" role="progressbar" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -112,7 +128,7 @@ function pagesTemplate(e) {
             </div>
 
             <!-- Results Card -->
-            <div class="card mt-3" id="results-card" hidden>
+            <div class="card mt-2" id="results-card" hidden>
                 <div class="card-body" id="response"></div>
             </div>
         `;
@@ -180,9 +196,9 @@ function pagesTemplate(e) {
     // Update button text based on validation
     if (isValid) {
       const count = parseInt(numItemsInput.value) || 0;
-      createBtn.innerHTML = `<i class="bi bi-plus-circle me-2"></i>Create ${count} Page${count !== 1 ? 's' : ''}`;
+      createBtn.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Create ${count} Page${count !== 1 ? 's' : ''}`;
     } else {
-      createBtn.innerHTML = `<i class="bi bi-plus-circle me-2"></i>Create Pages`;
+      createBtn.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Create Pages`;
     }
 
     return isValid;
@@ -290,7 +306,7 @@ function pagesTemplate(e) {
     responseDiv.innerHTML = `
             <div class="alert alert-danger" role="alert">
                 <h5 class="alert-heading">
-                    <i class="bi bi-exclamation-triangle me-2"></i>Error
+                    <i class="bi bi-exclamation-triangle me-1"></i>Error
                 </h5>
                 <p class="mb-0">${message}</p>
             </div>
@@ -316,7 +332,7 @@ function pagesTemplate(e) {
     let content = `
             <div class="alert ${alertClass}" role="alert">
                 <h5 class="alert-heading">
-                    <i class="${icon} me-2"></i>${title}
+                    <i class="${icon} me-1"></i>${title}
                 </h5>
                 <p class="mb-2">
                     <strong>${successful}</strong> of <strong>${totalRequested}</strong> pages created successfully.
@@ -343,8 +359,8 @@ function pagesTemplate(e) {
 
     if (successful > 0) {
       content += `
-                <div class="mt-3">
-                    <h6><i class="bi bi-file-text me-2"></i>Created Pages:</h6>
+                <div class="mt-2">
+                    <h6><i class="bi bi-file-text me-1"></i>Created Pages:</h6>
                     <div class="row">
             `;
 

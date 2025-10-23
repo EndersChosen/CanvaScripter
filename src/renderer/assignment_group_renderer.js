@@ -38,20 +38,48 @@ function emptyAssignmentGroups(e) {
         // const eForm = document.createElement('form');
 
         deleteEmptyAssignmentGroupsForm.innerHTML = `
+            <style>
+                #delete-empty-assignment-group-form .card { font-size: 0.875rem; }
+                #delete-empty-assignment-group-form .card-header h3, #delete-empty-assignment-group-form .card-header h5 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+                #delete-empty-assignment-group-form .card-header small { font-size: 0.75rem; }
+                #delete-empty-assignment-group-form .card-body { padding: 0.75rem; }
+                #delete-empty-assignment-group-form .form-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+                #delete-empty-assignment-group-form .form-control, #delete-empty-assignment-group-form .form-select { 
+                    font-size: 0.8rem; 
+                    padding: 0.25rem 0.5rem;
+                    height: auto;
+                }
+                #delete-empty-assignment-group-form .btn { 
+                    font-size: 0.8rem; 
+                    padding: 0.35rem 0.75rem;
+                }
+                #delete-empty-assignment-group-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+                #delete-empty-assignment-group-form .mt-2 { margin-top: 0.5rem !important; }
+                #delete-empty-assignment-group-form .mt-3 { margin-top: 0.75rem !important; }
+                #delete-empty-assignment-group-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #delete-empty-assignment-group-form .mb-3 { margin-bottom: 0.75rem !important; }
+                #delete-empty-assignment-group-form .progress { height: 12px !important; }
+                #delete-empty-assignment-group-form h5 { font-size: 1rem; }
+                #delete-empty-assignment-group-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
+                #delete-empty-assignment-group-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+                #delete-empty-assignment-group-form .row { margin-bottom: 0.75rem; }
+                #delete-empty-assignment-group-form .g-3 { gap: 0.5rem !important; }
+                #delete-empty-assignment-group-form .g-2 { gap: 0.25rem !important; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-trash me-2"></i>Delete Empty Assignment Groups
+                        <i class="bi bi-trash me-1"></i>Delete Empty Assignment Groups
                     </h3>
                     <small class="text-muted">Remove assignment groups that contain no assignments</small>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 mb-3">
+                    <div class="row g-3 mb-2">
                         <div class="col-auto">
                             <label class="form-label fw-bold" for="course-id">
                                 <i class="bi bi-book me-1"></i>Course ID
                             </label>
-                            <input id="course-id" type="text" class="form-control" 
+                            <input id="course-id" type="text" class="form-control form-control-sm" 
                                    aria-describedby="input-checker" placeholder="Enter course ID" />
                             <div id="input-checker" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
@@ -60,7 +88,7 @@ function emptyAssignmentGroups(e) {
                     </div>
                     <div class="row">
                         <div class="col-auto">
-                            <button id="action-btn" class="btn btn-warning">
+                            <button id="action-btn" class="btn btn-sm btn-warning">
                                 <i class="bi bi-search me-2"></i>Check for Empty Groups
                             </button>
                         </div>
@@ -69,7 +97,7 @@ function emptyAssignmentGroups(e) {
             </div>
             
             <!-- Progress Card -->
-            <div class="card mt-3" id="eag-progress-div" hidden>
+            <div class="card mt-2" id="eag-progress-div" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-gear me-2"></i>Processing
@@ -77,7 +105,7 @@ function emptyAssignmentGroups(e) {
                 </div>
                 <div class="card-body">
                     <p id="eag-progress-info" class="mb-2"></p>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              style="width: 0%" role="progressbar" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -87,7 +115,7 @@ function emptyAssignmentGroups(e) {
             </div>
             
             <!-- Results Card -->
-            <div class="card mt-3" id="eag-response-container-card" hidden>
+            <div class="card mt-2" id="eag-response-container-card" hidden>
                 <div class="card-body" id="eag-response-container"></div>
             </div>
         `;
@@ -154,7 +182,7 @@ function emptyAssignmentGroups(e) {
         if (!cancelDeleteBtn) {
             cancelDeleteBtn = document.createElement('button');
             cancelDeleteBtn.id = 'cancel-delete-btn';
-            cancelDeleteBtn.className = 'btn btn-warning mt-3';
+            cancelDeleteBtn.className = 'btn btn-sm btn-warning mt-2';
             cancelDeleteBtn.innerHTML = '<i class="bi bi-x-circle me-2"></i>Cancel Deletion';
             cancelDeleteBtn.hidden = true;
             progressCardBody.appendChild(cancelDeleteBtn);
@@ -420,12 +448,12 @@ function emptyAssignmentGroups(e) {
                     </div>
                     <div class="row g-2 mt-2">
                         <div class="col-auto">
-                            <button id="remove-btn" type="button" class="btn btn-danger">
+                            <button id="remove-btn" type="button" class="btn btn-sm btn-danger">
                                 <i class="bi bi-trash me-2"></i>Remove
                             </button>
                         </div>
                         <div class="col-auto">
-                            <button id="cancel-btn" type="button" class="btn btn-secondary">
+                            <button id="cancel-btn" type="button" class="btn btn-sm btn-secondary">
                                 <i class="bi bi-x-circle me-2"></i>Cancel
                             </button>
                         </div>
@@ -480,20 +508,50 @@ function assignmentGroupCreator(e) {
         // const eForm = document.createElement('form');
 
         createAssignmentGroupForm.innerHTML = `
+            <style>
+                #create-assignment-group-form .card { font-size: 0.875rem; }
+                #create-assignment-group-form .card-header h3, #create-assignment-group-form .card-header h5 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+                #create-assignment-group-form .card-header small { font-size: 0.75rem; }
+                #create-assignment-group-form .card-body { padding: 0.75rem; }
+                #create-assignment-group-form .form-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+                #create-assignment-group-form .form-control, #create-assignment-group-form .form-select { 
+                    font-size: 0.8rem; 
+                    padding: 0.25rem 0.5rem;
+                    height: auto;
+                }
+                #create-assignment-group-form .btn { 
+                    font-size: 0.8rem; 
+                    padding: 0.35rem 0.75rem;
+                }
+                #create-assignment-group-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+                #create-assignment-group-form .mt-2 { margin-top: 0.5rem !important; }
+                #create-assignment-group-form .mt-3 { margin-top: 0.75rem !important; }
+                #create-assignment-group-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #create-assignment-group-form .mb-3 { margin-bottom: 0.75rem !important; }
+                #create-assignment-group-form .mb-4 { margin-bottom: 1rem !important; }
+                #create-assignment-group-form .progress { height: 12px !important; }
+                #create-assignment-group-form h5 { font-size: 1rem; }
+                #create-assignment-group-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
+                #create-assignment-group-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+                #create-assignment-group-form .row { margin-bottom: 0.75rem; }
+                #create-assignment-group-form .g-3 { gap: 0.5rem !important; }
+                #create-assignment-group-form .g-2 { gap: 0.25rem !important; }
+                #create-assignment-group-form input[type="number"] { font-size: 0.8rem; padding: 0.25rem 0.5rem; }
+            </style>
             <div class="card">
                                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-folder-plus me-2"></i>Assignment Group Management
+                        <i class="bi bi-folder-plus me-1"></i>Assignment Group Management
                     </h3>
                     <small class="text-muted">Create multiple assignment groups for organizing assignments</small>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 mb-3">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="course-id">
                                 <i class="bi bi-book me-1"></i>Course ID
                             </label>
-                            <input id="course-id" type="text" class="form-control" 
+                            <input id="course-id" type="text" class="form-control form-control-sm" 
                                    aria-describedby="input-checker" placeholder="Enter course ID" />
                             <div id="input-checker" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
@@ -503,7 +561,7 @@ function assignmentGroupCreator(e) {
                             <label class="form-label fw-bold" for="assignment-group-number">
                                 <i class="bi bi-hash me-1"></i>How Many
                             </label>
-                            <input id="assignment-group-number" type="number" class="form-control" 
+                            <input id="assignment-group-number" type="number" class="form-control form-control-sm" 
                                    value="1" min="1" max="50">
                             <div class="form-text text-muted">
                                 <i class="bi bi-info-circle me-1"></i>Number of groups to create
@@ -511,12 +569,12 @@ function assignmentGroupCreator(e) {
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-12">
                             <label class="form-label fw-bold" for="assignment-group-name">
                                 <i class="bi bi-tag me-1"></i>Assignment Group Name
                             </label>
-                            <input id="assignment-group-name" type="text" class="form-control" 
+                            <input id="assignment-group-name" type="text" class="form-control form-control-sm" 
                                    placeholder="e.g., Homework, Quizzes, Labs" />
                             <div class="form-text text-muted">
                                 <i class="bi bi-info-circle me-1"></i>Name for the assignment group(s)
@@ -526,12 +584,12 @@ function assignmentGroupCreator(e) {
                     
                     <div class="row g-2">
                         <div class="col-auto">
-                            <button id="action-btn" class="btn btn-success">
+                            <button id="action-btn" class="btn btn-sm btn-success">
                                 <i class="bi bi-plus-circle me-2"></i>Create Assignment Groups
                             </button>
                         </div>
                         <div class="col-auto">
-                            <button id="cancel-btn" class="btn btn-secondary">
+                            <button id="cancel-btn" class="btn btn-sm btn-secondary">
                                 <i class="bi bi-x-circle me-2"></i>Cancel
                             </button>
                         </div>
@@ -540,7 +598,7 @@ function assignmentGroupCreator(e) {
             </div>
             
             <!-- Progress Card -->
-            <div class="card mt-3" id="agc-progress-div" hidden>
+            <div class="card mt-2" id="agc-progress-div" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-gear me-2"></i>Creating Assignment Groups
@@ -548,7 +606,7 @@ function assignmentGroupCreator(e) {
                 </div>
                 <div class="card-body">
                     <p id="agc-progress-info" class="mb-2"></p>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              style="width: 0%" role="progressbar" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -558,7 +616,7 @@ function assignmentGroupCreator(e) {
             </div>
             
             <!-- Results Card -->
-            <div class="card mt-3" id="agc-response-container-card" hidden>
+            <div class="card mt-2" id="agc-response-container-card" hidden>
                 <div class="card-body" id="agc-response-container"></div>
             </div>
         `;

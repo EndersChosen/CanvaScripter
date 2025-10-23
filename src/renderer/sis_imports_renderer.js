@@ -93,18 +93,50 @@ async function createSingleSISFile(e) {
         createSISForm = document.createElement('form');
         createSISForm.id = 'create-single-sis-form';
         createSISForm.innerHTML = `
+            <style>
+                #create-single-sis-form .card { font-size: 0.875rem; }
+                #create-single-sis-form .card-header h3, #create-single-sis-form .card-header h6 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+                #create-single-sis-form .card-header small { font-size: 0.75rem; }
+                #create-single-sis-form .card-body { padding: 0.75rem; }
+                #create-single-sis-form .card-footer { padding: 0.5rem 0.75rem; }
+                #create-single-sis-form .form-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+                #create-single-sis-form .form-control, #create-single-sis-form .form-select { 
+                    font-size: 0.8rem; 
+                    padding: 0.25rem 0.5rem;
+                    height: auto;
+                }
+                #create-single-sis-form .btn { 
+                    font-size: 0.8rem; 
+                    padding: 0.35rem 0.75rem;
+                }
+                #create-single-sis-form .form-check { margin-bottom: 0.5rem; }
+                #create-single-sis-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+                #create-single-sis-form .mt-2 { margin-top: 0.5rem !important; }
+                #create-single-sis-form .mt-3 { margin-top: 0.75rem !important; }
+                #create-single-sis-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #create-single-sis-form .mb-3 { margin-bottom: 0.75rem !important; }
+                #create-single-sis-form .mb-4 { margin-bottom: 1rem !important; }
+                #create-single-sis-form .progress { height: 12px !important; }
+                #create-single-sis-form h5 { font-size: 1rem; }
+                #create-single-sis-form h6 { font-size: 0.9rem; }
+                #create-single-sis-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
+                #create-single-sis-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+                #create-single-sis-form .badge { font-size: 0.75rem; }
+                #create-single-sis-form .row { margin-bottom: 0.75rem; }
+                #create-single-sis-form input[type="number"] { font-size: 0.8rem; padding: 0.25rem 0.5rem; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-file-earmark-spreadsheet me-2"></i>Create Single SIS Import File
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Create Single SIS Import File
                     </h3>
                     <small class="text-muted">Generate a single CSV file for SIS import with random sample data, or build a collection of files for zip export</small>
                 </div>
                 <div class="card-body">
-                    <div class="row mb-3">
+                    <div class="row mb-2">
                         <div class="col-md-6">
                             <label for="file-type" class="form-label">File Type</label>
-                            <select id="file-type" class="form-select" required>
+                            <select id="file-type" class="form-select form-select-sm" required>
                                 <option value="">Select file type...</option>
                                 <option value="users">Users</option>
                                 <option value="accounts">Accounts</option>
@@ -124,12 +156,12 @@ async function createSingleSISFile(e) {
                         </div>
                         <div class="col-md-6">
                             <label for="row-count" class="form-label">Number of Rows</label>
-                            <input type="number" id="row-count" class="form-control" min="1" max="10000" value="1" required>
+                            <input type="number" id="row-count" class="form-control form-control-sm" min="1" max="10000" value="1" required>
                         </div>
                     </div>
                     
                     <!-- Search Fields Section -->
-                    <div id="search-fields-section" class="row mb-3" style="display: none;">
+                    <div id="search-fields-section" class="row mb-2" style="display: none;">
                         <div class="col-12">
                             <div class="card">
                                 <div class="card-header">
@@ -142,10 +174,10 @@ async function createSingleSISFile(e) {
                                     <div id="search-inputs-container">
                                         <!-- Dynamic search inputs will be added here -->
                                     </div>
-                                    <button type="button" id="search-data-btn" class="btn btn-outline-primary btn-sm mt-2" disabled>
+                                    <button type="button" id="search-data-btn" class="btn btn-sm btn-outline-primary mt-2" disabled>
                                         <i class="bi bi-search me-1"></i>Search & Import
                                     </button>
-                                    <div id="search-results" class="mt-3" style="display: none;">
+                                    <div id="search-results" class="mt-2" style="display: none;">
                                         <!-- Search results will be displayed here -->
                                     </div>
                                 </div>
@@ -154,7 +186,7 @@ async function createSingleSISFile(e) {
                     </div>
 
                     <!-- Field Configuration Section -->
-                    <div id="field-config-section" class="row mb-3" style="display: none;">
+                    <div id="field-config-section" class="row mb-2" style="display: none;">
                         <div class="col-12">
                             <div class="card">
                                 <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#field-config-collapse" aria-expanded="true">
@@ -173,13 +205,13 @@ async function createSingleSISFile(e) {
                                         </div>
                                     </div>
                                     <div class="card-footer">
-                                    <button type="button" id="add-manual-row" class="btn btn-success btn-sm me-2">
+                                    <button type="button" id="add-manual-row" class="btn btn-sm btn-success me-2">
                                         <i class="bi bi-plus-circle me-1"></i>Add Row from Configuration
                                     </button>
-                                    <button type="button" id="add-random-rows" class="btn btn-outline-success btn-sm me-2">
+                                    <button type="button" id="add-random-rows" class="btn btn-sm btn-outline-success me-2">
                                         <i class="bi bi-shuffle me-1"></i>Add Random Rows
                                     </button>
-                                    <button type="button" id="clear-all-rows" class="btn btn-outline-danger btn-sm">
+                                    <button type="button" id="clear-all-rows" class="btn btn-sm btn-outline-danger">
                                         <i class="bi bi-trash me-1"></i>Clear All Rows
                                     </button>
                                     <small class="text-muted ms-3">Add individual custom rows or generate multiple random rows</small>
@@ -190,7 +222,7 @@ async function createSingleSISFile(e) {
                     </div>
                     
                     <!-- CSV Data Section - Shows all rows that will be included in the CSV -->
-                    <div id="csv-data-section" class="row mb-3" style="display: none;">
+                    <div id="csv-data-section" class="row mb-2" style="display: none;">
                         <div class="col-12">
                             <div class="card border-success">
                                 <div class="card-header bg-success-subtle" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#csv-data-collapse" aria-expanded="true">

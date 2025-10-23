@@ -36,40 +36,55 @@ async function restoreDeletedConversations(e) {
         form = document.createElement('form');
         form.id = 'restore-deleted-conversations-form';
         form.innerHTML = `
+            <style>
+                #restore-deleted-conversations-form .card-title { font-size: 1.1rem; }
+                #restore-deleted-conversations-form .card-header small { font-size: 0.75rem; }
+                #restore-deleted-conversations-form .form-label { font-size: 0.85rem; }
+                #restore-deleted-conversations-form .form-control { font-size: 0.85rem; }
+                #restore-deleted-conversations-form .form-text { font-size: 0.7rem; }
+                #restore-deleted-conversations-form .btn { font-size: 0.85rem; padding: 0.35rem 0.75rem; }
+                #restore-deleted-conversations-form .bi { font-size: 0.9rem; }
+                #restore-deleted-conversations-form .progress { height: 12px; }
+                #restore-deleted-conversations-form .card-body { padding: 0.75rem; }
+                #restore-deleted-conversations-form .gap-2 { gap: 0.5rem !important; }
+                #restore-deleted-conversations-form .mt-2 { margin-top: 0.5rem !important; }
+                #restore-deleted-conversations-form .mt-3 { margin-top: 0.5rem !important; }
+                #restore-deleted-conversations-form .mt-1 { margin-top: 0.25rem !important; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-chat-dots me-2"></i>Restore Deleted Conversations
+                        <i class="bi bi-chat-dots me-1"></i>Restore Deleted Conversations
                     </h3>
                     <small class="text-muted">Upload CSV, ZIP of CSVs, or JSON with objects: { message_id, user_id, conversation_id }</small>
                 </div>
                 <div class="card-body">
                     <div class="row align-items-center mt-2">
                         <div class="col-auto">
-                            <button id="rdc-upload" type="button" class="btn btn-secondary">Choose CSV/ZIP/JSON</button>
+                            <button id="rdc-upload" type="button" class="btn btn-sm btn-secondary">Choose CSV/ZIP/JSON</button>
                         </div>
                         <div class="col-auto">
                             <span id="rdc-upload-info" class="form-text"></span>
                         </div>
                     </div>
-                    <div class="row mt-3">
+                    <div class="row mt-2">
                         <div class="col-auto">
-                            <button id="rdc-restore" type="button" class="btn btn-primary" disabled>Restore</button>
+                            <button id="rdc-restore" type="button" class="btn btn-sm btn-primary" disabled>Restore</button>
                         </div>
                         <div class="col-auto">
-                            <button id="rdc-cancel" type="button" class="btn btn-outline-danger" disabled>Cancel</button>
+                            <button id="rdc-cancel" type="button" class="btn btn-sm btn-outline-danger" disabled>Cancel</button>
                         </div>
                         <div class="col-auto">
-                            <button id="rdc-clear" type="button" class="btn btn-outline-secondary">Clear</button>
+                            <button id="rdc-clear" type="button" class="btn btn-sm btn-outline-secondary">Clear</button>
                         </div>
                     </div>
-                    <div hidden id="rdc-progress-div" class="mt-3">
+                    <div hidden id="rdc-progress-div" class="mt-2">
                         <p id="rdc-progress-info"></p>
-                        <div class="progress mt-1" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress mt-1" style="width: 75%; height: 12px;" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                             <div class="progress-bar" style="width: 0%"></div>
                         </div>
                     </div>
-                    <div id="rdc-response" class="mt-3"></div>
+                    <div id="rdc-response" class="mt-2"></div>
                 </div>
             </div>
         `;
@@ -347,107 +362,246 @@ async function getDeletedConversations(e) {
         form = document.createElement('form');
         form.id = 'get-deleted-conversations-form';
         form.innerHTML = `
+            <style>
+                #get-deleted-conversations-form .card-title { font-size: 1.1rem; }
+                #get-deleted-conversations-form .card-header small { font-size: 0.75rem; }
+                #get-deleted-conversations-form .form-label { font-size: 0.85rem; font-weight: 600; }
+                #get-deleted-conversations-form .form-control,
+                #get-deleted-conversations-form .form-select { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #get-deleted-conversations-form .form-text { font-size: 0.7rem; }
+                #get-deleted-conversations-form .btn { font-size: 0.85rem; padding: 0.35rem 0.75rem; }
+                #get-deleted-conversations-form .bi { font-size: 0.9rem; }
+                #get-deleted-conversations-form .card-body { padding: 0.75rem; }
+                #get-deleted-conversations-form .progress { height: 12px; }
+                #get-deleted-conversations-form .gap-2 { gap: 0.5rem !important; }
+                #get-deleted-conversations-form .g-3 { gap: 0.5rem !important; }
+                #get-deleted-conversations-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #get-deleted-conversations-form .mb-3 { margin-bottom: 0.5rem !important; }
+                #get-deleted-conversations-form .mb-4 { margin-bottom: 0.5rem !important; }
+                #get-deleted-conversations-form .mt-2 { margin-top: 0.5rem !important; }
+                #get-deleted-conversations-form .mt-3 { margin-top: 0.5rem !important; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-search me-2"></i>Get Deleted Conversations
+                        <i class="bi bi-search me-1"></i>Get Deleted Conversations
                     </h3>
                     <small class="text-muted">Fetch deleted conversations for a user, optionally filtered by deleted_before/after</small>
                 </div>
                 <div class="card-body">
-            <div class="row align-items-center">
-                <div class="col-auto">
-                    <label for="gdc-user-id" class="form-label">User ID</label>
-                </div>
-                <div class="col-2">
-                    <input id="gdc-user-id" type="text" class="form-control" aria-describedby="gdc-user-help" />
-                </div>
-                <div class="col-auto">
-                    <span id="gdc-user-help" class="form-text" style="display:none;">Must only contain numbers</span>
-                </div>
-            </div>
-            <div class="row align-items-center mt-2">
-                <div class="col-auto">
-                    <label for="gdc-deleted-after" class="form-label">Deleted After</label>
-                </div>
-                <div class="col-auto">
-                    <input id="gdc-deleted-after" type="date" class="form-control" />
-                </div>
-                <div class="col-auto">
-                    <label for="gdc-deleted-before" class="form-label">Deleted Before</label>
-                </div>
-                <div class="col-auto">
-                    <input id="gdc-deleted-before" type="date" class="form-control" />
-                </div>
-            </div>
-            <div class="row mt-3">
-                <div class="col-auto">
-                    <button id="gdc-search" type="button" class="btn btn-primary" disabled>Get Deleted</button>
-                </div>
-                <div class="col-auto">
-                    <button id="gdc-cancel-single" type="button" class="btn btn-outline-danger" disabled>Cancel</button>
-                </div>
-                <div class="col-auto">
-                    <button id="gdc-export-csv" type="button" class="btn btn-secondary" hidden>Export to CSV</button>
-                </div>
-            </div>
-            <div hidden id="gdc-single-progress-div" class="mt-3">
-                <p id="gdc-single-progress-info"></p>
-                <div class="progress mt-1" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar" style="width: 0%"></div>
-                </div>
-            </div>
-            <hr class="my-3" />
-            <div class="row align-items-center">
-                <div class="col-auto">
-                    <label class="form-label">Bulk: Upload user list (txt/csv)</label>
-                </div>
-                <div class="col-auto">
-                    <button id="gdc-upload" type="button" class="btn btn-secondary">Choose file</button>
-                </div>
-                <div class="col-auto">
-                    <span id="gdc-upload-info" class="form-text"></span>
-                </div>
-            </div>
-            <div class="row mb-3 mt-2">
-                <div class="col-12">
-                    <label for="gdc-output-path" class="form-label">Output Folder</label>
-                    <div class="input-group">
-                        <input type="text" id="gdc-output-path" class="form-control" placeholder="Select output folder..." readonly>
-                        <button type="button" id="gdc-browse-folder" class="btn btn-outline-secondary">Browse</button>
+                    <!-- Query Type Selection -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-list me-1"></i>Query Type
+                            </label>
+                            <div class="btn-group w-100" role="group" aria-label="Query type selection" id="gdc-query-options">
+                                <input type="radio" class="btn-check" name="gdc-query-type" id="gdc-single-chkbx" value="single" checked>
+                                <label class="btn btn-sm btn-outline-primary" for="gdc-single-chkbx">
+                                    <i class="bi bi-person me-1"></i>Single User
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="gdc-query-type" id="gdc-bulk-chkbx" value="bulk">
+                                <label class="btn btn-sm btn-outline-primary" for="gdc-bulk-chkbx">
+                                    <i class="bi bi-people me-1"></i>Bulk Users
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Single User Section -->
+                    <div id="gdc-single-section">
+                        <div class="row align-items-center mb-2">
+                            <div class="col-auto">
+                                <label for="gdc-user-id" class="form-label fw-bold">
+                                    <i class="bi bi-person-badge me-1"></i>User ID
+                                </label>
+                            </div>
+                            <div class="col-2">
+                                <input id="gdc-user-id" type="text" class="form-control form-control-sm" aria-describedby="gdc-user-help" />
+                            </div>
+                            <div class="col-auto">
+                                <span id="gdc-user-help" class="form-text text-danger" style="display:none;">
+                                    <i class="bi bi-exclamation-circle me-1"></i>Must only contain numbers
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Date Filters -->
+                        <div class="row align-items-center mb-2">
+                            <div class="col-auto">
+                                <label for="gdc-deleted-after" class="form-label fw-bold">
+                                    <i class="bi bi-calendar-range me-1"></i>Date Range (Optional)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="row align-items-center mb-3">
+                            <div class="col-auto">
+                                <label for="gdc-deleted-after" class="form-label">Deleted After</label>
+                            </div>
+                            <div class="col-auto">
+                                <input id="gdc-deleted-after" type="date" class="form-control form-control-sm" />
+                            </div>
+                            <div class="col-auto">
+                                <label for="gdc-deleted-before" class="form-label">Deleted Before</label>
+                            </div>
+                            <div class="col-auto">
+                                <input id="gdc-deleted-before" type="date" class="form-control form-control-sm" />
+                            </div>
+                        </div>
+
+                        <div class="row mb-2">
+                            <div class="col-md-6">
+                                <div class="d-flex gap-2">
+                                    <button id="gdc-search" type="button" class="btn btn-sm btn-success" disabled>
+                                        <i class="bi bi-search me-1"></i>Get Deleted
+                                    </button>
+                                    <button id="gdc-cancel-single" type="button" class="btn btn-sm btn-outline-danger" disabled>
+                                        <i class="bi bi-x-circle me-1"></i>Cancel
+                                    </button>
+                                    <button id="gdc-export-csv" type="button" class="btn btn-sm btn-secondary" hidden>
+                                        <i class="bi bi-download me-1"></i>Export to CSV
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bulk Section -->
+                    <div id="gdc-bulk-section" class="d-none">
+                        <div class="row align-items-center mb-2">
+                            <div class="col-auto">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-file-earmark-text me-1"></i>Upload User List
+                                </label>
+                            </div>
+                            <div class="col-auto">
+                                <button id="gdc-upload" type="button" class="btn btn-sm btn-secondary">
+                                    <i class="bi bi-upload me-1"></i>Choose File (TXT/CSV)
+                                </button>
+                            </div>
+                            <div class="col-auto">
+                                <span id="gdc-upload-info" class="form-text"></span>
+                            </div>
+                        </div>
+
+                        <!-- Date Filters -->
+                        <div class="row align-items-center mb-2">
+                            <div class="col-auto">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-calendar-range me-1"></i>Date Range (Optional)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="row align-items-center mb-3">
+                            <div class="col-auto">
+                                <label for="gdc-bulk-deleted-after" class="form-label">Deleted After</label>
+                            </div>
+                            <div class="col-auto">
+                                <input id="gdc-bulk-deleted-after" type="date" class="form-control form-control-sm" />
+                            </div>
+                            <div class="col-auto">
+                                <label for="gdc-bulk-deleted-before" class="form-label">Deleted Before</label>
+                            </div>
+                            <div class="col-auto">
+                                <input id="gdc-bulk-deleted-before" type="date" class="form-control form-control-sm" />
+                            </div>
+                        </div>
+
+                        <div class="row mb-2">
+                            <div class="col-12">
+                                <label for="gdc-output-path" class="form-label fw-bold">
+                                    <i class="bi bi-folder me-1"></i>Output Folder
+                                </label>
+                                <div class="input-group">
+                                    <input type="text" id="gdc-output-path" class="form-control form-control-sm" placeholder="Select output folder..." readonly>
+                                    <button type="button" id="gdc-browse-folder" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-folder2-open me-1"></i>Browse
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-md-6">
+                                <div class="d-flex gap-2">
+                                    <button id="gdc-export-multi" type="button" class="btn btn-sm btn-success" disabled>
+                                        <i class="bi bi-file-earmark-arrow-down me-1"></i>Export for Users
+                                    </button>
+                                    <button id="gdc-cancel-bulk" type="button" class="btn btn-sm btn-outline-danger" disabled>
+                                        <i class="bi bi-x-circle me-1"></i>Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="row mt-2">
-                <div class="col-auto">
-                    <button id="gdc-export-multi" type="button" class="btn btn-primary" disabled>Export for users</button>
+            
+            <!-- Progress Card (Single) -->
+            <div class="card mt-2" id="gdc-single-progress-card" hidden>
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-gear me-1"></i>Fetching Deleted Conversations
+                    </h5>
                 </div>
-                <div class="col-auto">
-                    <button id="gdc-cancel-bulk" type="button" class="btn btn-outline-danger" disabled>Cancel</button>
+                <div class="card-body">
+                    <p id="gdc-single-progress-info" class="mb-2"></p>
+                    <div class="progress mb-2" style="height: 12px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             style="width: 0%" role="progressbar" 
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div hidden id="gdc-bulk-progress-div" class="mt-3">
-                <p id="gdc-bulk-progress-info"></p>
-                <div class="progress mt-1" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar" style="width: 0%"></div>
+
+            <!-- Progress Card (Bulk) -->
+            <div class="card mt-2" id="gdc-bulk-progress-card" hidden>
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-gear me-1"></i>Bulk Export Progress
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p id="gdc-bulk-progress-info" class="mb-2"></p>
+                    <div class="progress mb-2" style="height: 12px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             style="width: 0%" role="progressbar" 
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div id="gdc-response" class="mt-3"></div>
+            
+            <!-- Results Card -->
+            <div class="card mt-2" id="gdc-response-card" hidden>
+                <div class="card-body" id="gdc-response"></div>
+            </div>
         `;
         eContent.append(form);
     }
     form.hidden = false;
 
+    // Get references to all sections and elements
+    const singleSection = form.querySelector('#gdc-single-section');
+    const bulkSection = form.querySelector('#gdc-bulk-section');
+    const singleChkbx = form.querySelector('#gdc-single-chkbx');
+    const bulkChkbx = form.querySelector('#gdc-bulk-chkbx');
+    const queryOptions = form.querySelector('#gdc-query-options');
+    
     const userInput = form.querySelector('#gdc-user-id');
     const searchBtn = form.querySelector('#gdc-search');
     const cancelSingleBtn = form.querySelector('#gdc-cancel-single');
-    const singleProgressDiv = form.querySelector('#gdc-single-progress-div');
-    const singleProgressBar = singleProgressDiv.querySelector('.progress-bar');
+    const singleProgressCard = form.querySelector('#gdc-single-progress-card');
+    const singleProgressBar = singleProgressCard.querySelector('.progress-bar');
     const singleProgressInfo = form.querySelector('#gdc-single-progress-info');
-    const bulkProgressDiv = form.querySelector('#gdc-bulk-progress-div');
-    const bulkProgressBar = bulkProgressDiv.querySelector('.progress-bar');
+    
+    const bulkProgressCard = form.querySelector('#gdc-bulk-progress-card');
+    const bulkProgressBar = bulkProgressCard.querySelector('.progress-bar');
     const bulkProgressInfo = form.querySelector('#gdc-bulk-progress-info');
     const responseDiv = form.querySelector('#gdc-response');
+    const responseCard = form.querySelector('#gdc-response-card');
+    
     const uploadBtn = form.querySelector('#gdc-upload');
     const uploadInfo = form.querySelector('#gdc-upload-info');
     const browseFolderBtn = form.querySelector('#gdc-browse-folder');
@@ -458,101 +612,424 @@ async function getDeletedConversations(e) {
 
     let bulkUserIds = []; let outputFolder = '';
     let lastResultsForCsv = []; let lastUserIdForCsv = '';
-    const updateExportEnabled = () => { exportMultiBtn.disabled = !(bulkUserIds.length > 0 && !!outputFolder); };
-    const toggleBtn = () => { searchBtn.disabled = !(userInput.value && userInput.value.trim() !== '' && !isNaN(Number(userInput.value.trim()))); form.querySelector('#gdc-user-help').style.display = searchBtn.disabled ? 'inline' : 'none'; };
-    userInput.addEventListener('input', toggleBtn);
 
+    const updateExportEnabled = () => { 
+        const domain = document.querySelector('#domain')?.value?.trim() || '';
+        const token = document.querySelector('#token')?.value?.trim() || '';
+        exportMultiBtn.disabled = !(bulkUserIds.length > 0 && !!outputFolder && domain && token); 
+    };
+
+    const toggleBtn = () => { 
+        const isValid = userInput.value && userInput.value.trim() !== '' && !isNaN(Number(userInput.value.trim()));
+        const isEmpty = !userInput.value || userInput.value.trim() === '';
+        searchBtn.disabled = !isValid;
+        // Only show warning if user has typed something invalid (not empty)
+        form.querySelector('#gdc-user-help').style.display = (!isEmpty && !isValid) ? 'inline' : 'none'; 
+    };
+
+    // Handle query type switching
+    function handleQueryTypeChange(e) {
+        // Hide all sections first
+        singleSection.classList.add('d-none');
+        bulkSection.classList.add('d-none');
+        
+        // Clear response and progress
+        responseDiv.innerHTML = '';
+        responseCard.hidden = true;
+        singleProgressCard.hidden = true;
+        bulkProgressCard.hidden = true;
+        exportBtn.hidden = true;
+
+        // Show appropriate section
+        if (singleChkbx.checked) {
+            singleSection.classList.remove('d-none');
+            toggleBtn(); // Update button state
+        } else if (bulkChkbx.checked) {
+            bulkSection.classList.remove('d-none');
+            updateExportEnabled(); // Update button state
+        }
+    }
+
+    // setup event listeners
     if (form.dataset.bound !== 'true') {
+        // Query type toggle
+        queryOptions.addEventListener('change', handleQueryTypeChange);
+        
+        // Listen for domain and token changes to update bulk export button state
+        const domainInput = document.querySelector('#domain');
+        const tokenInput = document.querySelector('#token');
+        if (domainInput) {
+            domainInput.addEventListener('input', () => {
+                if (bulkChkbx.checked) {
+                    updateExportEnabled();
+                }
+            });
+        }
+        if (tokenInput) {
+            tokenInput.addEventListener('input', () => {
+                if (bulkChkbx.checked) {
+                    updateExportEnabled();
+                }
+            });
+        }
+        
+        userInput.addEventListener('input', toggleBtn);
         searchBtn.addEventListener('click', async (evt) => {
-            evt.preventDefault(); evt.stopPropagation();
-            searchBtn.disabled = true; cancelSingleBtn.disabled = false; responseDiv.innerHTML = '';
-            singleProgressDiv.hidden = false; singleProgressBar.style.width = '0%'; singleProgressInfo.innerHTML = 'Fetching deleted conversations...';
+            evt.preventDefault(); 
+            evt.stopPropagation();
+
+            searchBtn.disabled = true; 
+            cancelSingleBtn.disabled = false; 
+            responseDiv.innerHTML = '';
+            responseCard.hidden = true;
+            singleProgressCard.hidden = false; 
+            singleProgressBar.style.width = '0%'; 
+            singleProgressInfo.innerHTML = 'Fetching deleted conversations...';
+
             const domain = document.querySelector('#domain').value.trim();
             const token = document.querySelector('#token').value.trim();
             const user_id = userInput.value.trim();
             const deleted_after = form.querySelector('#gdc-deleted-after').value.trim();
             const deleted_before = form.querySelector('#gdc-deleted-before').value.trim();
-            let cancelled = false; const onCancel = async () => { cancelSingleBtn.disabled = true; try { await window.axios.cancelGetDeletedConversations(); } catch { } singleProgressInfo.innerHTML = 'Cancelling...'; cancelled = true; };
+
+            let cancelled = false; 
+            const onCancel = async () => { 
+                cancelSingleBtn.disabled = true; 
+                try { 
+                    await window.axios.cancelGetDeletedConversations(); 
+                } catch { } 
+
+                singleProgressInfo.innerHTML = 'Cancelling...'; 
+                cancelled = true; 
+            };
             cancelSingleBtn.addEventListener('click', onCancel, { once: true });
+
             try {
                 const params = { domain, token, user_id };
                 const toStartOfDayISO = (d) => d ? new Date(`${d}T00:00:00`).toISOString() : undefined;
                 const toEndOfDayISO = (d) => d ? new Date(`${d}T23:59:59.999`).toISOString() : undefined;
-                const afterISO = toStartOfDayISO(deleted_after); const beforeISO = toEndOfDayISO(deleted_before);
-                if (afterISO) params.deleted_after = afterISO; if (beforeISO) params.deleted_before = beforeISO;
+                const afterISO = toStartOfDayISO(deleted_after); 
+                const beforeISO = toEndOfDayISO(deleted_before);
+                
+                if (afterISO) {
+                    params.deleted_after = afterISO; 
+                    if (beforeISO) params.deleted_before = beforeISO;
+                }
+
                 const results = await window.axios.getDeletedConversations(params);
-                const count = results.length; singleProgressInfo.innerHTML = cancelled ? `Cancelled.` : `Found ${count} deleted conversation(s).`; singleProgressBar.style.width = '100%';
-                if (count > 0) { lastResultsForCsv = results; lastUserIdForCsv = user_id; exportBtn.hidden = false; }
-                else { exportBtn.hidden = true; lastResultsForCsv = []; lastUserIdForCsv = ''; }
+                const count = results.length; 
+                singleProgressInfo.innerHTML = cancelled ? `Cancelled.` : `Found ${count} deleted conversation(s).`; 
+                singleProgressBar.style.width = '100%';
+                
+                if (count > 0) { 
+                    lastResultsForCsv = results; 
+                    lastUserIdForCsv = user_id; 
+                    exportBtn.hidden = false; 
+                } else { 
+                    exportBtn.hidden = true; 
+                    lastResultsForCsv = []; 
+                    lastUserIdForCsv = ''; 
+                }
             } catch (error) {
-                singleProgressBar.parentElement.hidden = true; if (String(error?.name) === 'AbortError' || String(error?.message).includes('Aborted')) singleProgressInfo.innerHTML = 'Cancelled.'; else errorHandler(error, singleProgressInfo);
+                singleProgressCard.hidden = true; 
+                if (String(error?.name) === 'AbortError' || String(error?.message).includes('Aborted')) {
+                    singleProgressInfo.innerHTML = 'Cancelled.'; 
+                } else 
+                    errorHandler(error, singleProgressInfo);
             } finally {
                 searchBtn.disabled = false; cancelSingleBtn.disabled = true;
             }
         });
 
-        exportBtn.addEventListener('click', (e2) => {
-            e2.preventDefault(); e2.stopPropagation(); if (!lastResultsForCsv || lastResultsForCsv.length === 0) return;
-            const fileName = `deleted_conversations_${lastUserIdForCsv}.csv`;
-            const sanitized = lastResultsForCsv.map((item) => { const row = {}; for (const key of Object.keys(item)) { const val = item[key]; if (key === 'attachments' && Array.isArray(val)) { const pairs = val.map(att => `${att.id}:${att.url}`).join('; '); row[key] = pairs; } else if (val !== null && typeof val === 'object') { row[key] = JSON.stringify(val); } else { row[key] = val; } } return row; });
-            const allKeys = Array.from(new Set(sanitized.flatMap(obj => Object.keys(obj)))); if (!allKeys.includes('deleted_at')) allKeys.push('deleted_at');
-            if (sanitized.length > 0) { const first = sanitized[0]; const headerCompleteFirst = {}; for (const k of allKeys) headerCompleteFirst[k] = Object.prototype.hasOwnProperty.call(first, k) ? first[k] : ''; const data = [headerCompleteFirst, ...sanitized.slice(1).map(obj => { const full = {}; for (const k of allKeys) full[k] = Object.prototype.hasOwnProperty.call(obj, k) ? obj[k] : ''; return full; })]; window.csv.sendToCSV({ fileName, data }); }
+        // CSV export for single user
+        exportBtn.addEventListener('click', async (e2) => {
+            e2.preventDefault(); 
+            e2.stopPropagation(); 
+            if (!lastResultsForCsv || lastResultsForCsv.length === 0) 
+                return;
+            
+            const defaultFileName = `deleted_conversations_${lastUserIdForCsv}.csv`;
+
+            try {
+                const sanitized = lastResultsForCsv.map((item) => { 
+                    const row = {}; 
+                    for (const key of Object.keys(item)) { 
+                        const val = item[key]; 
+                        if (key === 'attachments' && Array.isArray(val)) { 
+                            const pairs = val.map(att => `${att.id}:${att.url}`).join('; '); 
+                            row[key] = pairs; 
+                        } else if (val !== null && typeof val === 'object') { 
+                            row[key] = JSON.stringify(val); 
+                        } else { 
+                            row[key] = val; 
+                        } 
+                    } return row; 
+                });
+
+                const allKeys = Array.from(new Set(sanitized.flatMap(obj => Object.keys(obj)))); 
+                if (!allKeys.includes('deleted_at')) {
+                    allKeys.push('deleted_at');
+                }
+                if (sanitized.length > 0) { 
+                    const first = sanitized[0]; 
+                    const headerCompleteFirst = {}; 
+                    for (const k of allKeys) {
+                        headerCompleteFirst[k] = Object.prototype.hasOwnProperty.call(first, k) ? first[k] : ''; 
+                    }
+                    const data = [headerCompleteFirst, ...sanitized.slice(1).map(obj => { 
+                        const full = {}; 
+                        for (const k of allKeys) {
+                            full[k] = Object.prototype.hasOwnProperty.call(obj, k) ? obj[k] : ''; 
+                        }
+                        return full; 
+                    })]; 
+                    
+                    // Use csv.sendToCSV with save dialog option
+                    const result = await window.csv.sendToCSV({ 
+                        fileName: defaultFileName, 
+                        data,
+                        showSaveDialog: true 
+                    });
+                    
+                    // Show success message if file was saved
+                    if (result && result.filePath) {
+                        singleProgressInfo.innerHTML = `Found ${lastResultsForCsv.length} deleted conversation(s). Exported to: ${result.filePath}`;
+                    }
+                }
+            } catch (error) {
+                errorHandler(error, singleProgressInfo);
+            }
         });
 
+        // Bulk upload user IDs
         uploadBtn.addEventListener('click', async (evt) => {
-            evt.preventDefault(); evt.stopPropagation(); uploadBtn.disabled = true; uploadInfo.textContent = '';
+            evt.preventDefault(); 
+            evt.stopPropagation(); 
+
+            uploadBtn.disabled = true; 
+            uploadInfo.textContent = '';
+
             try {
                 if (window.fileUpload && typeof window.fileUpload.getUserIdsFromFile === 'function') {
-                    const ids = await window.fileUpload.getUserIdsFromFile(); if (ids === 'cancelled') { uploadInfo.textContent = 'Cancelled.'; return; }
-                    bulkUserIds = Array.from(new Set(ids.map((v) => Number(v)).filter((n) => !isNaN(n)))); uploadInfo.textContent = `Found ${bulkUserIds.length} user(s).`; updateExportEnabled();
+                    const ids = await window.fileUpload.getUserIdsFromFile(); 
+                    if (ids === 'cancelled') { 
+                        uploadInfo.textContent = 'Cancelled.'; 
+                        return; 
+                    }
+
+                    bulkUserIds = Array.from(new Set(ids.map((v) => Number(v)).filter((n) => !isNaN(n)))); 
+                    uploadInfo.textContent = `Found ${bulkUserIds.length} user(s).`; 
+                    updateExportEnabled();
                 } else {
-                    const input = document.createElement('input'); input.type = 'file'; input.accept = '.txt,.csv,text/plain,text/csv'; input.onchange = async () => { try { const file = input.files && input.files[0]; if (!file) return; const text = await file.text(); const tokens = text.split(/\r?\n|\r|,|\s+/).filter(Boolean); const numeric = tokens.map((v) => Number(v)).filter((n) => !isNaN(n)); bulkUserIds = Array.from(new Set(numeric)); uploadInfo.textContent = `Found ${bulkUserIds.length} user(s).`; updateExportEnabled(); } catch (err) { errorHandler(err, uploadInfo); } }; input.click();
+                    const input = document.createElement('input'); 
+                    input.type = 'file'; 
+                    input.accept = '.txt,.csv,text/plain,text/csv'; 
+                    input.onchange = async () => { 
+                        try { 
+                            const file = input.files && input.files[0]; 
+                            if (!file) return; 
+                            const text = await file.text(); 
+                            const tokens = text.split(/\r?\n|\r|,|\s+/).filter(Boolean); 
+                            const numeric = tokens.map((v) => Number(v)).filter((n) => !isNaN(n)); 
+                            bulkUserIds = Array.from(new Set(numeric)); 
+                            uploadInfo.textContent = `Found ${bulkUserIds.length} user(s).`; 
+                            updateExportEnabled(); 
+                        } catch (err) { 
+                            errorHandler(err, uploadInfo); 
+                        } 
+                    }; 
+                    input.click();
                 }
-            } catch (error) { errorHandler(error, uploadInfo); }
-            finally { uploadBtn.disabled = false; }
+            } catch (error) { 
+                errorHandler(error, uploadInfo); 
+            } finally { 
+                uploadBtn.disabled = false; 
+            }
         });
 
+        // Browse for output folder
         browseFolderBtn.addEventListener('click', async (evt) => {
-            evt.preventDefault(); evt.stopPropagation();
-            try { const selected = await window.electronAPI.selectFolder(); if (selected) { outputFolder = selected; outputPathInput.value = outputFolder; updateExportEnabled(); } }
-            catch (error) { errorHandler(error, outputPathInput); }
+            evt.preventDefault(); 
+            evt.stopPropagation();
+
+            try { 
+                const selected = await window.electronAPI.selectFolder(); 
+                if (selected) { 
+                    outputFolder = selected; 
+                    outputPathInput.value = outputFolder; 
+                    updateExportEnabled(); 
+                } 
+            } catch (error) { 
+                errorHandler(error, outputPathInput); 
+            }
         });
 
+        // Export selected users
         exportMultiBtn.addEventListener('click', async (evt) => {
-            evt.preventDefault(); evt.stopPropagation(); if (bulkUserIds.length === 0) return; if (!outputFolder) { bulkProgressDiv.hidden = false; bulkProgressInfo.textContent = 'Please choose an output folder first.'; return; }
-            exportMultiBtn.disabled = true; cancelBulkBtn.disabled = false; bulkProgressDiv.hidden = false; bulkProgressBar.style.width = '0%'; bulkProgressInfo.innerHTML = `Exporting for ${bulkUserIds.length} user(s)...`;
-            const domain = document.querySelector('#domain').value.trim(); const token = document.querySelector('#token').value.trim();
-            const deleted_after = form.querySelector('#gdc-deleted-after').value.trim(); const deleted_before = form.querySelector('#gdc-deleted-before').value.trim();
-            const toStartOfDayISO = (d) => d ? new Date(`${d}T00:00:00`).toISOString() : undefined; const toEndOfDayISO = (d) => d ? new Date(`${d}T23:59:59.999`).toISOString() : undefined;
-            let completed = 0; let exported = 0; let skipped = 0; let cancelled = false;
-            const onCancelBulk = async () => { cancelBulkBtn.disabled = true; try { await window.axios.cancelGetDeletedConversations(); } catch { } cancelled = true; bulkProgressInfo.innerHTML = 'Cancelling...'; };
+            evt.preventDefault(); 
+            evt.stopPropagation(); 
+
+            if (bulkUserIds.length === 0) return; 
+            if (!outputFolder) { 
+                bulkProgressCard.hidden = false; 
+                bulkProgressInfo.textContent = 'Please choose an output folder first.'; 
+                return; 
+            }
+            exportMultiBtn.disabled = true; 
+            cancelBulkBtn.disabled = false; 
+            bulkProgressCard.hidden = false; 
+            bulkProgressBar.style.width = '0%'; 
+            bulkProgressInfo.innerHTML = `Exporting for ${bulkUserIds.length} user(s)...`;
+
+            const domain = document.querySelector('#domain').value.trim(); 
+            const token = document.querySelector('#token').value.trim();
+            const deleted_after = form.querySelector('#gdc-bulk-deleted-after').value.trim(); 
+            const deleted_before = form.querySelector('#gdc-bulk-deleted-before').value.trim();
+            const toStartOfDayISO = (d) => d ? new Date(`${d}T00:00:00`).toISOString() : undefined; 
+            const toEndOfDayISO = (d) => d ? new Date(`${d}T23:59:59.999`).toISOString() : undefined;
+            let completed = 0; 
+            let exported = 0; 
+            let skipped = 0; 
+            let cancelled = false;
+            const skippedDetails = []; // Track details about skipped requests
+
+            const onCancelBulk = async () => { 
+                cancelBulkBtn.disabled = true; 
+                try { await window.axios.cancelGetDeletedConversations(); } catch { } 
+                cancelled = true; 
+                bulkProgressInfo.innerHTML = 'Cancelling...'; 
+            };
+
             cancelBulkBtn.addEventListener('click', onCancelBulk, { once: true });
-            for (const uid of bulkUserIds) {
+            for (const uid of bulkUserIds) { // sequential to avoid rate limits
                 if (cancelled) break;
                 try {
                     const params = { domain, token, user_id: String(uid) };
-                    const afterISO = toStartOfDayISO(deleted_after); const beforeISO = toEndOfDayISO(deleted_before);
-                    if (afterISO) params.deleted_after = afterISO; if (beforeISO) params.deleted_before = beforeISO;
+                    const afterISO = toStartOfDayISO(deleted_after); 
+                    const beforeISO = toEndOfDayISO(deleted_before);
+                    if (afterISO) params.deleted_after = afterISO; 
+                    if (beforeISO) params.deleted_before = beforeISO;
                     const results = await window.axios.getDeletedConversations(params);
                     if (results.length > 0) {
-                        const sanitized = results.map((item) => { const row = {}; for (const key of Object.keys(item)) { const val = item[key]; if (key === 'attachments' && Array.isArray(val)) { const pairs = val.map(att => `${att.id}:${att.url}`).join('; '); row[key] = pairs; } else if (val !== null && typeof val === 'object') { row[key] = JSON.stringify(val); } else { row[key] = val; } } return row; });
-                        const allKeys = Array.from(new Set(sanitized.flatMap(obj => Object.keys(obj)))); if (!allKeys.includes('deleted_at')) allKeys.push('deleted_at');
-                        const first = sanitized[0]; const headerCompleteFirst = {}; for (const k of allKeys) headerCompleteFirst[k] = Object.prototype.hasOwnProperty.call(first, k) ? first[k] : '';
-                        const data = [headerCompleteFirst, ...sanitized.slice(1).map(obj => { const full = {}; for (const k of allKeys) full[k] = Object.prototype.hasOwnProperty.call(obj, k) ? obj[k] : ''; return full; })];
-                        const fileName = `deleted_conversations_${uid}.csv`; const fullPath = `${outputFolder.replace(/[\\/]+$/, '')}\\${fileName}`; await window.csv.writeAtPath(fullPath, data); exported++;
-                    } else { skipped++; }
+                        const sanitized = results.map((item) => { 
+                            const row = {}; 
+                            for (const key of Object.keys(item)) { 
+                                const val = item[key]; 
+                                if (key === 'attachments' && Array.isArray(val)) { 
+                                    const pairs = val.map(att => `${att.id}:${att.url}`).join('; '); 
+                                    row[key] = pairs; 
+                                } else if (val !== null && typeof val === 'object') { 
+                                    row[key] = JSON.stringify(val); 
+                                } else { 
+                                    row[key] = val; 
+                                } 
+                            } 
+                            return row; 
+                        });
+
+                        const allKeys = Array.from(new Set(sanitized.flatMap(obj => Object.keys(obj)))); 
+                        if (!allKeys.includes('deleted_at')) allKeys.push('deleted_at');
+                        const first = sanitized[0]; 
+                        const headerCompleteFirst = {}; 
+                        for (const k of allKeys) headerCompleteFirst[k] = Object.prototype.hasOwnProperty.call(first, k) ? first[k] : '';
+
+                        const data = [headerCompleteFirst, ...sanitized.slice(1).map(obj => { 
+                            const full = {}; 
+                            for (const k of allKeys) full[k] = Object.prototype.hasOwnProperty.call(obj, k) ? obj[k] : ''; 
+                            return full; 
+                        })];
+                        const fileName = `deleted_conversations_${uid}.csv`; 
+                        const fullPath = `${outputFolder.replace(/[\\/]+$/, '')}\\${fileName}`; 
+                        await window.csv.writeAtPath(fullPath, data); 
+                        exported++;
+                    } else { 
+                        skipped++;
+                        const requestUrl = `${domain}/api/v1/users/${uid}/deleted_conversations`;
+                        skippedDetails.push({ userId: uid, url: requestUrl, reason: 'No deleted conversations found' });
+                    }
                 } catch (err) {
-                    if (String(err?.name) === 'AbortError' || String(err?.message).includes('Aborted')) { cancelled = true; }
-                    else { skipped++; }
+                    if (String(err?.name) === 'AbortError' || String(err?.message).includes('Aborted')) { 
+                        cancelled = true; 
+                    }
+                    else { 
+                        skipped++;
+                        const requestUrl = `${domain}/api/v1/users/${uid}/deleted_conversations`;
+                        const errorMessage = err?.message || err?.response?.data?.message || String(err);
+                        skippedDetails.push({ userId: uid, url: requestUrl, reason: `Error: ${errorMessage}` });
+                    }
                 } finally {
-                    completed++; const pct = Math.round((completed / bulkUserIds.length) * 100); bulkProgressBar.style.width = `${pct}%`;
-                    if (!cancelled) bulkProgressInfo.innerHTML = `Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}. Skipped: ${skipped}.`;
-                    else bulkProgressInfo.innerHTML = `Cancelling... Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}. Skipped: ${skipped}.`;
+                    completed++; 
+                    const pct = Math.round((completed / bulkUserIds.length) * 100); 
+                    bulkProgressBar.style.width = `${pct}%`;
+                    if (!cancelled) {
+                        bulkProgressInfo.innerHTML = `Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}/${bulkUserIds.length}. Skipped: ${skipped}/${bulkUserIds.length}.`;
+                    } else {
+                        bulkProgressInfo.innerHTML = `Cancelling... Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}/${bulkUserIds.length}. Skipped: ${skipped}/${bulkUserIds.length}.`;
+                    }
                 }
             }
             exportMultiBtn.disabled = false; cancelBulkBtn.disabled = true;
-            if (cancelled) bulkProgressInfo.innerHTML = `Cancelled. Processed ${completed} of ${bulkUserIds.length}. Exported: ${exported}. Skipped: ${skipped}.`;
-            else bulkProgressInfo.innerHTML = `Done. Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}. Skipped: ${skipped}.`;
+            
+            // Build final summary with skipped details
+            let summaryHTML = cancelled 
+                ? `Cancelled. Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}/${bulkUserIds.length}. Skipped: ${skipped}/${bulkUserIds.length}.` 
+                : `Done. Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}/${bulkUserIds.length}. Skipped: ${skipped}/${bulkUserIds.length}.`;
+            
+            if (skippedDetails.length > 0) {
+                const maxDisplay = 5;
+                const displayCount = Math.min(skippedDetails.length, maxDisplay);
+                
+                summaryHTML += '<br><br><strong>Skipped Details:</strong><ul style="margin-top: 0.5rem;">';
+                for (let i = 0; i < displayCount; i++) {
+                    const detail = skippedDetails[i];
+                    summaryHTML += `<li><strong>User ID ${detail.userId}</strong> - ${detail.reason}<br><small class="text-muted">${detail.url}</small></li>`;
+                }
+                summaryHTML += '</ul>';
+                
+                if (skippedDetails.length > maxDisplay) {
+                    summaryHTML += `<p class="text-muted">...and ${skippedDetails.length - maxDisplay} more skipped request(s).</p>`;
+                }
+                
+                // Add download button for full error log
+                summaryHTML += '<button id="gdc-download-errors" type="button" class="btn btn-sm btn-outline-secondary mt-2"><i class="bi bi-download me-1"></i>Download Full Error Log (CSV)</button>';
+            }
+            
+            bulkProgressInfo.innerHTML = summaryHTML;
+            
+            // Attach event listener for download errors button
+            if (skippedDetails.length > 0) {
+                const downloadErrorsBtn = bulkProgressInfo.querySelector('#gdc-download-errors');
+                if (downloadErrorsBtn) {
+                    downloadErrorsBtn.addEventListener('click', async () => {
+                        try {
+                            const errorData = skippedDetails.map(detail => ({
+                                user_id: detail.userId,
+                                request_url: detail.url,
+                                reason: detail.reason
+                            }));
+                            
+                            const defaultFileName = `bulk_export_errors_${new Date().toISOString().split('T')[0]}.csv`;
+                            const result = await window.csv.sendToCSV({ 
+                                fileName: defaultFileName, 
+                                data: errorData,
+                                showSaveDialog: true 
+                            });
+                            
+                            if (result && result.filePath) {
+                                downloadErrorsBtn.textContent = '✓ Downloaded';
+                                downloadErrorsBtn.classList.remove('btn-outline-secondary');
+                                downloadErrorsBtn.classList.add('btn-success');
+                                downloadErrorsBtn.disabled = true;
+                            }
+                        } catch (error) {
+                            console.error('Error downloading error log:', error);
+                            downloadErrorsBtn.textContent = '✗ Download Failed';
+                            downloadErrorsBtn.classList.remove('btn-outline-secondary');
+                            downloadErrorsBtn.classList.add('btn-danger');
+                        }
+                    });
+                }
+            }
         });
         form.dataset.bound = 'true';
     }
@@ -570,42 +1047,56 @@ async function deleteConvos(e) {
         form = document.createElement('form');
         form.id = 'delete-conversations-subject-form';
         form.innerHTML = `
+            <style>
+                #delete-conversations-subject-form .card-title { font-size: 1.1rem; }
+                #delete-conversations-subject-form .card-header small { font-size: 0.75rem; }
+                #delete-conversations-subject-form .form-label { font-size: 0.85rem; }
+                #delete-conversations-subject-form .form-control { font-size: 0.85rem; }
+                #delete-conversations-subject-form .form-text { font-size: 0.7rem; }
+                #delete-conversations-subject-form .btn { font-size: 0.85rem; padding: 0.35rem 0.75rem; }
+                #delete-conversations-subject-form .bi { font-size: 0.9rem; }
+                #delete-conversations-subject-form .progress { height: 12px; }
+                #delete-conversations-subject-form .card-body { padding: 0.75rem; }
+                #delete-conversations-subject-form .mt-1 { margin-top: 0.25rem !important; }
+                #delete-conversations-subject-form .mt-2 { margin-top: 0.5rem !important; }
+                #delete-conversations-subject-form .mt-3 { margin-top: 0.5rem !important; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-trash me-2"></i>Delete User Conversations
+                        <i class="bi bi-trash me-1"></i>Delete User Conversations
                     </h3>
                     <small class="text-muted">Provide a Canvas user ID and an exact subject. This will search sent conversations for that subject and delete them for all recipients.</small>
                 </div>
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col-auto"><label for="dcs-user-id" class="form-label">User ID</label></div>
-                        <div class="col-2"><input id="dcs-user-id" type="text" class="form-control"></div>
+                        <div class="col-2"><input id="dcs-user-id" type="text" class="form-control form-control-sm"></div>
                         <div class="col-auto"><span id="dcs-user-help" class="form-text" style="display:none;">Must be a number</span></div>
                     </div>
                     <div class="row align-items-center mt-2">
                         <div class="col-auto"><label for="dcs-subject" class="form-label">Subject</label></div>
                         <div class="col-4">
-                            <input id="dcs-subject" type="text" class="form-control" placeholder="Exact subject text">
+                            <input id="dcs-subject" type="text" class="form-control form-control-sm" placeholder="Exact subject text">
                             <div class="form-text">Exact match; case-sensitive.</div>
                         </div>
                     </div>
-                    <div class="row mt-3">
-                        <div class="col-auto"><button id="dcs-search" type="button" class="btn btn-primary" disabled>Search</button></div>
-                        <div class="col-auto"><button id="dcs-cancel-search" type="button" class="btn btn-outline-danger" disabled>Cancel</button></div>
+                    <div class="row mt-2">
+                        <div class="col-auto"><button id="dcs-search" type="button" class="btn btn-sm btn-primary" disabled>Search</button></div>
+                        <div class="col-auto"><button id="dcs-cancel-search" type="button" class="btn btn-sm btn-outline-danger" disabled>Cancel</button></div>
                     </div>
-                    <div hidden id="dcs-search-progress-div" class="mt-3">
+                    <div hidden id="dcs-search-progress-div" class="mt-2">
                         <p id="dcs-search-progress-info"></p>
                     </div>
                     <div id="dcs-search-result" class="mt-2"></div>
                     <hr class="my-3" />
-                    <div class="row mt-2">
-                        <div class="col-auto"><button id="dcs-delete" type="button" class="btn btn-danger" disabled>Delete Found</button></div>
-                        <div class="col-auto"><button id="dcs-cancel-delete" type="button" class="btn btn-outline-secondary" disabled>Cancel</button></div>
+                    <div class="row mt-2" id="dcs-delete-section" hidden>
+                        <div class="col-auto"><button id="dcs-delete" type="button" class="btn btn-sm btn-danger" disabled>Delete Found</button></div>
+                        <div class="col-auto"><button id="dcs-cancel-delete" type="button" class="btn btn-sm btn-outline-secondary" disabled>Cancel</button></div>
                     </div>
-                    <div hidden id="dcs-delete-progress-div" class="mt-3">
+                    <div hidden id="dcs-delete-progress-div" class="mt-2">
                         <p id="dcs-delete-progress-info"></p>
-                        <div class="progress mt-1" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress mt-1" style="width: 75%; height: 12px;" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                             <div class="progress-bar" style="width: 0%"></div>
                         </div>
                     </div>
@@ -637,11 +1128,11 @@ async function deleteConvos(e) {
         searchBtn.disabled = !(validUser && validSubject);
         form.querySelector('#dcs-user-help').style.display = validUser ? 'none' : 'inline';
     };
-    userInput.addEventListener('input', toggleSearchEnabled);
-    subjectInput.addEventListener('input', toggleSearchEnabled);
-    toggleSearchEnabled();
 
     if (form.dataset.bound !== 'true') {
+        userInput.addEventListener('input', toggleSearchEnabled);
+        subjectInput.addEventListener('input', toggleSearchEnabled);
+        toggleSearchEnabled();
         searchBtn.addEventListener('click', async (evt) => {
             evt.preventDefault(); evt.stopPropagation();
 
@@ -659,13 +1150,54 @@ async function deleteConvos(e) {
             try {
                 foundMessages = await window.axios.getConvos({ domain, token, user_id, subject });
                 const count = Array.isArray(foundMessages) ? foundMessages.length : 0;
-                resultDiv.innerHTML = cancelled ? '<p>Cancelled.</p>' : `<p>Found ${count} conversation(s) with that subject.</p>`;
+                
+                // Clear previous results
+                resultDiv.innerHTML = '';
+                
+                if (cancelled) {
+                    const cancelCard = document.createElement('div');
+                    cancelCard.className = 'alert alert-info';
+                    cancelCard.innerHTML = '<i class="bi bi-info-circle me-1"></i>Search cancelled.';
+                    resultDiv.appendChild(cancelCard);
+                } else if (count > 0) {
+                    const resultCard = document.createElement('div');
+                    resultCard.className = 'card border-primary';
+                    resultCard.innerHTML = `
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="card-title mb-0" style="font-size: 1rem;">
+                                <i class="bi bi-search me-1"></i>Search Results
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-0">Found <strong>${count}</strong> conversation(s) with subject: "<em>${subject}</em>"</p>
+                            <div class="form-text mt-1">Click "Delete Found" below to delete these conversations for all recipients.</div>
+                        </div>
+                    `;
+                    resultDiv.appendChild(resultCard);
+                    
+                    // Show delete section
+                    const deleteSection = document.getElementById('dcs-delete-section');
+                    deleteSection.hidden = false;
+                } else {
+                    const noResultCard = document.createElement('div');
+                    noResultCard.className = 'alert alert-warning';
+                    noResultCard.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>No conversations found with that subject.';
+                    resultDiv.appendChild(noResultCard);
+                    
+                    // Hide delete section
+                    const deleteSection = document.getElementById('dcs-delete-section');
+                    deleteSection.hidden = true;
+                }
+                
                 deleteBtn.disabled = !(count > 0);
             } catch (err) {
                 resultDiv.innerHTML = '';
-                errorHandler(err, searchProgressInfo);
+                const errorCard = document.createElement('div');
+                errorCard.className = 'alert alert-danger';
+                errorCard.innerHTML = `<strong>Error:</strong> ${err.message || 'An error occurred during search'}`;
+                resultDiv.appendChild(errorCard);
             } finally {
-                cancelSearchBtn.disabled = true; searchBtn.disabled = false;
+                cancelSearchBtn.disabled = true; searchBtn.disabled = false; searchProgressDiv.hidden = true;
             }
         });
 
@@ -697,10 +1229,47 @@ async function deleteConvos(e) {
                 const res = await window.axios.deleteConvos({ domain, token, messages: foundMessages });
                 const success = res?.successful?.length || 0;
                 const failed = res?.failed?.length || 0;
-                deleteProgressBar.style.width = '100%';
-                deleteProgressInfo.textContent = cancelled ? `Cancelled. Deleted ${success}, failed ${failed}.` : `Done. Deleted ${success}, failed ${failed}.`;
+                
+                // Hide progress, show summary card
+                deleteProgressDiv.hidden = true;
+                
+                const summaryCard = document.createElement('div');
+                summaryCard.className = 'card mt-2 border-success';
+                summaryCard.innerHTML = `
+                    <div class="card-header ${failed > 0 ? 'bg-warning' : 'bg-success'} text-white">
+                        <h5 class="card-title mb-0" style="font-size: 1rem;">
+                            <i class="bi bi-${failed > 0 ? 'exclamation-triangle' : 'check-circle'} me-1"></i>Deletion ${cancelled ? 'Cancelled' : 'Complete'}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>Total Processed:</strong> <span class="badge bg-primary">${foundMessages.length}</span></p>
+                        <p><strong>Successfully Deleted:</strong> <span class="badge bg-success">${success}</span></p>
+                        ${failed > 0 ? 
+                            `<p><strong>Failed:</strong> <span class="badge bg-danger">${failed}</span></p>` : 
+                            '<p class="text-muted mb-0">All conversations deleted successfully!</p>'
+                        }
+                        ${cancelled ? '<p class="text-warning mb-0"><i class="bi bi-info-circle me-1"></i>Operation was cancelled.</p>' : ''}
+                    </div>
+                `;
+                
+                // Clear previous results and append new summary
+                const existingSummary = deleteProgressDiv.nextElementSibling;
+                if (existingSummary && existingSummary.classList.contains('card')) {
+                    existingSummary.remove();
+                }
+                deleteProgressDiv.parentNode.insertBefore(summaryCard, deleteProgressDiv.nextSibling);
+                
             } catch (err) {
-                deleteProgressBar.parentElement.hidden = true; errorHandler(err, deleteProgressInfo);
+                deleteProgressDiv.hidden = true;
+                const errorCard = document.createElement('div');
+                errorCard.className = 'alert alert-danger mt-2';
+                errorCard.innerHTML = `<strong>Error:</strong> ${err.message || 'An error occurred while deleting conversations'}`;
+                
+                const existingError = deleteProgressDiv.nextElementSibling;
+                if (existingError && (existingError.classList.contains('card') || existingError.classList.contains('alert'))) {
+                    existingError.remove();
+                }
+                deleteProgressDiv.parentNode.insertBefore(errorCard, deleteProgressDiv.nextSibling);
             } finally {
                 deleteBtn.disabled = false; cancelDeleteBtn.disabled = true;
             }
@@ -717,6 +1286,18 @@ async function downloadConvos(e) {
         downloadConversationsForm = document.createElement('form');
         downloadConversationsForm.id = 'download-conversations-form';
         downloadConversationsForm.innerHTML = `
+            <style>
+                #download-conversations-form h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+                #download-conversations-form .form-label { font-size: 0.85rem; }
+                #download-conversations-form .form-control { font-size: 0.85rem; }
+                #download-conversations-form .form-text { font-size: 0.7rem; }
+                #download-conversations-form .form-check-label { font-size: 0.85rem; }
+                #download-conversations-form .btn { font-size: 0.85rem; padding: 0.35rem 0.75rem; }
+                #download-conversations-form .mt-2 { margin-top: 0.5rem !important; }
+                #download-conversations-form .mt-3 { margin-top: 0.5rem !important; }
+                #download-conversations-form .mt-5 { margin-top: 1rem !important; }
+                #download-conversations-form .mb-2 { margin-bottom: 0.5rem !important; }
+            </style>
             <div>
                 <h3>Download Conversations to CSV</h3>
             </div>
@@ -725,7 +1306,7 @@ async function downloadConvos(e) {
                         <label for="user-id" class="form-label">Canvas user ID</label>
                     </div>
                     <div class="col-2">
-                        <input type="text" id="user-id" class="form-control" aria-desribedby="userChecker">
+                        <input type="text" id="user-id" class="form-control form-control-sm" aria-desribedby="userChecker">
                     </div>
                     <div class="col-auto">
                         <span id="userChecker" class="form-text" style="display: none;">Must only contain numbers</span>
@@ -744,20 +1325,20 @@ async function downloadConvos(e) {
                         <label for="start-date" class="form-label">Start</label>
                     </div>
                     <div class="col-auto">
-                        <input id="start-date" type="date" class="form-control">
+                        <input id="start-date" type="date" class="form-control form-control-sm">
                     </div>
                     <div class="col-auto">
                         <label for="end-date" class="form-label">End</label>
                     </div>
                     <div class="col-auto">
-                        <input id="end-date" type="date" class="form-control">
+                        <input id="end-date" type="date" class="form-control form-control-sm">
                     </div>
                     <div class="w-100"></div>
                     <div class="col-auto">
-                        <button type="button" class="btn btn-primary mt-3" id="convo-search">Search</button>
+                        <button type="button" class="btn btn-sm btn-primary mt-2" id="convo-search">Search</button>
                     </div>
                 </div>
-            <div id="response-container" class="mt-5"></div>`;
+            <div id="response-container" class="mt-2"></div>`;
         eContent.append(downloadConversationsForm);
     }
     downloadConversationsForm.hidden = false;

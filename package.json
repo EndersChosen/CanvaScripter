@@ -19,7 +19,7 @@
     "build": "electron-builder",
     "audit": "npm audit --audit-level=moderate",
     "audit:prod": "npm audit --omit=dev --audit-level=moderate"
-  },
+},            
   "build": {
     "appId": "com.canvatools.canvascripter",
     "asar": true,

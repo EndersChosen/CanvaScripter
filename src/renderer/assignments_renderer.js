@@ -164,25 +164,45 @@ function deleteAssignmentsCombined(e) {
         form = document.createElement('form');
         form.id = 'combined-delete-assignments-form';
         form.innerHTML = `
+            <style>
+                #combined-delete-assignments-form .card-title { font-size: 1.1rem; }
+                #combined-delete-assignments-form .card-header small { font-size: 0.75rem; }
+                #combined-delete-assignments-form .form-label { font-size: 0.85rem; font-weight: 600; }
+                #combined-delete-assignments-form .form-control,
+                #combined-delete-assignments-form .form-select { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #combined-delete-assignments-form .form-text { font-size: 0.7rem; }
+                #combined-delete-assignments-form .form-check-label { font-size: 0.85rem; }
+                #combined-delete-assignments-form .btn { font-size: 0.85rem; padding: 0.35rem 0.75rem; }
+                #combined-delete-assignments-form .bi { font-size: 0.9rem; }
+                #combined-delete-assignments-form .alert { font-size: 0.85rem; padding: 0.5rem 0.75rem; }
+                #combined-delete-assignments-form .card-body { padding: 0.75rem; }
+                #combined-delete-assignments-form .progress { height: 12px; }
+                #combined-delete-assignments-form .gap-2 { gap: 0.5rem !important; }
+                #combined-delete-assignments-form .g-3 { gap: 0.5rem !important; }
+                #combined-delete-assignments-form .mb-3 { margin-bottom: 0.5rem !important; }
+                #combined-delete-assignments-form .mb-4 { margin-bottom: 0.5rem !important; }
+                #combined-delete-assignments-form .mt-3 { margin-top: 0.5rem !important; }
+                #combined-delete-assignments-form .mt-2 { margin-top: 0.5rem !important; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-trash me-2"></i>Delete Assignments
+                        <i class="bi bi-trash me-1"></i>Delete Assignments
                     </h3>
                     <small class="text-muted">Select one or more filters. We'll find assignments that match ALL selected filters.</small>
                 </div>
                 <div class="card-body">
-                    <div class="alert alert-info mb-3">
+                    <div class="alert alert-info mb-2">
                         <i class="bi bi-info-circle me-1"></i>
                         <strong>Note:</strong> Assignments with grades are automatically excluded unless you check "Include assignments with grades".
                     </div>
 
-                    <div class="row g-3 align-items-end mb-4">
+                    <div class="row g-3 align-items-end mb-2">
                         <div class="col-md-4">
                             <label for="course-id" class="form-label fw-bold">
                                 <i class="bi bi-book me-1"></i>Course ID
                             </label>
-                            <input id="course-id" type="text" class="form-control" 
+                            <input id="course-id" type="text" class="form-control form-control-sm" 
                                    aria-describedby="course-id-help" inputmode="numeric" 
                                    placeholder="Enter course ID" />
                             <div class="invalid-feedback">
@@ -190,20 +210,20 @@ function deleteAssignmentsCombined(e) {
                             </div>
                         </div>
                         <div class="col-md-8 d-flex align-items-end gap-2">
-                            <button id="combined-check-btn" type="button" class="btn btn-warning" disabled>
-                                <i class="bi bi-search me-2"></i>Check Assignments
+                            <button id="combined-check-btn" type="button" class="btn btn-sm btn-warning" disabled>
+                                <i class="bi bi-search me-1"></i>Check Assignments
                             </button>
-                            <button id="combined-cancel-btn" type="button" class="btn btn-outline-secondary" disabled>
-                                <i class="bi bi-x-circle me-2"></i>Cancel
+                            <button id="combined-cancel-btn" type="button" class="btn btn-sm btn-outline-secondary" disabled>
+                                <i class="bi bi-x-circle me-1"></i>Cancel
                             </button>
                         </div>
                     </div>
 
             <!-- Processing Card -->
-            <div class="card mt-3" id="combined-progress-div" hidden>
+            <div class="card mt-2" id="combined-progress-div" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-gear me-2"></i>Processing Assignments
+                        <i class="bi bi-gear me-1"></i>Processing Assignments
                     </h5>
                 </div>
                 <div class="card-body">
@@ -211,24 +231,24 @@ function deleteAssignmentsCombined(e) {
                         <div class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></div>
                         <p id="combined-progress-info" class="mb-0">Preparing...</p>
                     </div>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              role="progressbar" style="width: 0%" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                         </div>
                     </div>
-                    <button id="cancel-delete-assignments-btn" type="button" class="btn btn-warning mt-2" hidden>
-                        <i class="bi bi-x-circle me-2"></i>Cancel Deletion
+                    <button id="cancel-delete-assignments-btn" type="button" class="btn btn-sm btn-warning mt-2" hidden>
+                        <i class="bi bi-x-circle me-1"></i>Cancel Deletion
                     </button>
                 </div>
             </div>
 
             <!-- Results Card -->
-            <div class="card mt-3" id="combined-response-container-card" hidden>
+            <div class="card mt-2" id="combined-response-container-card" hidden>
                 <div class="card-body" id="combined-response-container"></div>
             </div>
 
-            <div class="card mb-3 mt-3">
+            <div class="card mb-2 mt-2">
                 <div class="card-header" style="cursor: pointer;" id="filters-header">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
@@ -1250,15 +1270,19 @@ function noSubmissionAssignments(e) {
         noSubmissionAssignmentsForm = document.createElement('form');
         noSubmissionAssignmentsForm.id = 'no-submission-assignments-form';
 
-        // eContent.innerHTML = `
-        //     <div>
-        //         <h3>Delete Assignments With No Submissions</h3>
-        //     </div>
-        // `;
-
-        // const eForm = document.createElement('form');
-
         noSubmissionAssignmentsForm.innerHTML = `
+            <style>
+                #no-submission-assignments-form h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+                #no-submission-assignments-form .form-label { font-size: 0.85rem; }
+                #no-submission-assignments-form .form-control { font-size: 0.85rem; }
+                #no-submission-assignments-form .form-text { font-size: 0.7rem; }
+                #no-submission-assignments-form .form-check-label { font-size: 0.85rem; }
+                #no-submission-assignments-form .btn { font-size: 0.85rem; padding: 0.35rem 0.75rem; }
+                #no-submission-assignments-form .bi { font-size: 0.9rem; }
+                #no-submission-assignments-form .progress { height: 12px; }
+                #no-submission-assignments-form .mt-3 { margin-top: 0.5rem !important; }
+                #no-submission-assignments-form .mt-5 { margin-top: 1rem !important; }
+            </style>
             <div>
                 <h3>Delete Assignments With No Submissions</h3>
             </div>
@@ -1268,13 +1292,13 @@ function noSubmissionAssignments(e) {
                 </div>
                 <div class="w-100"></div>
                 <div class="col-2">
-                    <input id="course-id" type="text" class="form-control" aria-describedby="input-checker" />
+                    <input id="course-id" type="text" class="form-control form-control-sm" aria-describedby="input-checker" />
                 </div>
                 <div class="col-auto" >
                     <span id="input-checker" class="form-text" style="display: none;">Must only contain numbers</span>
                 </div>
                 <div class="w-100"></div> 
-                <div class="col-auto form-check form-switch mt-3 ms-3">
+                <div class="col-auto form-check form-switch mt-2 ms-3">
                     <input id="graded-submissions" class="form-check-input" type="checkbox" role="switch" />
                     <label for="graded-submissions" class="form-check-label">Delete assignments with grades</label>
                     <div id="graded-help" class="form-text">
@@ -1286,17 +1310,17 @@ function noSubmissionAssignments(e) {
                 </div>
                 <div class="w-100"></div> 
                 <div class="col-auto">
-                    <button id="action-btn" class="btn btn-primary mt-3">Check</button>
+                    <button id="action-btn" class="btn btn-sm btn-primary mt-2">Check</button>
                 </div>
             </div>
             <div hidden id="nsa-progress-div">
                 <p id="nsa-progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress mt-2" style="width: 75%; height: 12px;" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
     
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div id="nsa-response-container" class="mt-5">
+            <div id="nsa-response-container" class="mt-2">
             </div>
         `;
 
@@ -1379,10 +1403,10 @@ function noSubmissionAssignments(e) {
                                 <div class="w-100"></div>
 
                                 <div class="col-2">
-                                    <button id="remove-btn" type="button" class="btn btn-danger">Remove</button>
+                                    <button id="remove-btn" type="button" class="btn btn-sm btn-danger">Remove</button>
                                 </div>
                                 <div class="col-2">
-                                    <button id="cancel-btn" type="button" class="btn btn-secondary">Cancel</button>
+                                    <button id="cancel-btn" type="button" class="btn btn-sm btn-secondary">Cancel</button>
                                 </div>
                             </div>
                         </div>    
@@ -1498,15 +1522,16 @@ function unpublishedAssignments(e) {
         deleteUnpublishedAssignmentsForm = document.createElement('form');
         deleteUnpublishedAssignmentsForm.id = 'delete-upublished-assignments-form';
 
-        // eContent.innerHTML = `
-        //     <div>
-        //         <h3>Delete All Unpublished Assignments</h3>
-        //     </div>
-        // `;
-
-        // const eForm = document.createElement('form');
-
         deleteUnpublishedAssignmentsForm.innerHTML = `
+            <style>
+                #delete-upublished-assignments-form h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+                #delete-upublished-assignments-form .form-label { font-size: 0.85rem; }
+                #delete-upublished-assignments-form .form-control { font-size: 0.85rem; }
+                #delete-upublished-assignments-form .form-text { font-size: 0.7rem; }
+                #delete-upublished-assignments-form .btn { font-size: 0.85rem; padding: 0.35rem 0.75rem; }
+                #delete-upublished-assignments-form .progress { height: 12px; }
+                #delete-upublished-assignments-form .mt-3 { margin-top: 0.5rem !important; }
+            </style>
             <div>
                 <h3>Delete All Unpublished Assignments</h3>
                 <div>Deletes all unpublished assignments without grades</div>
@@ -1517,23 +1542,23 @@ function unpublishedAssignments(e) {
                 </div>
                 <div class="w-100"></div>
                 <div class="col-2">
-                    <input id="course-id" type="text" class="form-control" aria-describedby="input-checker" />
+                    <input id="course-id" type="text" class="form-control form-control-sm" aria-describedby="input-checker" />
                 </div>
                 <div class="col-auto" >
                     <span id="input-checker" class="form-text" style="display: none;">Must only contain numbers</span>
                 </div>
                 <div class="w-100"></div> 
                 <div class="col-auto">
-                    <button id="action-btn" class="btn btn-primary mt-3">Check</button>
+                    <button id="action-btn" class="btn btn-sm btn-primary mt-2">Check</button>
                 </div>
             </div>
             <div hidden id="dua-progress-div">
                 <p id="dua-progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress mt-2" style="width: 75%; height: 12px;" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div id="dua-response-container" class="mt-3">
+            <div id="dua-response-container" class="mt-2">
             </div>
         `;
 
@@ -1601,10 +1626,10 @@ function unpublishedAssignments(e) {
                         <div class="w-100"></div>
 
                         <div class="col-2">
-                            <button id="remove-btn" type="button" class="btn btn-danger">Remove</button>
+                            <button id="remove-btn" type="button" class="btn btn-sm btn-danger">Remove</button>
                         </div>
                         <div class="col-2">
-                            <button id="cancel-btn" type="button" class="btn btn-secondary">Cancel</button>
+                            <button id="cancel-btn" type="button" class="btn btn-sm btn-secondary">Cancel</button>
                         </div>
                     </div>
                 </div>    
@@ -2822,10 +2847,27 @@ function moveAssignmentsToSingleGroup(e) {
 
         // const eForm = document.createElement('form');
         moveAssignmentsForm.innerHTML = `
+            <style>
+                #move-assignments .card-title { font-size: 1.1rem; }
+                #move-assignments .card-header small { font-size: 0.75rem; }
+                #move-assignments .form-label { font-size: 0.85rem; font-weight: 600; }
+                #move-assignments .form-control,
+                #move-assignments .form-select { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #move-assignments .form-text { font-size: 0.7rem; }
+                #move-assignments .btn { font-size: 0.85rem; padding: 0.35rem 0.75rem; }
+                #move-assignments .bi { font-size: 0.9rem; }
+                #move-assignments .alert { font-size: 0.85rem; padding: 0.5rem 0.75rem; }
+                #move-assignments .card-body { padding: 0.75rem; }
+                #move-assignments .progress { height: 12px; }
+                #move-assignments .gap-2 { gap: 0.5rem !important; }
+                #move-assignments .g-3 { gap: 0.5rem !important; }
+                #move-assignments .mt-2 { margin-top: 0.5rem !important; }
+                #move-assignments .mt-3 { margin-top: 0.5rem !important; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-arrow-right-square me-2"></i>Move Assignments to a Single Group
+                        <i class="bi bi-arrow-right-square me-1"></i>Move Assignments to a Single Group
                     </h3>
                     <small class="text-muted">Move all assignments to a specific assignment group. If no group is entered, the first assignment's group will be used.</small>
                 </div>
@@ -2835,7 +2877,7 @@ function moveAssignmentsToSingleGroup(e) {
                             <label class="form-label fw-bold" for="course">
                                 <i class="bi bi-book me-1"></i>Course ID
                             </label>
-                            <input id="course" type="text" class="form-control" 
+                            <input id="course" type="text" class="form-control form-control-sm" 
                                    aria-describedby="input-checker" placeholder="Enter course ID" />
                             <div id="input-checker" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
@@ -2846,7 +2888,7 @@ function moveAssignmentsToSingleGroup(e) {
                                 <i class="bi bi-collection me-1"></i>Assignment Group ID
                                 <span class="text-muted">(optional)</span>
                             </label>
-                            <input id="move-group-id" type="text" class="form-control" 
+                            <input id="move-group-id" type="text" class="form-control form-control-sm" 
                                    aria-describedby="group-checker" placeholder="e.g. 12345" />
                             <div id="group-checker" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
@@ -2857,8 +2899,8 @@ function moveAssignmentsToSingleGroup(e) {
                         </div>
                         <div class="col-md-4 d-flex align-items-end">
                             <div class="d-grid w-100">
-                                <button id="action-btn" class="btn btn-info">
-                                    <i class="bi bi-search me-2"></i>Check Assignments
+                                <button id="action-btn" class="btn btn-sm btn-info">
+                                    <i class="bi bi-search me-1"></i>Check Assignments
                                 </button>
                             </div>
                         </div>
@@ -2867,15 +2909,15 @@ function moveAssignmentsToSingleGroup(e) {
             </div>
             
             <!-- Progress Card -->
-            <div class="card mt-3" id="mag-progress-div" hidden>
+            <div class="card mt-2" id="mag-progress-div" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-gear me-2"></i>Moving Assignments
+                        <i class="bi bi-gear me-1"></i>Moving Assignments
                     </h5>
                 </div>
                 <div class="card-body">
                     <p id="mag-progress-info" class="mb-2"></p>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              style="width: 0%" role="progressbar" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -2885,7 +2927,7 @@ function moveAssignmentsToSingleGroup(e) {
             </div>
             
             <!-- Results Card -->
-            <div class="card mt-3" id="mag-response-container-card" hidden>
+            <div class="card mt-2" id="mag-response-container-card" hidden>
                 <div class="card-body" id="mag-response-container">
             </div>
         `;
@@ -3730,10 +3772,31 @@ function assignmentCreator(e) {
         form = document.createElement('form');
         form.id = 'create-assignments-form';
         form.innerHTML = `
+            <style>
+                #create-assignments-form .card-title { font-size: 1.1rem; }
+                #create-assignments-form .card-header small { font-size: 0.75rem; }
+                #create-assignments-form .form-label { font-size: 0.85rem; font-weight: 600; }
+                #create-assignments-form .form-control,
+                #create-assignments-form .form-select { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #create-assignments-form input[type="number"] { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #create-assignments-form .form-text { font-size: 0.7rem; }
+                #create-assignments-form .form-check-label { font-size: 0.85rem; }
+                #create-assignments-form .btn { font-size: 0.85rem; padding: 0.35rem 0.75rem; }
+                #create-assignments-form .bi { font-size: 0.9rem; }
+                #create-assignments-form .alert { font-size: 0.85rem; padding: 0.5rem 0.75rem; }
+                #create-assignments-form .card-body { padding: 0.75rem; }
+                #create-assignments-form .progress { height: 12px; }
+                #create-assignments-form .gap-2 { gap: 0.5rem !important; }
+                #create-assignments-form .gap-3 { gap: 0.5rem !important; }
+                #create-assignments-form .g-3 { gap: 0.5rem !important; }
+                #create-assignments-form .mt-2 { margin-top: 0.5rem !important; }
+                #create-assignments-form .mt-3 { margin-top: 0.5rem !important; }
+                #create-assignments-form .mb-2 { margin-bottom: 0.5rem !important; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-file-earmark-plus me-2"></i>Create Assignments
+                        <i class="bi bi-file-earmark-plus me-1"></i>Create Assignments
                     </h3>
                     <small class="text-muted">Create multiple assignments with customizable settings</small>
                 </div>
@@ -3741,31 +3804,31 @@ function assignmentCreator(e) {
             <div class="row g-3 align-items-start">
                 <div class="col-12 col-sm-3">
                     <label class="form-label" for="course-id">Course ID</label>
-                    <input id="course-id" type="text" class="form-control" aria-describedby="course-help" inputmode="numeric" />
+                    <input id="course-id" type="text" class="form-control form-control-sm" aria-describedby="course-help" inputmode="numeric" />
                     <div id="course-help" class="form-text">Numbers only</div>
                     <div class="invalid-feedback">Please enter a valid numeric Course ID.</div>
                 </div>
 
                 <div class="col-6 col-sm-2">
                     <label class="form-label" for="assignment-number">How many</label>
-                    <input id="assignment-number" type="number" class="form-control" min="1" value="1" />
+                    <input id="assignment-number" type="number" class="form-control form-control-sm" min="1" value="1" />
                 </div>
 
                 <div class="col-12 col-sm-4">
                     <label class="form-label" for="assignment-name">Name</label>
-                    <input id="assignment-name" type="text" class="form-control" placeholder="Assignment" value="Assignment" />
+                    <input id="assignment-name" type="text" class="form-control form-control-sm" placeholder="Assignment" value="Assignment" />
                 </div>
 
                 <div class="w-100"></div>
 
                 <div class="col-6 col-sm-2">
                     <label class="form-label" for="points">Points</label>
-                    <input id="points" type="number" class="form-control" min="0" value="10" />
+                    <input id="points" type="number" class="form-control form-control-sm" min="0" value="10" />
                 </div>
 
                 <div class="col-6 col-sm-3">
                     <label class="form-label" for="grade-type">Grading type</label>
-                    <select id="grade-type" class="form-select">
+                    <select id="grade-type" class="form-select form-select-sm">
                         <option value="points" selected>Points</option>
                         <option value="percent">Percent</option>
                         <option value="pass_fail">Pass/Fail</option>
@@ -3814,15 +3877,15 @@ function assignmentCreator(e) {
                     <label class="form-label" for="peer-review-count">
                         <i class="bi bi-people me-1"></i>Peer Reviews per Student
                     </label>
-                    <input id="peer-review-count" type="number" class="form-control" min="1" max="10" value="1" />
+                    <input id="peer-review-count" type="number" class="form-control form-control-sm" min="1" max="10" value="1" />
                     <div class="form-text">Number of reviews each student must complete</div>
                 </div>
 
                 <div class="w-100"></div>
                 <div class="col-4">
                     <div class="d-grid">
-                        <button id="action-btn" class="btn btn-success mt-2" type="button">
-                            <i class="bi bi-plus-circle me-2"></i>Create Assignments
+                        <button id="action-btn" class="btn btn-sm btn-success mt-2" type="button">
+                            <i class="bi bi-plus-circle me-1"></i>Create Assignments
                         </button>
                     </div>
                 </div>
@@ -3831,15 +3894,15 @@ function assignmentCreator(e) {
             </div>
             
             <!-- Progress Card -->
-            <div class="card mt-3" id="cac-progress-div" hidden>
+            <div class="card mt-2" id="cac-progress-div" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-gear me-2"></i>Creating Assignments
+                        <i class="bi bi-gear me-1"></i>Creating Assignments
                     </h5>
                 </div>
                 <div class="card-body">
                     <p id="cac-progress-info" class="mb-2"></p>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              style="width: 0%" role="progressbar" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -3849,7 +3912,7 @@ function assignmentCreator(e) {
             </div>
             
             <!-- Results Card -->
-            <div class="card mt-3" id="cac-response-container-card" hidden>
+            <div class="card mt-2" id="cac-response-container-card" hidden>
                 <div class="card-body" id="cac-response-container"></div>
             </div>
         `;
@@ -3926,8 +3989,8 @@ function assignmentCreator(e) {
         if (!cancelCreateBtn) {
             cancelCreateBtn = document.createElement('button');
             cancelCreateBtn.id = 'cancel-create-btn';
-            cancelCreateBtn.className = 'btn btn-warning mt-3';
-            cancelCreateBtn.innerHTML = '<i class="bi bi-x-circle me-2"></i>Cancel Creation';
+            cancelCreateBtn.className = 'btn btn-sm btn-warning mt-2';
+            cancelCreateBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel Creation';
             cancelCreateBtn.hidden = true;
             progressCardBody.appendChild(cancelCreateBtn);
         }

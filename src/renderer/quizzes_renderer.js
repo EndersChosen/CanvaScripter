@@ -30,10 +30,24 @@ async function createQuiz(e) {
         createQuizForm = document.createElement('form');
         createQuizForm.id = 'create-quiz-form';
         createQuizForm.innerHTML = `
+            <style>
+                #create-quiz-form .card-title { font-size: 1.1rem; }
+                #create-quiz-form .card-header small { font-size: 0.7rem; }
+                #create-quiz-form .form-label, #create-quiz-form .form-check-label { font-size: 0.85rem; }
+                #create-quiz-form .form-text { font-size: 0.7rem; }
+                #create-quiz-form .card-body { padding: 0.75rem; }
+                #create-quiz-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #create-quiz-form .form-control, #create-quiz-form .form-select { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #create-quiz-form .bi { font-size: 0.9rem; }
+                #create-quiz-form .mt-3, #create-quiz-form .mt-2 { margin-top: 0.5rem !important; }
+                #create-quiz-form .g-3 { gap: 0.5rem !important; }
+                #create-quiz-form .progress { height: 12px; }
+                #create-quiz-form h5 { font-size: 1rem; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-ui-checks me-2"></i>Create Course Quizzes (Classic)
+                        <i class="bi bi-ui-checks me-1"></i>Create Course Quizzes (Classic)
                     </h3>
                     <small class="text-muted">Quizzes are created with a default of unlimited attempts. If you feel you need more control over quiz settings let Caleb know.</small>
                 </div>
@@ -42,15 +56,15 @@ async function createQuiz(e) {
                 <div class="row align-items-center">
                         <div class="col-2">
                             <label class="form-label">Course</label>
-                            <input id="course-id" type="number" class="form-control" aria-describedby="input-checker" />
+                            <input id="course-id" type="number" class="form-control form-control-sm" aria-describedby="input-checker" />
                         </div>
                     <div class="col-2">
                         <label class="form-label">How many</label>
-                        <input id="quiz-number" type="number" class="form-control" value="1">
+                        <input id="quiz-number" type="number" class="form-control form-control-sm" value="1">
                     </div>
                     <div class="col-4">
                         <label class="form-label" for="quiz-name">Quiz Name (optional)</label>
-                        <input id="quiz-name" type="text" class="form-control" placeholder="e.g., Unit 1 Check">
+                        <input id="quiz-name" type="text" class="form-control form-control-sm" placeholder="e.g., Unit 1 Check">
                     </div>
                 </div>
                 <div class="col-auto" >
@@ -60,7 +74,7 @@ async function createQuiz(e) {
                 <div class="row">
                     <div>
                         <h5>Type</h5>
-                        <select id="quiz-type" class="form-select col-auto custom-select-width">
+                        <select id="quiz-type" class="form-select form-select-sm col-auto custom-select-width">
                             <option value="practice_quiz" selected>Practice</option>
                             <option value="assignment" selected>Graded</option>
                             <option value="survey">Survey</option>
@@ -68,19 +82,19 @@ async function createQuiz(e) {
                         </select>
                     </div>
                     
-                    <div id="quiz-settings" class="mt-3">
+                    <div id="quiz-settings" class="mt-2">
                         <h5>Settings</h5>
                         <div class="col-auto form-check form-switch" >
                             <input id="quiz-publish" class="form-check-input" type="checkbox" role="switch" checked>
                             <label for="quiz-publish" class="form-check-label">Publish</label>
                         </div>
                     </div>           
-                    <div id="question-types" class="mt-3">
+                    <div id="question-types" class="mt-2">
                         <h5>Questions</h5>
                         <div class="row g-3 align-items-end">
                             <div class="col-6">
                                 <label for="cq-question-type" class="form-label">Question type</label>
-                                <select id="cq-question-type" class="form-select">
+                                <select id="cq-question-type" class="form-select form-select-sm">
                                     <option value="text_only_question">Text (no points)</option>
                                     <option value="true_false_question">True/False</option>
                                     <option value="short_answer_question">Fill in the Blank</option>
@@ -97,11 +111,11 @@ async function createQuiz(e) {
                             </div>
                             <div class="col-3">
                                 <label for="cq-question-qty" class="form-label">Quantity</label>
-                                <input id="cq-question-qty" type="number" min="1" class="form-control" placeholder="e.g., 3">
+                                <input id="cq-question-qty" type="number" min="1" class="form-control form-control-sm" placeholder="e.g., 3">
                             </div>
                             <div class="col-auto">
-                                <button type="button" class="btn btn-secondary" id="cq-question-add">Add/Update</button>
-                                <button type="button" class="btn btn-link" id="cq-question-clear">Clear all</button>
+                                <button type="button" class="btn btn-sm btn-secondary" id="cq-question-add">Add/Update</button>
+                                <button type="button" class="btn btn-sm btn-link" id="cq-question-clear">Clear all</button>
                             </div>
                         </div>
                         <div id="cq-question-summary" class="form-text mt-1"></div>
@@ -109,17 +123,17 @@ async function createQuiz(e) {
                 </div>
                 <div class="w-100"></div>
                 <div class="col-auto">
-                    <button id="action-btn" class="btn btn-primary mt-3" disabled>Create</button>
+                    <button id="action-btn" class="btn btn-sm btn-primary mt-2" disabled>Create</button>
                 </div>
             </div>
             <div hidden id="create-cq-progress-div">
                 <p id="create-cq-progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress mt-2" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                     
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div id="create-cq-response-container" class="mt-3">
+            <div id="create-cq-response-container" class="mt-2">
             </div>
         `;
 
@@ -377,29 +391,41 @@ async function deleteAllClassicQuizzes(e) {
         deleteQuizForm = document.createElement('form');
         deleteQuizForm.id = 'delete-quiz-form';
         deleteQuizForm.innerHTML = `
+            <style>
+                #delete-quiz-form .card-title { font-size: 1.1rem; }
+                #delete-quiz-form .card-header small { font-size: 0.7rem; }
+                #delete-quiz-form .form-label { font-size: 0.85rem; }
+                #delete-quiz-form .card-body { padding: 0.75rem; }
+                #delete-quiz-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #delete-quiz-form .form-control { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #delete-quiz-form .bi { font-size: 0.9rem; }
+                #delete-quiz-form .mt-3, #delete-quiz-form .mt-2 { margin-top: 0.5rem !important; }
+                #delete-quiz-form .mb-3, #delete-quiz-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #delete-quiz-form .progress { height: 12px; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-trash me-2"></i>Delete All Classic Quizzes
+                        <i class="bi bi-trash me-1"></i>Delete All Classic Quizzes
                     </h3>
                     <small class="text-muted">Remove all classic quizzes from a course</small>
                 </div>
                 <div class="card-body">
             <div class="row">
-                <div class="col-2 mb-3">
+                <div class="col-2 mb-2">
                     <label for="course-id" class="form-label">Course ID</label>
-                    <input type="number" class="form-control" id="course-id" required>
+                    <input type="number" class="form-control form-control-sm" id="course-id" required>
                 </div>
             </div>
-            <button id="check-quiz-btn" type="button" class="btn btn-danger" disabled>Check</button>
+            <button id="check-quiz-btn" type="button" class="btn btn-sm btn-danger" disabled>Check</button>
             <div hidden id="delete-quiz-progress-div">
                 <p id="delete-quiz-progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress mt-2" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
 
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div id="delete-quiz-response-container" class="mt-3">
+            <div id="delete-quiz-response-container" class="mt-2">
             </div>
         `;
 
@@ -463,10 +489,10 @@ async function deleteAllClassicQuizzes(e) {
                     <div class="col-auto">
                         <div id="dcq-response-details" class="row align-items-center">
                             <div class="col-2">
-                                <button id="delete-btn" type="button" class="btn btn-danger">Delete</button>
+                                <button id="delete-btn" type="button" class="btn btn-sm btn-danger">Delete</button>
                             </div>
                             <div class="col-2">
-                                <button id="cancel-btn" type="button" class="btn btn-secondary">Cancel</button>
+                                <button id="cancel-btn" type="button" class="btn btn-sm btn-secondary">Cancel</button>
                             </div>
                         </div>
                     </div>
@@ -529,10 +555,24 @@ async function addQuestionsNQ(e) {
         addQuestionsNQForm = document.createElement('form');
         addQuestionsNQForm.id = 'add-nq-questions-form';
         addQuestionsNQForm.innerHTML = `
+            <style>
+                #add-nq-questions-form .card-title { font-size: 1.1rem; }
+                #add-nq-questions-form .card-header small { font-size: 0.7rem; }
+                #add-nq-questions-form .form-label { font-size: 0.85rem; }
+                #add-nq-questions-form .form-text { font-size: 0.7rem; }
+                #add-nq-questions-form .card-body { padding: 0.75rem; }
+                #add-nq-questions-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #add-nq-questions-form .form-control, #add-nq-questions-form .form-select { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #add-nq-questions-form .bi { font-size: 0.9rem; }
+                #add-nq-questions-form .mt-3, #add-nq-questions-form .mt-2 { margin-top: 0.5rem !important; }
+                #add-nq-questions-form .progress { height: 12px; }
+                #add-nq-questions-form h5 { font-size: 1rem; }
+                #add-nq-questions-form .alert { padding: 0.5rem 0.75rem; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-plus-circle me-2"></i>Add Questions to a New Quiz
+                        <i class="bi bi-plus-circle me-1"></i>Add Questions to a New Quiz
                     </h3>
                     <small class="text-muted">Add questions to an existing New Quiz</small>
                 </div>
@@ -541,15 +581,15 @@ async function addQuestionsNQ(e) {
                 <div class="row align-items-center">
                         <div class="col-2">
                             <label class="form-label">Course</label>
-                            <input id="add-nq-questions-course-id" type="text" class="form-control" aria-describedby="input-checker" />
+                            <input id="add-nq-questions-course-id" type="text" class="form-control form-control-sm" aria-describedby="input-checker" />
                         </div>
                     <div class="col-2">
                         <label class="form-label">Quiz ID</label>
-                        <input id="nq-id" type="text" class="form-control" value="1">
+                        <input id="nq-id" type="text" class="form-control form-control-sm" value="1">
                     </div>
                     <div class="col-2">
                         <label class="form-label">How many</label>
-                        <input id="nq-question-number" type="text" class="form-control" value="1">
+                        <input id="nq-question-number" type="text" class="form-control form-control-sm" value="1">
                     </div>
                 </div>
                 <div class="col-auto" >
@@ -559,7 +599,7 @@ async function addQuestionsNQ(e) {
                 <div class="row">
                     <div>
                         <h5>Type</h5>
-                        <select id="nq-question-type" class="form-select col-auto custom-select-width">
+                        <select id="nq-question-type" class="form-select form-select-sm col-auto custom-select-width">
                             <option value="multiple_choice">Multiple Choice</option>
                             <option value="multi_answer">Multi Answer</option>
                             <option value="essay">Essay</option>
@@ -576,17 +616,17 @@ async function addQuestionsNQ(e) {
                 </div>
                 <div class="w-100"></div>
                 <div class="col-auto">
-                    <button id="add-nq-questions-btn" class="btn btn-primary mt-3" disabled>Create</button>
+                    <button id="add-nq-questions-btn" class="btn btn-sm btn-primary mt-2" disabled>Create</button>
                 </div>
             </div>
             <div hidden id="add-nq-questions-progress-div">
                 <p id="add-nq-questions-progress-info"></p>
-                <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress mt-2" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                     
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div id="add-nq-questions-response-container" class="mt-3">
+            <div id="add-nq-questions-response-container" class="mt-2">
             </div>
         `;
 
@@ -744,7 +784,7 @@ async function addQuestionsNQ(e) {
                 progressDiv.hidden = true;
                 nqResponseContainer.innerHTML = `
                     <div class="alert alert-success">
-                        <i class="bi bi-check-circle me-2"></i>
+                        <i class="bi bi-check-circle me-1"></i>
                         <strong>Success!</strong> Created ${nQuestions} ${questionType} question${nQuestions > 1 ? 's' : ''} in quiz ${quizId}.
                     </div>
                 `;
@@ -756,7 +796,7 @@ async function addQuestionsNQ(e) {
             progressDiv.hidden = true;
             nqResponseContainer.innerHTML = `
                 <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <i class="bi bi-exclamation-triangle me-1"></i>
                     <strong>Error:</strong> ${error.message || 'Failed to create questions'}
                 </div>
             `;
@@ -776,20 +816,38 @@ async function createNewQuiz(e) {
         createNewQuizForm = document.createElement('form');
         createNewQuizForm.id = 'create-new-quiz-form';
         createNewQuizForm.innerHTML = `
+            <style>
+                #create-new-quiz-form .card-title { font-size: 1.1rem; }
+                #create-new-quiz-form .card-header small { font-size: 0.7rem; }
+                #create-new-quiz-form .form-label, #create-new-quiz-form .form-check-label { font-size: 0.85rem; }
+                #create-new-quiz-form .form-text { font-size: 0.7rem; }
+                #create-new-quiz-form .card-body { padding: 0.75rem; }
+                #create-new-quiz-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #create-new-quiz-form .btn-sm { font-size: 0.75rem; }
+                #create-new-quiz-form .form-control, #create-new-quiz-form .form-select, #create-new-quiz-form textarea { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #create-new-quiz-form .bi { font-size: 0.9rem; }
+                #create-new-quiz-form .mt-3, #create-new-quiz-form .mt-2 { margin-top: 0.5rem !important; }
+                #create-new-quiz-form .mb-4, #create-new-quiz-form .mb-3, #create-new-quiz-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #create-new-quiz-form .g-3, #create-new-quiz-form .gap-2 { gap: 0.5rem !important; }
+                #create-new-quiz-form .progress { height: 12px; }
+                #create-new-quiz-form h5, #create-new-quiz-form h6 { font-size: 1rem; }
+                #create-new-quiz-form .alert { padding: 0.5rem 0.75rem; }
+                #create-new-quiz-form .badge { font-size: 0.75rem; padding: 0.25em 0.4em; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-patch-question me-2"></i>Create New Quiz
+                        <i class="bi bi-patch-question me-1"></i>Create New Quiz
                     </h3>
                     <small class="text-muted">Create a modern New Quiz with advanced features and settings</small>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-4">
                             <label class="form-label fw-bold" for="new-quiz-course-id">
                                 <i class="bi bi-book me-1"></i>Course ID
                             </label>
-                            <input id="new-quiz-course-id" type="text" class="form-control" 
+                            <input id="new-quiz-course-id" type="text" class="form-control form-control-sm" 
                                    placeholder="Enter course ID" aria-describedby="new-quiz-course-help" />
                             <div id="new-quiz-course-help" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
@@ -799,24 +857,24 @@ async function createNewQuiz(e) {
                             <label class="form-label fw-bold" for="new-quiz-title">
                                 <i class="bi bi-tag me-1"></i>Quiz Title
                             </label>
-                            <input id="new-quiz-title" type="text" class="form-control" 
+                            <input id="new-quiz-title" type="text" class="form-control form-control-sm" 
                                    placeholder="Quiz Title" value="New Quiz" />
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold" for="new-quiz-count">
                                 <i class="bi bi-hash me-1"></i>Number of Quizzes
                             </label>
-                            <input id="new-quiz-count" type="number" class="form-control" 
+                            <input id="new-quiz-count" type="number" class="form-control form-control-sm" 
                                    min="1" max="50" value="1" />
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="new-quiz-description">
                                 <i class="bi bi-text-paragraph me-1"></i>Description (optional)
                             </label>
-                            <textarea id="new-quiz-description" class="form-control" rows="3" 
+                            <textarea id="new-quiz-description" class="form-control form-control-sm" rows="3" 
                                       placeholder="Quiz description or instructions"></textarea>
                         </div>
                         <div class="col-md-6">
@@ -841,7 +899,7 @@ async function createNewQuiz(e) {
                     </div>
                     
                     <!-- Question Types Section -->
-                    <div class="row mb-4">
+                    <div class="row mb-2">
                         <div class="col-12">
                             <div class="card">
                                 <div class="card-header">
@@ -850,12 +908,12 @@ async function createNewQuiz(e) {
                                     </h6>
                                 </div>
                                 <div class="card-body">
-                                    <div class="row g-3 mb-3">
+                                    <div class="row g-3 mb-2">
                                         <div class="col-md-6">
                                             <label class="form-label fw-bold" for="new-quiz-question-type">
                                                 Select Question Type
                                             </label>
-                                            <select id="new-quiz-question-type" class="form-select">
+                                            <select id="new-quiz-question-type" class="form-select form-select-sm">
                                                 <option value="">Choose a question type...</option>
                                                 <option value="multiple_choice">Multiple Choice</option>
                                                 <option value="multi_answer">Multiple Answer</option>
@@ -874,11 +932,11 @@ async function createNewQuiz(e) {
                                             <label class="form-label fw-bold" for="new-quiz-question-qty">
                                                 Quantity
                                             </label>
-                                            <input id="new-quiz-question-qty" type="number" class="form-control" 
+                                            <input id="new-quiz-question-qty" type="number" class="form-control form-control-sm" 
                                                    min="1" max="50" value="1" />
                                         </div>
                                         <div class="col-md-3 d-flex align-items-end">
-                                            <button type="button" class="btn btn-outline-primary w-100" id="add-question-type-btn">
+                                            <button type="button" class="btn btn-sm btn-outline-primary w-100" id="add-question-type-btn">
                                                 <i class="bi bi-plus me-1"></i>Add
                                             </button>
                                         </div>
@@ -901,11 +959,11 @@ async function createNewQuiz(e) {
                         </div>
                     </div>
                     
-                    <div class="row mb-4">
+                    <div class="row mb-2">
                         <div class="col-12">
                             <div class="d-grid">
-                                <button type="button" class="btn btn-success" id="create-new-quiz-btn" disabled>
-                                    <i class="bi bi-plus-circle me-2"></i>Create New Quiz
+                                <button type="button" class="btn btn-sm btn-success" id="create-new-quiz-btn" disabled>
+                                    <i class="bi bi-plus-circle me-1"></i>Create New Quiz
                                 </button>
                             </div>
                         </div>
@@ -914,15 +972,15 @@ async function createNewQuiz(e) {
             </div>
 
             <!-- Progress Card -->
-            <div class="card mt-3" id="create-new-quiz-progress-card" hidden>
+            <div class="card mt-2" id="create-new-quiz-progress-card" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-gear me-2"></i>Creating New Quiz
+                        <i class="bi bi-gear me-1"></i>Creating New Quiz
                     </h5>
                 </div>
                 <div class="card-body">
                     <p id="create-new-quiz-progress-info" class="mb-2"></p>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              id="create-new-quiz-progress-bar" style="width:0%" role="progressbar" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -932,7 +990,7 @@ async function createNewQuiz(e) {
             </div>
 
             <!-- Results Card -->
-            <div class="card mt-3" id="create-new-quiz-results-card" hidden>
+            <div class="card mt-2" id="create-new-quiz-results-card" hidden>
                 <div class="card-body" id="create-new-quiz-response-container"></div>
             </div>
         `;
@@ -1128,7 +1186,7 @@ async function createNewQuiz(e) {
                         resultsCard.hidden = false;
                         responseContainer.innerHTML = `
                             <div class="alert alert-success">
-                                <i class="bi bi-check-circle me-2"></i>
+                                <i class="bi bi-check-circle me-1"></i>
                                 <strong>Success!</strong> Created ${createQuizzesResponse.successful.length} new quiz${createQuizzesResponse.successful.length > 1 ? 'es' : ''} with ${questionTypes.length} question item${questionTypes.length > 1 ? 's' : ''} each.
                                 <br><br>
                                 <strong>Quiz IDs:</strong> ${quizzes.map(q => q.id).join(', ')}
@@ -1148,7 +1206,7 @@ async function createNewQuiz(e) {
                         resultsCard.hidden = false;
                         responseContainer.innerHTML = `
                             <div class="alert alert-success">
-                                <i class="bi bi-check-circle me-2"></i>
+                                <i class="bi bi-check-circle me-1"></i>
                                 <strong>Success!</strong> Created ${createQuizzesResponse.successful.length} new quiz${createQuizzesResponse.successful.length > 1 ? 'es' : ''}.
                                 <br><br>
                                 <strong>Quiz IDs:</strong> ${quizzes.map(q => q.id).join(', ')}
@@ -1167,7 +1225,7 @@ async function createNewQuiz(e) {
             resultsCard.hidden = false;
             responseContainer.innerHTML = `
                 <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <i class="bi bi-exclamation-triangle me-1"></i>
                     <strong>Error:</strong> ${error.message}
                 </div>
             `;
@@ -1187,28 +1245,45 @@ async function getRespondusQuizzes(e) {
         respondusQuizForm = document.createElement('form');
         respondusQuizForm.id = 'respondus-quiz-form';
         respondusQuizForm.innerHTML = `
+            <style>
+                #respondus-quiz-form .card-title { font-size: 1.1rem; }
+                #respondus-quiz-form .card-header small { font-size: 0.7rem; }
+                #respondus-quiz-form .form-label, #respondus-quiz-form .form-check-label { font-size: 0.85rem; }
+                #respondus-quiz-form .form-text { font-size: 0.7rem; }
+                #respondus-quiz-form .card-body { padding: 0.75rem; }
+                #respondus-quiz-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #respondus-quiz-form .form-control { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #respondus-quiz-form .bi { font-size: 0.9rem; }
+                #respondus-quiz-form .mt-3, #respondus-quiz-form .mt-2 { margin-top: 0.5rem !important; }
+                #respondus-quiz-form .mb-3, #respondus-quiz-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #respondus-quiz-form .gap-2 { gap: 0.5rem !important; }
+                #respondus-quiz-form .progress { height: 12px; }
+                #respondus-quiz-form h5 { font-size: 1rem; }
+                #respondus-quiz-form .alert { padding: 0.5rem 0.75rem; }
+                #respondus-quiz-form .list-group-item { padding: 0.5rem 0.75rem; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-lock me-2"></i>Get Respondus Quizzes
+                        <i class="bi bi-lock me-1"></i>Get Respondus Quizzes
                     </h3>
                     <small class="text-muted">Find and manage quizzes with Respondus LockDown Browser settings</small>
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-6 mb-3">
+                        <div class="col-6 mb-2">
                             <label for="respondus-course-id" class="form-label">Course ID(s)</label>
-                            <input type="text" class="form-control" id="respondus-course-id" 
+                            <input type="text" class="form-control form-control-sm" id="respondus-course-id" 
                                    placeholder="Enter course ID(s), comma-separated for multiple" required>
                             <small class="form-text text-muted">
                                 Examples: 12345 or 12345, 67890, 11111
                             </small>
                         </div>
                     </div>
-                    <button id="get-respondus-btn" type="button" class="btn btn-primary" disabled>Get Quizzes</button>
+                    <button id="get-respondus-btn" type="button" class="btn btn-sm btn-primary" disabled>Get Quizzes</button>
                     
-                    <div hidden id="respondus-quiz-list" class="mt-4">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div hidden id="respondus-quiz-list" class="mt-2">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
                             <div>
                                 <h5 class="mb-1">Quizzes with Respondus Settings</h5>
                                 <small class="text-muted" id="respondus-quiz-count"></small>
@@ -1222,17 +1297,17 @@ async function getRespondusQuizzes(e) {
                         </div>
                         
                         <!-- Search/Filter Bar -->
-                        <div class="input-group mb-3">
+                        <div class="input-group mb-2">
                             <span class="input-group-text"><i class="bi bi-search"></i></span>
-                            <input type="text" class="form-control" id="respondus-search" 
+                            <input type="text" class="form-control form-control-sm" id="respondus-search" 
                                    placeholder="Search by quiz title or course ID...">
-                            <button class="btn btn-outline-secondary" type="button" id="respondus-clear-search">
+                            <button class="btn btn-sm btn-outline-secondary" type="button" id="respondus-clear-search">
                                 <i class="bi bi-x"></i>
                             </button>
                         </div>
 
                         <!-- Quiz List with better styling for many items -->
-                        <div class="card mb-3">
+                        <div class="card mb-2">
                             <div class="card-body p-0">
                                 <div id="respondus-quiz-items" class="list-group list-group-flush" 
                                      style="max-height: 500px; overflow-y: auto;">
@@ -1242,10 +1317,10 @@ async function getRespondusQuizzes(e) {
                         </div>
 
                         <div class="d-flex gap-2">
-                            <button id="enable-respondus-btn" type="button" class="btn btn-success">
+                            <button id="enable-respondus-btn" type="button" class="btn btn-sm btn-success">
                                 <i class="bi bi-unlock me-1"></i>Enable Selected
                             </button>
-                            <button id="disable-respondus-btn" type="button" class="btn btn-warning">
+                            <button id="disable-respondus-btn" type="button" class="btn btn-sm btn-warning">
                                 <i class="bi bi-lock me-1"></i>Disable Selected
                             </button>
                         </div>
@@ -1253,11 +1328,11 @@ async function getRespondusQuizzes(e) {
 
                     <div hidden id="respondus-progress-div">
                         <p id="respondus-progress-info"></p>
-                        <div class="progress mt-3" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress mt-2" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                             <div class="progress-bar" style="width: 0%"></div>
                         </div>
                     </div>
-                    <div id="respondus-response-container" class="mt-3"></div>
+                    <div id="respondus-response-container" class="mt-2"></div>
                 </div>
             </div>
         `;
@@ -1389,7 +1464,7 @@ async function getRespondusQuizzes(e) {
             progressDiv.hidden = true;
             responseContainer.innerHTML = `
                 <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <i class="bi bi-exclamation-triangle me-1"></i>
                     Please enter at least one valid course ID.
                 </div>
             `;
@@ -1425,7 +1500,7 @@ async function getRespondusQuizzes(e) {
             if (allQuizzes.length === 0) {
                 responseContainer.innerHTML = `
                     <div class="alert alert-info">
-                        <i class="bi bi-info-circle me-2"></i>
+                        <i class="bi bi-info-circle me-1"></i>
                         No quizzes found with Respondus LockDown Browser settings in the specified course${courseIDs.length > 1 ? 's' : ''}.
                     </div>
                 `;
@@ -1455,7 +1530,7 @@ async function getRespondusQuizzes(e) {
 
             responseContainer.innerHTML = `
                 <div class="alert alert-success">
-                    <i class="bi bi-check-circle me-2"></i>
+                    <i class="bi bi-check-circle me-1"></i>
                     <strong>Success!</strong> Found ${allQuizzes.length} quiz${allQuizzes.length !== 1 ? 'zes' : ''} with Respondus settings.
                     <br><small>${courseSummary}</small>
                 </div>
@@ -1465,7 +1540,7 @@ async function getRespondusQuizzes(e) {
             progressDiv.hidden = true;
             responseContainer.innerHTML = `
                 <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <i class="bi bi-exclamation-triangle me-1"></i>
                     <strong>Error:</strong> ${error.message || error}
                 </div>
             `;
@@ -1498,7 +1573,7 @@ async function getRespondusQuizzes(e) {
         if (checkboxes.length === 0) {
             responseContainer.innerHTML = `
                 <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <i class="bi bi-exclamation-triangle me-1"></i>
                     Please select at least one quiz to update.
                 </div>
             `;
@@ -1581,7 +1656,7 @@ async function getRespondusQuizzes(e) {
 
             responseContainer.innerHTML = `
                 <div class="alert ${alertClass}">
-                    <i class="bi ${icon} me-2"></i>
+                    <i class="bi ${icon} me-1"></i>
                     ${message}
                 </div>
             `;
@@ -1595,7 +1670,7 @@ async function getRespondusQuizzes(e) {
             progressDiv.hidden = true;
             responseContainer.innerHTML = `
                 <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <i class="bi bi-exclamation-triangle me-1"></i>
                     <strong>Error:</strong> ${error.message || error}
                 </div>
             `;

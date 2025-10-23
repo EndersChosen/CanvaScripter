@@ -36,33 +36,66 @@ async function getPageViews(e) {
         // const eForm = document.createElement('form');
 
         getPageViewsForm.innerHTML = `
+            <style>
+                #get-page-views-form .card { font-size: 0.875rem; }
+                #get-page-views-form .card-header h3 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+                #get-page-views-form .card-header small { font-size: 0.75rem; }
+                #get-page-views-form .card-body { padding: 0.75rem; }
+                #get-page-views-form .form-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+                #get-page-views-form .form-control, #get-page-views-form .form-select { 
+                    font-size: 0.8rem; 
+                    padding: 0.25rem 0.5rem;
+                    height: auto;
+                }
+                #get-page-views-form .btn { 
+                    font-size: 0.8rem; 
+                    padding: 0.35rem 0.75rem;
+                }
+                #get-page-views-form .form-check { margin-bottom: 0.5rem; }
+                #get-page-views-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+                #get-page-views-form .mt-2 { margin-top: 0.5rem !important; }
+                #get-page-views-form .mt-3 { margin-top: 0.75rem !important; }
+                #get-page-views-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #get-page-views-form .mb-3 { margin-bottom: 0.75rem !important; }
+                #get-page-views-form .mb-4 { margin-bottom: 1rem !important; }
+                #get-page-views-form .progress { height: 12px !important; }
+                #get-page-views-form h5 { font-size: 1rem; }
+                #get-page-views-form h6 { font-size: 0.9rem; }
+                #get-page-views-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
+                #get-page-views-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+                #get-page-views-form .badge { font-size: 0.75rem; }
+                #get-page-views-form hr { margin: 0.5rem 0; }
+                #get-page-views-form .row { margin-bottom: 0.75rem; }
+                #get-page-views-form .g-3 { gap: 0.5rem !important; }
+                #get-page-views-form textarea { font-size: 0.8rem; padding: 0.25rem 0.5rem; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-graph-up me-2"></i>Get User Page Views
+                        <i class="bi bi-graph-up me-1"></i>Get User Page Views
                     </h3>
                     <small class="text-muted">Retrieve page view data for users with flexible input options</small>
                 </div>
                 <div class="card-body">
                     <!-- Input Type Selection -->
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-12">
                             <label class="form-label fw-bold">
                                 <i class="bi bi-list me-1"></i>Input Method
                             </label>
                             <div class="btn-group w-100" role="group" aria-label="Input type selection">
                                 <input type="radio" class="btn-check" name="input-type" id="single-user" value="single" checked>
-                                <label class="btn btn-outline-primary" for="single-user">
+                                <label class="btn btn-sm btn-outline-primary" for="single-user">
                                     <i class="bi bi-person me-1"></i>Single User
                                 </label>
                                 
                                 <input type="radio" class="btn-check" name="input-type" id="multi-user" value="multi">
-                                <label class="btn btn-outline-primary" for="multi-user">
+                                <label class="btn btn-sm btn-outline-primary" for="multi-user">
                                     <i class="bi bi-people me-1"></i>Multiple Users
                                 </label>
                                 
                                 <input type="radio" class="btn-check" name="input-type" id="file-upload" value="file">
-                                <label class="btn btn-outline-primary" for="file-upload">
+                                <label class="btn btn-sm btn-outline-primary" for="file-upload">
                                     <i class="bi bi-upload me-1"></i>File Upload
                                 </label>
                             </div>
@@ -70,12 +103,12 @@ async function getPageViews(e) {
                     </div>
                     
                     <!-- Single User Input -->
-                    <div class="row g-3 mb-4" id="single-user-section">
+                    <div class="row g-3 mb-2" id="single-user-section">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="user-id">
                                 <i class="bi bi-person me-1"></i>Canvas User ID
                             </label>
-                            <input type="text" id="user-id" class="form-control" 
+                            <input type="text" id="user-id" class="form-control form-control-sm" 
                                    placeholder="Enter user ID (e.g., 12345)" aria-describedby="input-checker">
                             <div id="input-checker" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
@@ -84,12 +117,12 @@ async function getPageViews(e) {
                     </div>
                     
                     <!-- Multi User Input -->
-                    <div class="row g-3 mb-4 d-none" id="multi-user-section">
+                    <div class="row g-3 mb-2 d-none" id="multi-user-section">
                         <div class="col-md-8">
                             <label class="form-label fw-bold" for="user-ids">
                                 <i class="bi bi-people me-1"></i>Canvas User IDs
                             </label>
-                            <textarea id="user-ids" class="form-control" rows="4" 
+                            <textarea id="user-ids" class="form-control form-control-sm" rows="4" 
                                       placeholder="Enter user IDs separated by commas (e.g., 12345, 67890, 11111)"></textarea>
                             <div id="multi-input-checker" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Please enter valid user IDs separated by commas
@@ -102,12 +135,12 @@ async function getPageViews(e) {
                     </div>
                     
                     <!-- File Upload Input -->
-                    <div class="row g-3 mb-4 d-none" id="file-upload-section">
+                    <div class="row g-3 mb-2 d-none" id="file-upload-section">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="user-file">
                                 <i class="bi bi-filetype-csv me-1"></i>User IDs File
                             </label>
-                            <input type="file" id="user-file" class="form-control" accept=".csv,.txt">
+                            <input type="file" id="user-file" class="form-control form-control-sm" accept=".csv,.txt">
                             <div id="file-input-checker" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Please select a valid CSV or TXT file
                             </div>
@@ -623,20 +656,47 @@ function userNotifications(e) {
         userNotificationsForm.id = 'user-notifications-form';
 
         userNotificationsForm.innerHTML = `
+            <style>
+                #user-notifications-form .card { font-size: 0.875rem; }
+                #user-notifications-form .card-header h3 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+                #user-notifications-form .card-header small { font-size: 0.75rem; }
+                #user-notifications-form .card-body { padding: 0.75rem; }
+                #user-notifications-form .form-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+                #user-notifications-form .form-control, #user-notifications-form .form-select { 
+                    font-size: 0.8rem; 
+                    padding: 0.25rem 0.5rem;
+                    height: auto;
+                }
+                #user-notifications-form .btn { 
+                    font-size: 0.8rem; 
+                    padding: 0.35rem 0.75rem;
+                }
+                #user-notifications-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+                #user-notifications-form .mt-2 { margin-top: 0.5rem !important; }
+                #user-notifications-form .mt-3 { margin-top: 0.75rem !important; }
+                #user-notifications-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #user-notifications-form .mb-3 { margin-bottom: 0.75rem !important; }
+                #user-notifications-form .mb-4 { margin-bottom: 1rem !important; }
+                #user-notifications-form .progress { height: 12px !important; }
+                #user-notifications-form h5 { font-size: 1rem; }
+                #user-notifications-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+                #user-notifications-form .row { margin-bottom: 0.75rem; }
+                #user-notifications-form .g-3 { gap: 0.5rem !important; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-bell me-2"></i>User Notification Preferences
+                        <i class="bi bi-bell me-1"></i>User Notification Preferences
                     </h3>
                     <small class="text-muted">Enable or disable all notifications for a user across all communication channels</small>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="user-id">
                                 <i class="bi bi-person me-1"></i>Canvas User ID
                             </label>
-                            <input type="text" id="user-id" class="form-control" 
+                            <input type="text" id="user-id" class="form-control form-control-sm" 
                                    placeholder="Enter user ID (e.g., 12345)" aria-describedby="user-input-checker">
                             <div id="user-input-checker" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
@@ -644,19 +704,19 @@ function userNotifications(e) {
                         </div>
                         <div class="col-md-6 d-flex align-items-end">
                             <div class="d-grid w-100">
-                                <button type="button" class="btn btn-outline-primary" id="fetch-comm-channels-btn" disabled>
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="fetch-comm-channels-btn" disabled>
                                     <i class="bi bi-download me-2"></i>Fetch Communication Channels
                                 </button>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-8">
                             <label class="form-label fw-bold" for="comm-channel-select">
                                 <i class="bi bi-envelope me-1"></i>Communication Channel
                             </label>
-                            <select id="comm-channel-select" class="form-select" disabled>
+                            <select id="comm-channel-select" class="form-select form-select-sm" disabled>
                                 <option value="">Select a communication channel...</option>
                             </select>
                             <div class="form-text text-muted">
@@ -666,12 +726,12 @@ function userNotifications(e) {
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="comm-channel-id">
                                 <i class="bi bi-hash me-1"></i>Communication Channel ID
                             </label>
-                            <input type="text" id="comm-channel-id" class="form-control" 
+                            <input type="text" id="comm-channel-id" class="form-control form-control-sm" 
                                    placeholder="Enter channel ID manually" aria-describedby="comm-input-checker">
                             <div id="comm-input-checker" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Must only contain numbers
@@ -683,10 +743,10 @@ function userNotifications(e) {
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-3">
                             <div class="d-grid">
-                                <button type="button" class="btn btn-success" id="enable-all-btn">
+                                <button type="button" class="btn btn-sm btn-success" id="enable-all-btn">
                                     <i class="bi bi-bell me-2"></i>Enable All Notifications
                                 </button>
                             </div>

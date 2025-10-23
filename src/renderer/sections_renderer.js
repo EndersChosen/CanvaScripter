@@ -8,20 +8,36 @@ function sectionsTemplate(e) {
     form = document.createElement('form');
     form.id = 'create-sections-form';
     form.innerHTML = `
+            <style>
+                #create-sections-form .card-title { font-size: 1.1rem; }
+                #create-sections-form .card-header small { font-size: 0.7rem; }
+                #create-sections-form .form-label { font-size: 0.85rem; }
+                #create-sections-form .form-text { font-size: 0.7rem; }
+                #create-sections-form .card-body { padding: 0.75rem; }
+                #create-sections-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #create-sections-form .form-control { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #create-sections-form .bi { font-size: 0.9rem; }
+                #create-sections-form .mt-3, #create-sections-form .mt-2 { margin-top: 0.5rem !important; }
+                #create-sections-form .mb-4, #create-sections-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #create-sections-form .g-3 { gap: 0.5rem !important; }
+                #create-sections-form .progress { height: 12px; }
+                #create-sections-form h5, #create-sections-form h6 { font-size: 1rem; }
+                #create-sections-form .alert { padding: 0.5rem 0.75rem; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-people me-2"></i>Create Course Sections
+                        <i class="bi bi-people me-1"></i>Create Course Sections
                     </h3>
                     <small class="text-muted">Add multiple sections to a course at once</small>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="course-id">
                                 <i class="bi bi-mortarboard-fill me-1"></i>Course ID
                             </label>
-                            <input type="text" class="form-control" id="course-id" 
+                            <input type="text" class="form-control form-control-sm" id="course-id" 
                                    placeholder="Enter course ID (e.g., 12345)" />
                             <div id="course-id-help" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Course ID must be a positive number.
@@ -31,7 +47,7 @@ function sectionsTemplate(e) {
                             <label class="form-label fw-bold" for="num-items">
                                 <i class="bi bi-hash me-1"></i>Number of Sections
                             </label>
-                            <input type="number" class="form-control" id="num-items" 
+                            <input type="number" class="form-control form-control-sm" id="num-items" 
                                    placeholder="How many sections?" min="1" max="100" />
                             <div id="num-items-help" class="form-text text-danger d-none">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Enter a number between 1 and 100.
@@ -39,12 +55,12 @@ function sectionsTemplate(e) {
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-8">
                             <label class="form-label fw-bold" for="name">
                                 <i class="bi bi-tag me-1"></i>Section Name Prefix
                             </label>
-                            <input type="text" class="form-control" id="name" 
+                            <input type="text" class="form-control form-control-sm" id="name" 
                                    placeholder="Section" value="Section" />
                             <div class="form-text text-muted">
                                 <i class="bi bi-info-circle me-1"></i>
@@ -53,11 +69,11 @@ function sectionsTemplate(e) {
                         </div>
                     </div>
                     
-                    <div class="row mb-4">
+                    <div class="row mb-2">
                         <div class="col-md-6">
                             <div class="d-grid">
-                                <button type="button" class="btn btn-success" id="create-btn" disabled>
-                                    <i class="bi bi-plus-circle me-2"></i>Create Sections
+                                <button type="button" class="btn btn-sm btn-success" id="create-btn" disabled>
+                                    <i class="bi bi-plus-circle me-1"></i>Create Sections
                                 </button>
                             </div>
                         </div>
@@ -66,15 +82,15 @@ function sectionsTemplate(e) {
             </div>
 
             <!-- Progress Card -->
-            <div class="card mt-3" id="progress-card" hidden>
+            <div class="card mt-2" id="progress-card" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-gear me-2"></i>Creating Sections
+                        <i class="bi bi-gear me-1"></i>Creating Sections
                     </h5>
                 </div>
                 <div class="card-body">
                     <p id="progress-info" class="mb-2"></p>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              id="progress-bar" style="width:0%" role="progressbar" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -85,7 +101,7 @@ function sectionsTemplate(e) {
             </div>
 
             <!-- Results Card -->
-            <div class="card mt-3" id="results-card" hidden>
+            <div class="card mt-2" id="results-card" hidden>
                 <div class="card-body" id="response"></div>
             </div>
         `;
@@ -153,9 +169,9 @@ function sectionsTemplate(e) {
     // Update button text based on validation
     if (isValid) {
       const count = parseInt(numItemsInput.value) || 0;
-      createBtn.innerHTML = `<i class="bi bi-plus-circle me-2"></i>Create ${count} Section${count !== 1 ? 's' : ''}`;
+      createBtn.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Create ${count} Section${count !== 1 ? 's' : ''}`;
     } else {
-      createBtn.innerHTML = `<i class="bi bi-plus-circle me-2"></i>Create Sections`;
+      createBtn.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Create Sections`;
     }
 
     return isValid;
@@ -259,7 +275,7 @@ function sectionsTemplate(e) {
     responseDiv.innerHTML = `
             <div class="alert alert-danger" role="alert">
                 <h5 class="alert-heading">
-                    <i class="bi bi-exclamation-triangle me-2"></i>Error
+                    <i class="bi bi-exclamation-triangle me-1"></i>Error
                 </h5>
                 <p class="mb-0">${message}</p>
             </div>
@@ -285,7 +301,7 @@ function sectionsTemplate(e) {
     let content = `
             <div class="alert ${alertClass}" role="alert">
                 <h5 class="alert-heading">
-                    <i class="${icon} me-2"></i>${title}
+                    <i class="${icon} me-1"></i>${title}
                 </h5>
                 <p class="mb-2">
                     <strong>${successful}</strong> of <strong>${totalRequested}</strong> sections created successfully.
@@ -312,8 +328,8 @@ function sectionsTemplate(e) {
 
     if (successful > 0) {
       content += `
-                <div class="mt-3">
-                    <h6><i class="bi bi-list me-2"></i>Created Sections:</h6>
+                <div class="mt-2">
+                    <h6><i class="bi bi-list me-1"></i>Created Sections:</h6>
                     <div class="row">
             `;
 

@@ -137,7 +137,7 @@ function generateAssetSelectionUI(assetData, importId) {
 
     return `
         <div class="import-assets-container" data-import-id="${importId}">
-            <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="fw-bold">Imported Content (${assetData.totalAll} items)</span>
                 <div class="btn-group btn-group-sm" role="group">
                     <button type="button" class="btn btn-outline-secondary select-all-btn">Select All</button>
@@ -148,7 +148,7 @@ function generateAssetSelectionUI(assetData, importId) {
             <div class="row g-2 asset-toggle-grid">
                 ${assetTypes.map(type => `
                     <div class="col-sm-6 col-lg-4">
-                        <button type="button" class="btn btn-outline-secondary w-100 d-flex justify-content-between align-items-center toggle-tile" 
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 d-flex justify-content-between align-items-center toggle-tile" 
                                 data-asset-type="${type.id}" aria-pressed="false">
                             <span>${type.label}</span>
                             <span class="badge bg-secondary">${type.count}</span>
@@ -290,13 +290,13 @@ async function handleDeleteSelectedAssets(container, domain, token, course_id, i
 
     // Create inline progress indicator in the container
     const progressDiv_inline = document.createElement('div');
-    progressDiv_inline.className = 'deletion-result alert alert-info mt-3';
+    progressDiv_inline.className = 'deletion-result alert alert-info mt-2';
     progressDiv_inline.innerHTML = `
         <div class="d-flex align-items-center mb-2">
-            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+            <div class="spinner-border spinner-border-sm me-1" role="status"></div>
             <span class="deletion-status">Preparing to delete selected content...</span>
         </div>
-        <div class="progress" style="height: 20px;">
+        <div class="progress" style="height: 12px;">
             <div class="progress-bar progress-bar-striped progress-bar-animated deletion-progress-bar" 
                  role="progressbar" style="width: 0%" 
                  aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -636,30 +636,30 @@ async function handleDeleteSelectedAssets(container, domain, token, course_id, i
                 ? `Failed to delete ${failedItemsList.join(', ')}`
                 : '';
             
-            progressDiv_inline.className = 'deletion-result alert alert-warning mt-3';
+            progressDiv_inline.className = 'deletion-result alert alert-warning mt-2';
             progressDiv_inline.innerHTML = `
-                <h6 class="alert-heading mb-3">
-                    <i class="bi bi-exclamation-triangle me-2"></i>Deletion Completed with Failures
+                <h6 class="alert-heading mb-2">
+                    <i class="bi bi-exclamation-triangle me-1"></i>Deletion Completed with Failures
                 </h6>
                 ${deletedSummary ? `<div class="mb-2"><strong>Successfully deleted:</strong> ${deletedSummary}</div>` : ''}
-                ${failedSummary ? `<div class="mb-3 text-danger"><strong>${failedSummary}</strong></div>` : ''}
+                ${failedSummary ? `<div class="mb-2 text-danger"><strong>${failedSummary}</strong></div>` : ''}
                 <hr>
                 <div>
                     <strong>Failure Details:</strong>
                     ${failureHTML}
                 </div>
-                <div class="mt-3 text-muted small">
+                <div class="mt-2 text-muted small">
                     <i class="bi bi-info-circle me-1"></i>You can select and delete other items from this import.
                 </div>
             `;
         } else {
-            progressDiv_inline.className = 'deletion-result alert alert-success mt-3';
+            progressDiv_inline.className = 'deletion-result alert alert-success mt-2';
             progressDiv_inline.innerHTML = `
                 <h6 class="alert-heading mb-2">
-                    <i class="bi bi-check-circle me-2"></i>Successfully Deleted
+                    <i class="bi bi-check-circle me-1"></i>Successfully Deleted
                 </h6>
                 ${deletedSummary ? `<div class="mb-2">${deletedSummary}</div>` : ''}
-                <div class="mt-3 text-muted small">
+                <div class="mt-2 text-muted small">
                     <i class="bi bi-info-circle me-1"></i>You can select and delete other items from this import.
                 </div>
             `;
@@ -679,10 +679,10 @@ async function handleDeleteSelectedAssets(container, domain, token, course_id, i
 
     } catch (error) {
         console.error('Delete error:', error);
-        progressDiv_inline.className = 'deletion-result alert alert-danger mt-3';
+        progressDiv_inline.className = 'deletion-result alert alert-danger mt-2';
         progressDiv_inline.innerHTML = `
             <h6 class="alert-heading mb-2">
-                <i class="bi bi-exclamation-circle me-2"></i>Error During Deletion
+                <i class="bi bi-exclamation-circle me-1"></i>Error During Deletion
             </h6>
             <div>${error.message || 'An unexpected error occurred while deleting content.'}</div>
         `;
@@ -800,10 +800,31 @@ async function deleteImportedContent(e) {
         form = document.createElement('form');
         form.id = 'imports-delete-form';
         form.innerHTML = `
+            <style>
+                #imports-delete-form .card-title { font-size: 1.1rem; }
+                #imports-delete-form .card-header small { font-size: 0.7rem; }
+                #imports-delete-form .form-label { font-size: 0.85rem; }
+                #imports-delete-form .form-text { font-size: 0.7rem; }
+                #imports-delete-form .card-body { padding: 0.75rem; }
+                #imports-delete-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #imports-delete-form .form-control { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #imports-delete-form .bi { font-size: 0.9rem; }
+                #imports-delete-form .g-3 { gap: 0.5rem !important; }
+                #imports-delete-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #imports-delete-form .mb-3 { margin-bottom: 0.5rem !important; }
+                #imports-delete-form .mt-3 { margin-top: 0.5rem !important; }
+                #imports-delete-form .progress { height: 12px; }
+                #imports-delete-form h5, #imports-delete-form h6 { font-size: 1rem; }
+                #imports-delete-form .alert { padding: 0.5rem 0.75rem; font-size: 0.85rem; }
+                #imports-delete-form .spinner-border-sm { width: 0.9rem; height: 0.9rem; }
+                #imports-delete-form .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+                #imports-delete-form .btn-group-sm > .btn { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+                #imports-delete-form .badge { font-size: 0.75rem; padding: 0.25em 0.4em; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-cloud-download me-2"></i>Import Items Cleaner
+                        <i class="bi bi-cloud-download me-1"></i>Import Items Cleaner
                     </h3>
                     <small class="text-muted">Enter a Course ID to view and manage imports with their assets</small>
                 </div>
@@ -813,7 +834,7 @@ async function deleteImportedContent(e) {
                             <label for="course-id" class="form-label fw-bold">
                                 <i class="bi bi-book me-1"></i>Course ID
                             </label>
-                            <input id="course-id" type="text" class="form-control" 
+                            <input id="course-id" type="text" class="form-control form-control-sm" 
                                    aria-describedby="course-id-help" inputmode="numeric" 
                                    placeholder="Enter course ID" />
                             <div id="course-id-help" class="form-text text-muted">
@@ -824,7 +845,7 @@ async function deleteImportedContent(e) {
                             </div>
                         </div>
                         <div class="col-auto d-flex align-items-end">
-                            <button id="list-imports-btn" type="button" class="btn btn-primary" disabled>
+                            <button id="list-imports-btn" type="button" class="btn btn-sm btn-primary" disabled>
                                 <i class="bi bi-list me-1"></i>List Imports with Assets
                             </button>
                         </div>
@@ -833,15 +854,15 @@ async function deleteImportedContent(e) {
             </div>
 
             <!-- Progress Card -->
-            <div class="card mt-3" id="imports-progress-div" hidden>
+            <div class="card mt-2" id="imports-progress-div" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-gear me-2"></i>Processing Import
+                        <i class="bi bi-gear me-1"></i>Processing Import
                     </h5>
                 </div>
                 <div class="card-body">
                     <p id="imports-progress-info" class="mb-2">Preparing...</p>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              role="progressbar" style="width: 0%" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -855,7 +876,7 @@ async function deleteImportedContent(e) {
             </div>
 
             <!-- Results Card -->
-            <div class="card mt-3" id="imports-list-container-card" hidden>
+            <div class="card mt-2" id="imports-list-container-card" hidden>
                 <div class="card-body" id="imports-list-container"></div>
             </div>
         `;
@@ -1027,7 +1048,7 @@ async function deleteImportedContent(e) {
                         </div>
                         <div class="import-card-content">
                             <div class="card-body">
-                                <div class="row mb-3">
+                                <div class="row mb-2">
                                     <div class="col-sm-4"><strong>User ID:</strong> ${userIdLink}</div>
                                     <div class="col-sm-4"><strong>Source Course:</strong> ${courseIdLink}</div>
                                     <div class="col-sm-4"><strong>Created:</strong> <small class="text-muted">${created}</small></div>
@@ -1057,7 +1078,7 @@ async function deleteImportedContent(e) {
                             <h6 class="mb-0">Recent Imports with Assets (${imports.length} found)</h6>
                             <small class="text-muted">Click the arrow to expand and view/select imported content for deletion</small>
                         </div>
-                        <button type="button" id="delete-all-selected-btn" class="btn btn-danger" disabled>
+                        <button type="button" id="delete-all-selected-btn" class="btn btn-sm btn-danger" disabled>
                             <i class="bi bi-trash me-1"></i>Delete Selected from All Imports
                         </button>
                     </div>
@@ -1104,13 +1125,13 @@ async function deleteImportedContent(e) {
                     
                     // Create a global progress indicator
                     const globalProgressDiv = document.createElement('div');
-                    globalProgressDiv.className = 'alert alert-info mt-3';
+                    globalProgressDiv.className = 'alert alert-info mt-2';
                     globalProgressDiv.innerHTML = `
                         <div class="d-flex align-items-center mb-2">
-                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                            <div class="spinner-border spinner-border-sm me-1" role="status"></div>
                             <span class="global-deletion-status">Deleting selected content from all imports...</span>
                         </div>
-                        <div class="progress" style="height: 20px;">
+                        <div class="progress" style="height: 12px;">
                             <div class="progress-bar progress-bar-striped progress-bar-animated global-deletion-progress-bar" 
                                  role="progressbar" style="width: 0%" 
                                  aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -1319,19 +1340,19 @@ async function deleteImportedContent(e) {
                         globalProgressPercent.textContent = '100%';
                         
                         if (totalFailed > 0) {
-                            globalProgressDiv.className = 'alert alert-warning mt-3';
+                            globalProgressDiv.className = 'alert alert-warning mt-2';
                             globalProgressDiv.innerHTML = `
-                                <h6 class="alert-heading mb-3">
-                                    <i class="bi bi-exclamation-triangle me-2"></i>Deletion Completed with Failures
+                                <h6 class="alert-heading mb-2">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Deletion Completed with Failures
                                 </h6>
                                 ${deletedItemsList.length > 0 ? `<div class="mb-2"><strong>Successfully deleted:</strong> ${deletedItemsList.join(', ')}</div>` : ''}
                                 ${failedItemsList.length > 0 ? `<div class="mb-2 text-danger"><strong>Failed to delete:</strong> ${failedItemsList.join(', ')}</div>` : ''}
                             `;
                         } else {
-                            globalProgressDiv.className = 'alert alert-success mt-3';
+                            globalProgressDiv.className = 'alert alert-success mt-2';
                             globalProgressDiv.innerHTML = `
                                 <h6 class="alert-heading mb-2">
-                                    <i class="bi bi-check-circle me-2"></i>Successfully Deleted
+                                    <i class="bi bi-check-circle me-1"></i>Successfully Deleted
                                 </h6>
                                 ${deletedItemsList.length > 0 ? `<div class="mb-2">${deletedItemsList.join(', ')}</div>` : ''}
                             `;
@@ -1354,10 +1375,10 @@ async function deleteImportedContent(e) {
                         
                     } catch (error) {
                         console.error('Global delete error:', error);
-                        globalProgressDiv.className = 'alert alert-danger mt-3';
+                        globalProgressDiv.className = 'alert alert-danger mt-2';
                         globalProgressDiv.innerHTML = `
                             <h6 class="alert-heading mb-2">
-                                <i class="bi bi-exclamation-circle me-2"></i>Error During Deletion
+                                <i class="bi bi-exclamation-circle me-1"></i>Error During Deletion
                             </h6>
                             <div>${error.message || 'An unexpected error occurred while deleting content.'}</div>
                         `;

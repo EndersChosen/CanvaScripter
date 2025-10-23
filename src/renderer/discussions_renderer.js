@@ -8,20 +8,38 @@ function discussionTemplate(e) {
     form = document.createElement('form');
     form.id = 'create-discussions-form';
     form.innerHTML = `
+            <style>
+                #create-discussions-form .card-title { font-size: 1.1rem; }
+                #create-discussions-form .card-header small { font-size: 0.7rem; }
+                #create-discussions-form .form-label,
+                #create-discussions-form .form-check-label { font-size: 0.85rem; }
+                #create-discussions-form .form-text { font-size: 0.7rem; }
+                #create-discussions-form .card-body { padding: 0.75rem; }
+                #create-discussions-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #create-discussions-form .form-control { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #create-discussions-form .bi { font-size: 0.9rem; }
+                #create-discussions-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #create-discussions-form .mb-4 { margin-bottom: 0.5rem !important; }
+                #create-discussions-form .mt-3 { margin-top: 0.5rem !important; }
+                #create-discussions-form .g-3 { gap: 0.5rem !important; }
+                #create-discussions-form .progress { height: 12px; }
+                #create-discussions-form h5 { font-size: 1rem; }
+                #create-discussions-form .alert { padding: 0.5rem 0.75rem; font-size: 0.85rem; }
+            </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-chat-dots me-2"></i>Create Course Discussions
+                        <i class="bi bi-chat-dots me-1"></i>Create Course Discussions
                     </h3>
                     <small class="text-muted">Add multiple discussion topics to a course at once</small>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="course-id">
                                 <i class="bi bi-mortarboard-fill me-1"></i>Course ID
                             </label>
-                            <input type="text" class="form-control" id="course-id" 
+                            <input type="text" class="form-control form-control-sm" id="course-id" 
                                    placeholder="Enter course ID (e.g., 12345)" />
                             <div id="course-id-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Course ID must be a positive number.
@@ -31,7 +49,7 @@ function discussionTemplate(e) {
                             <label class="form-label fw-bold" for="num-items">
                                 <i class="bi bi-hash me-1"></i>Number of Discussions
                             </label>
-                            <input type="number" class="form-control" id="num-items" 
+                            <input type="number" class="form-control form-control-sm" id="num-items" 
                                    placeholder="How many discussions?" min="1" max="100" />
                             <div id="num-items-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Enter a number between 1 and 100.
@@ -39,12 +57,12 @@ function discussionTemplate(e) {
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="title">
                                 <i class="bi bi-tag me-1"></i>Title Prefix
                             </label>
-                            <input type="text" class="form-control" id="title" 
+                            <input type="text" class="form-control form-control-sm" id="title" 
                                    placeholder="Discussion" value="Discussion" />
                             <div class="form-text text-muted">
                                 <i class="bi bi-info-circle me-1"></i>
@@ -55,7 +73,7 @@ function discussionTemplate(e) {
                             <label class="form-label fw-bold" for="message">
                                 <i class="bi bi-pencil me-1"></i>Message (Optional)
                             </label>
-                            <input type="text" class="form-control" id="message" 
+                            <input type="text" class="form-control form-control-sm" id="message" 
                                    placeholder="Optional discussion content" />
                             <div class="form-text text-muted">
                                 <i class="bi bi-info-circle me-1"></i>
@@ -64,7 +82,7 @@ function discussionTemplate(e) {
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4">
+                    <div class="row g-3 mb-2">
                         <div class="col-md-4">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" role="switch" 
@@ -104,23 +122,23 @@ function discussionTemplate(e) {
                         </div>
                     </div>
                     
-                    <div class="row g-3 mb-4" id="delayed-post-row" style="display: none;">
+                    <div class="row g-3 mb-2" id="delayed-post-row" style="display: none;">
                         <div class="col-md-6">
                             <label class="form-label fw-bold" for="delayed_post_at">
                                 <i class="bi bi-calendar-event me-1"></i>Post Date & Time
                             </label>
-                            <input type="datetime-local" class="form-control" id="delayed_post_at" disabled />
+                            <input type="datetime-local" class="form-control form-control-sm" id="delayed_post_at" disabled />
                             <div id="delayed-post-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Choose a valid date/time when delay is enabled.
                             </div>
                         </div>
                     </div>
                     
-                    <div class="row mb-4">
+                    <div class="row mb-2">
                         <div class="col-md-6">
                             <div class="d-grid">
-                                <button type="button" class="btn btn-success" id="create-btn" disabled>
-                                    <i class="bi bi-plus-circle me-2"></i>Create Discussions
+                                <button type="button" class="btn btn-sm btn-success" id="create-btn" disabled>
+                                    <i class="bi bi-plus-circle me-1"></i>Create Discussions
                                 </button>
                             </div>
                         </div>
@@ -129,15 +147,15 @@ function discussionTemplate(e) {
             </div>
 
             <!-- Progress Card -->
-            <div class="card mt-3" id="progress-card" hidden>
+            <div class="card mt-2" id="progress-card" hidden>
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-gear me-2"></i>Creating Discussions
+                        <i class="bi bi-gear me-1"></i>Creating Discussions
                     </h5>
                 </div>
                 <div class="card-body">
                     <p id="progress-info" class="mb-2"></p>
-                    <div class="progress mb-2" style="height: 15px;">
+                    <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              id="progress-bar" style="width:0%" role="progressbar" 
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -148,7 +166,7 @@ function discussionTemplate(e) {
             </div>
 
             <!-- Results Card -->
-            <div class="card mt-3" id="results-card" hidden>
+            <div class="card mt-2" id="results-card" hidden>
                 <div class="card-body" id="response"></div>
             </div>
         `;
@@ -242,9 +260,9 @@ function discussionTemplate(e) {
     // Update button text based on validation
     if (isValid) {
       const count = parseInt(numItemsInput.value) || 0;
-      createBtn.innerHTML = `<i class="bi bi-plus-circle me-2"></i>Create ${count} Discussion${count !== 1 ? 's' : ''}`;
+      createBtn.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Create ${count} Discussion${count !== 1 ? 's' : ''}`;
     } else {
-      createBtn.innerHTML = `<i class="bi bi-plus-circle me-2"></i>Create Discussions`;
+      createBtn.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Create Discussions`;
     }
 
     return isValid;
@@ -337,15 +355,15 @@ function discussionTemplate(e) {
       let message = '';
 
       if (failed === 0) {
-        message = `<i class="${icon} me-2"></i><strong>Success!</strong> Created ${successful} discussion${successful !== 1 ? 's' : ''}.`;
+        message = `<i class="${icon} me-1"></i><strong>Success!</strong> Created ${successful} discussion${successful !== 1 ? 's' : ''}.`;
       } else if (successful > 0) {
         icon = 'bi bi-exclamation-triangle';
         alertClass = 'alert-warning';
-        message = `<i class="${icon} me-2"></i><strong>Partial Success:</strong> Created ${successful} discussion${successful !== 1 ? 's' : ''}, but ${failed} failed.`;
+        message = `<i class="${icon} me-1"></i><strong>Partial Success:</strong> Created ${successful} discussion${successful !== 1 ? 's' : ''}, but ${failed} failed.`;
       } else {
         icon = 'bi bi-x-circle';
         alertClass = 'alert-danger';
-        message = `<i class="${icon} me-2"></i><strong>Error:</strong> All discussions failed to create.`;
+        message = `<i class="${icon} me-1"></i><strong>Error:</strong> All discussions failed to create.`;
       }
 
       responseDiv.innerHTML = `<div class="alert ${alertClass}" role="alert">${message}</div>`;
@@ -355,7 +373,7 @@ function discussionTemplate(e) {
       resultsCard.hidden = false;
       responseDiv.innerHTML = `
         <div class="alert alert-danger" role="alert">
-          <i class="bi bi-exclamation-triangle me-2"></i><strong>Error:</strong> ${err?.message || String(err)}
+          <i class="bi bi-exclamation-triangle me-1"></i><strong>Error:</strong> ${err?.message || String(err)}
         </div>
       `;
     } finally {
