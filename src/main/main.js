@@ -66,6 +66,13 @@ const os = require('os');
 let debugLoggingEnabled = false;
 let logStream = null;
 
+// Helper function to get batch configuration from environment variables
+const getBatchConfig = (overrides = {}) => {
+    const batchSize = overrides.batchSize || Math.max(1, Number(process.env.BATCH_CONCURRENCY) || 35);
+    const timeDelay = overrides.timeDelay || Math.max(0, Number(process.env.TIME_DELAY) || 2000);
+    return { batchSize, timeDelay, ...overrides };
+};
+
 // === Local helpers (CSV + text normalization) ===
 // NOTE: These were previously only in a test file (test_csv_parse.js). They are
 // required at runtime by the fileUpload:resetEmails handler.
@@ -1084,21 +1091,81 @@ function registerSisIpcHandlers() {
             
             console.log('Raw Canvas users data:', JSON.stringify(users, null, 2));
             
+            // Helper function to normalize quotes (convert curly/smart quotes to straight quotes)
+            function normalizeQuotes(text) {
+                if (!text) return text;
+                // Replace various quote characters with standard ASCII quotes
+                return text
+                    .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')  // curly double quotes
+                    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'"); // curly single quotes
+            }
+            
+            // Helper function to split name while respecting quoted sections
+            function splitNameWithQuotes(fullName) {
+                // First normalize any curly quotes to straight quotes
+                const name = normalizeQuotes((fullName || '').trim());
+                if (!name) return { firstName: '', lastName: '' };
+                
+                // Find all quoted sections
+                const quotedSections = [];
+                const quoteRegex = /"[^"]*"/g;
+                let match;
+                while ((match = quoteRegex.exec(name)) !== null) {
+                    quotedSections.push({
+                        start: match.index,
+                        end: match.index + match[0].length,
+                        text: match[0]
+                    });
+                }
+                
+                // If no quotes, use simple split
+                if (quotedSections.length === 0) {
+                    const parts = name.split(/\s+/);
+                    return {
+                        firstName: parts[0] || '',
+                        lastName: parts.slice(1).join(' ') || ''
+                    };
+                }
+                
+                // Replace quoted sections with placeholders to split safely
+                let safeName = name;
+                const placeholders = [];
+                quotedSections.reverse().forEach((section, index) => {
+                    const placeholder = `__QUOTE_${index}__`;
+                    placeholders.push({ placeholder, text: section.text });
+                    safeName = safeName.substring(0, section.start) + placeholder + safeName.substring(section.end);
+                });
+                
+                // Split on whitespace
+                const parts = safeName.split(/\s+/);
+                
+                // Restore quoted sections
+                const restoredParts = parts.map(part => {
+                    const placeholderMatch = placeholders.find(p => part.includes(p.placeholder));
+                    if (placeholderMatch) {
+                        return part.replace(placeholderMatch.placeholder, placeholderMatch.text);
+                    }
+                    return part;
+                });
+                
+                return {
+                    firstName: restoredParts[0] || '',
+                    lastName: restoredParts.slice(1).join(' ') || ''
+                };
+            }
+            
             // Transform Canvas user data to SIS CSV format
             const sisUsers = users.map(user => {
-                // Split name into parts more carefully
-                const nameParts = (user.name || '').trim().split(/\s+/);
-                const firstName = nameParts[0] || '';
-                const lastName = nameParts.slice(1).join(' ') || '';
+                const { firstName, lastName } = splitNameWithQuotes(user.name);
                 
                 return {
                     user_id: user.sis_user_id || '',
                     login_id: user.login_id || '',
                     first_name: firstName,
                     last_name: lastName,
-                    full_name: user.name || '',
-                    sortable_name: user.sortable_name || '',
-                    short_name: user.short_name || '',
+                    full_name: normalizeQuotes(user.name || ''),
+                    sortable_name: normalizeQuotes(user.sortable_name || ''),
+                    short_name: normalizeQuotes(user.short_name || ''),
                     email: user.email || '',
                     status: 'active'
                 };
@@ -1224,13 +1291,6 @@ app.whenReady().then(() => {
     setDebugLogging(true); // Enable debug logging by default; user can toggle via menu
     console.log('BATCH_CONCURRENCY (env):', process.env.BATCH_CONCURRENCY);
     console.log('TIME_DELAY (env):', process.env.TIME_DELAY);
-    
-    // Helper function to get batch configuration from environment variables
-    const getBatchConfig = (overrides = {}) => {
-        const batchSize = overrides.batchSize || Math.max(1, Number(process.env.BATCH_CONCURRENCY) || 35);
-        const timeDelay = overrides.timeDelay || Math.max(0, Number(process.env.TIME_DELAY) || 2000);
-        return { batchSize, timeDelay, ...overrides };
-    };
 
     // Cancellable subject search (per renderer)
     const getConvosControllers = new Map(); // senderId -> AbortController

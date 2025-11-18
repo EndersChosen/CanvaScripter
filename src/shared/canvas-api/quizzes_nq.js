@@ -62,6 +62,7 @@ function mapTypeToSlug(type) {
         case 'file_upload': return 'file-upload';
         case 'formula': return 'formula';
         case 'ordering': return 'ordering';
+        case 'stimulus': return 'stimulus'; // special type for stimulus
         default: return null; // unsupported or not yet implemented
     }
 }
@@ -267,6 +268,20 @@ function buildMinimalEntryForType(uiType, position) {
                 scoring_algorithm: 'DeepEquals'
             };
         }
+        case 'stimulus': {
+            // Stimulus is a special entry type that serves as a shared context for multiple questions
+            // It doesn't have scoring data or interaction data like regular questions
+            return {
+                title: `Stimulus ${position}`,
+                orientation: 'left', // or 'right' - where the stimulus appears relative to questions
+                body: '<p>This is the stimulus body. It provides context for related questions.</p>',
+                instructions: 'Read the stimulus and answer the following questions.',
+                parent_stimulus_id: null, // can be used to nest stimuli
+                source_url: '', // optional URL for external content
+                stimulus_type: 'text', // 'text' is the most common type
+                passage: false // whether this is a reading passage
+            };
+        }
         default:
             return null;
     }
@@ -283,29 +298,63 @@ async function addItemsToNewQuiz(data) {
             console.log(`[new-quiz-items] Skipping unsupported type: ${uiType}`);
             continue;
         }
-        const itemPayload = {
-            entry_type: 'Item',
-            points_possible: 1,
-            position,
-            entry
-        };
-        const axiosConfig = {
-            method: 'post',
-            url: `https://${data.domain}/api/quiz/v1/courses/${data.course_id}/quizzes/${data.quiz_id}/items`,
-            headers: { Authorization: `Bearer ${data.token}`, 'Content-Type': 'application/json' },
-            data: { item: itemPayload }
-        };
-        try {
-            const request = async () => axios(axiosConfig);
-            const response = await errorCheck(request);
-            created.push(response.data);
-            if (typeof data.onQuestionCreated === 'function') {
-                try { data.onQuestionCreated(response.data); } catch { /* ignore */ }
+        
+        // Stimulus questions use a different API endpoint
+        if (uiType === 'stimulus') {
+            const stimulusPayload = {
+                orientation: entry.orientation,
+                body: entry.body,
+                instructions: entry.instructions,
+                parent_stimulus_id: entry.parent_stimulus_id,
+                source_url: entry.source_url,
+                stimulus_type: entry.stimulus_type,
+                title: entry.title,
+                passage: entry.passage
+            };
+            const axiosConfig = {
+                method: 'post',
+                url: `https://${data.domain}/api/quizzes/${data.quiz_id}/stimuli`,
+                headers: { Authorization: `Bearer ${data.token}`, 'Content-Type': 'application/json' },
+                data: stimulusPayload
+            };
+            try {
+                const request = async () => axios(axiosConfig);
+                const response = await errorCheck(request);
+                created.push(response.data);
+                if (typeof data.onQuestionCreated === 'function') {
+                    try { data.onQuestionCreated(response.data); } catch { /* ignore */ }
+                }
+                position++;
+            } catch (error) {
+                console.log(`[new-quiz-items] Failed to create stimulus:`, error?.response?.status, error?.response?.data || error.message);
+                // continue with next
             }
-            position++;
-        } catch (error) {
-            console.log(`[new-quiz-items] Failed to create ${uiType} item:`, error?.response?.status, error?.response?.data || error.message);
-            // continue with next
+        } else {
+            // Regular question item
+            const itemPayload = {
+                entry_type: 'Item',
+                points_possible: 1,
+                position,
+                entry
+            };
+            const axiosConfig = {
+                method: 'post',
+                url: `https://${data.domain}/api/quiz/v1/courses/${data.course_id}/quizzes/${data.quiz_id}/items`,
+                headers: { Authorization: `Bearer ${data.token}`, 'Content-Type': 'application/json' },
+                data: { item: itemPayload }
+            };
+            try {
+                const request = async () => axios(axiosConfig);
+                const response = await errorCheck(request);
+                created.push(response.data);
+                if (typeof data.onQuestionCreated === 'function') {
+                    try { data.onQuestionCreated(response.data); } catch { /* ignore */ }
+                }
+                position++;
+            } catch (error) {
+                console.log(`[new-quiz-items] Failed to create ${uiType} item:`, error?.response?.status, error?.response?.data || error.message);
+                // continue with next
+            }
         }
     }
     return created;

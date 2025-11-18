@@ -611,6 +611,7 @@ async function addQuestionsNQ(e) {
                             <option value="ordering">Ordering</option>
                             <option value="fill_in_blank">Fill in the Blank</option>
                             <option value="numeric">Numeric</option>
+                            <!-- <option value="stimulus">Stimulus</option> -->
                         </select>
                     </div>         
                 </div>
@@ -926,6 +927,7 @@ async function createNewQuiz(e) {
                                                 <option value="ordering">Ordering</option>
                                                 <option value="file_upload">File Upload</option>
                                                 <option value="formula">Formula</option>
+                                                <!-- <option value="stimulus">Stimulus</option> -->
                                             </select>
                                         </div>
                                         <div class="col-md-3">
@@ -999,19 +1001,21 @@ async function createNewQuiz(e) {
     }
     createNewQuizForm.hidden = false;
 
-    // Add event listeners and validation
-    const courseInput = createNewQuizForm.querySelector('#new-quiz-course-id');
-    const createBtn = createNewQuizForm.querySelector('#create-new-quiz-btn');
-    const courseHelp = createNewQuizForm.querySelector('#new-quiz-course-help');
-    
-    // Question type management
-    const questionTypeSelect = createNewQuizForm.querySelector('#new-quiz-question-type');
-    const questionQtyInput = createNewQuizForm.querySelector('#new-quiz-question-qty');
-    const addQuestionBtn = createNewQuizForm.querySelector('#add-question-type-btn');
-    const clearQuestionsBtn = createNewQuizForm.querySelector('#clear-question-types-btn');
-    const selectedQuestionsDiv = createNewQuizForm.querySelector('#selected-question-types');
-    
-    const selectedQuestionTypes = new Map(); // type -> qty
+    // Attach listeners only once to avoid duplicate submissions when reopening this view
+    if (createNewQuizForm.dataset.bound !== 'true') {
+        // Add event listeners and validation
+        const courseInput = createNewQuizForm.querySelector('#new-quiz-course-id');
+        const createBtn = createNewQuizForm.querySelector('#create-new-quiz-btn');
+        const courseHelp = createNewQuizForm.querySelector('#new-quiz-course-help');
+        
+        // Question type management
+        const questionTypeSelect = createNewQuizForm.querySelector('#new-quiz-question-type');
+        const questionQtyInput = createNewQuizForm.querySelector('#new-quiz-question-qty');
+        const addQuestionBtn = createNewQuizForm.querySelector('#add-question-type-btn');
+        const clearQuestionsBtn = createNewQuizForm.querySelector('#clear-question-types-btn');
+        const selectedQuestionsDiv = createNewQuizForm.querySelector('#selected-question-types');
+        
+        const selectedQuestionTypes = new Map(); // type -> qty
 
     function updateSelectedQuestionTypesDisplay() {
         if (selectedQuestionTypes.size === 0) {
@@ -1232,6 +1236,12 @@ async function createNewQuiz(e) {
             createBtn.disabled = false;
         }
     });
+
+        // mark listeners as attached
+        createNewQuizForm.dataset.bound = 'true';
+    }
+
+    // (no-op else; listeners already bound previously)
 }
 
 // Get Respondus Quizzes function
