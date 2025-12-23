@@ -200,21 +200,67 @@ async function createSingleSISFile(e) {
                                 </div>
                                 <div id="field-config-collapse" class="collapse show">
                                     <div class="card-body">
+                                        <!-- File Import Section -->
+                                        <div class="alert alert-info mb-3">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <i class="bi bi-file-earmark-arrow-up me-2"></i>
+                                                <strong>Import IDs from File</strong>
+                                            </div>
+                                            <p class="mb-2 small">Import a list of IDs from a file (one ID per line, or CSV with header). The file values will be used for one field, while other fields use your configuration below.</p>
+                                            <div class="row g-2">
+                                                <div class="col-md-6">
+                                                    <label class="form-label small mb-1">Field to populate from file:</label>
+                                                    <select id="file-import-field" class="form-select form-select-sm">
+                                                        <option value="">Don't use file import</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label small mb-1">Select file:</label>
+                                                    <div class="input-group input-group-sm">
+                                                        <input type="text" id="file-import-path" class="form-control form-control-sm" placeholder="No file selected" readonly>
+                                                        <button type="button" id="browse-import-file" class="btn btn-outline-secondary btn-sm" disabled>
+                                                            <i class="bi bi-folder2-open"></i>
+                                                        </button>
+                                                        <button type="button" id="clear-import-file" class="btn btn-outline-danger btn-sm" style="display: none;">
+                                                            <i class="bi bi-x-circle"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div id="file-import-preview" class="mt-2" style="display: none;">
+                                                <small class="text-muted">
+                                                    <i class="bi bi-check-circle text-success me-1"></i>
+                                                    <span id="file-import-count">0</span> IDs loaded from file
+                                                </small>
+                                            </div>
+                                        </div>
+                                        
                                         <div id="field-checkboxes-container">
                                             <!-- Dynamic field checkboxes will be added here -->
                                         </div>
                                     </div>
-                                    <div class="card-footer">
-                                    <button type="button" id="add-manual-row" class="btn btn-sm btn-success me-2">
-                                        <i class="bi bi-plus-circle me-1"></i>Add Row from Configuration
-                                    </button>
-                                    <button type="button" id="add-random-rows" class="btn btn-sm btn-outline-success me-2">
-                                        <i class="bi bi-shuffle me-1"></i>Add Random Rows
-                                    </button>
-                                    <button type="button" id="clear-all-rows" class="btn btn-sm btn-outline-danger">
-                                        <i class="bi bi-trash me-1"></i>Clear All Rows
-                                    </button>
-                                    <small class="text-muted ms-3">Add individual custom rows or generate multiple random rows</small>
+                                    <div class="card-footer" id="field-config-footer">
+                                    <div id="standard-mode-buttons">
+                                        <button type="button" id="add-manual-row" class="btn btn-sm btn-success me-2">
+                                            <i class="bi bi-plus-circle me-1"></i>Add Row from Configuration
+                                        </button>
+                                        <button type="button" id="add-random-rows" class="btn btn-sm btn-outline-success me-2">
+                                            <i class="bi bi-shuffle me-1"></i>Add Random Rows
+                                        </button>
+                                        <button type="button" id="clear-all-rows" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash me-1"></i>Clear All Rows
+                                        </button>
+                                        <small class="text-muted ms-3">Add individual custom rows or generate multiple random rows</small>
+                                    </div>
+                                    <div id="large-file-mode-buttons" style="display: none;">
+                                        <button type="button" id="generate-csv-from-config" class="btn btn-sm btn-primary me-2">
+                                            <i class="bi bi-file-earmark-arrow-down me-1"></i>Generate CSV from Configuration
+                                        </button>
+                                        <button type="button" id="generate-csv-random" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-shuffle me-1"></i>Generate CSV with Random Data
+                                        </button>
+                                        <small class="text-muted ms-3">Large file mode - rows generated directly to file</small>
+                                    </div>
                                     </div>
                                 </div>
                             </div>
@@ -245,16 +291,6 @@ async function createSingleSISFile(e) {
                         </div>
                     </div>
                     
-                    <div class="row mb-3">
-                        <div class="col-12">
-                            <label for="output-path" class="form-label">Output Folder</label>
-                            <div class="input-group">
-                                <input type="text" id="output-path" class="form-control" placeholder="Select output folder..." readonly>
-                                <button type="button" id="browse-folder" class="btn btn-outline-secondary">Browse</button>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="row mb-3" id="email-domain-row" style="display: none;">
                         <div class="col-12">
                             <label for="email-domain" class="form-label">Email Domain (for users)</label>
@@ -282,28 +318,9 @@ async function createSingleSISFile(e) {
         // File type change handler
         document.getElementById('file-type').addEventListener('change', function() {
             const fileType = this.value;
-            const emailDomainRow = document.getElementById('email-domain-row');
-            const searchFieldsSection = document.getElementById('search-fields-section');
-            const fieldConfigSection = document.getElementById('field-config-section');
+            updateUIVisibility();
             
-            // Show email domain field only for users
-            if (fileType === 'users') {
-                emailDomainRow.style.display = 'block';
-            } else {
-                emailDomainRow.style.display = 'none';
-            }
-            
-            // Show search and field configuration sections if a file type is selected
             if (fileType) {
-                // Only show search section for file types that support search
-                const searchSupportedTypes = ['users', 'courses', 'accounts', 'logins'];
-                if (searchSupportedTypes.includes(fileType)) {
-                    searchFieldsSection.style.display = 'block';
-                } else {
-                    searchFieldsSection.style.display = 'none';
-                }
-                
-                fieldConfigSection.style.display = 'block';
                 populateSearchFields(fileType);
                 populateFieldConfiguration(fileType);
                 
@@ -319,27 +336,182 @@ async function createSingleSISFile(e) {
                 csvDataSection.style.display = 'none'; // Hidden until data is added
                 csvDataResults.innerHTML = '';
                 csvDataResults.dataset.csvData = JSON.stringify([]);
-            } else {
-                searchFieldsSection.style.display = 'none';
-                fieldConfigSection.style.display = 'none';
-                document.getElementById('csv-data-section').style.display = 'none';
             }
             
             validateForm();
             clearFieldInputs();
         });
-
-        // Browse folder handler
-        document.getElementById('browse-folder').addEventListener('click', async () => {
-            const result = await window.electronAPI.selectFolder();
-            if (result) {
-                document.getElementById('output-path').value = result;
-                validateForm();
+        
+        // Function to update UI visibility based on row count
+        function updateUIVisibility() {
+            const fileType = document.getElementById('file-type').value;
+            const rowCount = parseInt(document.getElementById('row-count').value) || 0;
+            const emailDomainRow = document.getElementById('email-domain-row');
+            const searchFieldsSection = document.getElementById('search-fields-section');
+            const fieldConfigSection = document.getElementById('field-config-section');
+            const csvDataSection = document.getElementById('csv-data-section');
+            const standardModeButtons = document.getElementById('standard-mode-buttons');
+            const largeFileModeButtons = document.getElementById('large-file-mode-buttons');
+            
+            // For large files (1000+ rows), hide search and field config sections
+            const isLargeFile = rowCount >= 1000;
+            
+            if (isLargeFile) {
+                // Hide search section for large files (not practical to search for thousands of items)
+                searchFieldsSection.style.display = 'none';
+                csvDataSection.style.display = 'none';
+                
+                // Show field configuration for large files (allows customization like same user_id for all rows)
+                if (fileType) {
+                    fieldConfigSection.style.display = 'block';
+                }
+                
+                // Show large file mode buttons, hide standard buttons
+                if (standardModeButtons) standardModeButtons.style.display = 'none';
+                if (largeFileModeButtons) largeFileModeButtons.style.display = 'block';
+                
+                // Show warning about large file generation
+                let warningDiv = document.getElementById('large-file-warning');
+                if (!warningDiv) {
+                    warningDiv = document.createElement('div');
+                    warningDiv.id = 'large-file-warning';
+                    warningDiv.className = 'alert alert-warning mb-3';
+                    warningDiv.innerHTML = `
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Large File Mode:</strong> Generating ${rowCount.toLocaleString()} rows. Rows will be generated directly to the output file to prevent performance issues.
+                    `;
+                    const cardBody = createSISForm.querySelector('.card-body');
+                    const rowCountRow = document.getElementById('row-count').closest('.row');
+                    rowCountRow.parentNode.insertBefore(warningDiv, rowCountRow.nextSibling);
+                }
+            } else {
+                // Remove warning if it exists
+                const warningDiv = document.getElementById('large-file-warning');
+                if (warningDiv) {
+                    warningDiv.remove();
+                }
+                
+                // Show standard mode buttons, hide large file mode buttons
+                if (standardModeButtons) standardModeButtons.style.display = 'block';
+                if (largeFileModeButtons) largeFileModeButtons.style.display = 'none';
+                
+                // Show email domain field only for users
+                if (fileType === 'users') {
+                    emailDomainRow.style.display = 'block';
+                } else {
+                    emailDomainRow.style.display = 'none';
+                }
+                
+                // Show search and field configuration sections if a file type is selected
+                if (fileType) {
+                    // Only show search section for file types that support search
+                    const searchSupportedTypes = ['users', 'courses', 'accounts', 'logins', 'enrollments'];
+                    if (searchSupportedTypes.includes(fileType)) {
+                        searchFieldsSection.style.display = 'block';
+                    } else {
+                        searchFieldsSection.style.display = 'none';
+                    }
+                    
+                    fieldConfigSection.style.display = 'block';
+                } else {
+                    searchFieldsSection.style.display = 'none';
+                    fieldConfigSection.style.display = 'none';
+                    csvDataSection.style.display = 'none';
+                }
             }
-        });
+        }
 
         // Row count change handler
         document.getElementById('row-count').addEventListener('input', () => {
+            updateUIVisibility();
+            validateForm();
+        });
+
+        // File import field selection handler
+        document.getElementById('file-import-field').addEventListener('change', function() {
+            const browseBtn = document.getElementById('browse-import-file');
+            const filePathInput = document.getElementById('file-import-path');
+            const preview = document.getElementById('file-import-preview');
+            const clearBtn = document.getElementById('clear-import-file');
+            
+            if (this.value) {
+                browseBtn.disabled = false;
+                // Update the field input to show it's using file data
+                updateFieldImportState(this.value, true);
+            } else {
+                browseBtn.disabled = true;
+                filePathInput.value = '';
+                preview.style.display = 'none';
+                clearBtn.style.display = 'none';
+                // Clear stored import data
+                delete filePathInput.dataset.importData;
+                // Re-enable all field inputs
+                updateFieldImportState(null, false);
+            }
+        });
+
+        // Browse import file handler
+        document.getElementById('browse-import-file').addEventListener('click', async () => {
+            const result = await window.electronAPI.selectFile({
+                filters: [
+                    { name: 'Text Files', extensions: ['txt', 'csv'] },
+                    { name: 'All Files', extensions: ['*'] }
+                ]
+            });
+            
+            if (result && result.filePath) {
+                try {
+                    const fileContent = await window.electronAPI.readFile(result.filePath);
+                    const importField = document.getElementById('file-import-field').value;
+                    const parsedData = parseImportFile(fileContent, importField);
+                    
+                    if (parsedData && parsedData.length > 0) {
+                        document.getElementById('file-import-path').value = result.filePath;
+                        document.getElementById('file-import-path').dataset.importData = JSON.stringify(parsedData);
+                        document.getElementById('file-import-count').textContent = parsedData.length;
+                        document.getElementById('file-import-preview').style.display = 'block';
+                        document.getElementById('clear-import-file').style.display = 'inline-block';
+                        
+                        // Update row count to match imported data
+                        document.getElementById('row-count').value = parsedData.length;
+                        updateUIVisibility();
+                        validateForm();
+                        
+                        // Update field state to show it's using file data
+                        updateFieldImportState(importField, true);
+                    } else {
+                        alert('No valid data found in file');
+                    }
+                } catch (error) {
+                    console.error('Error reading import file:', error);
+                    alert(`Error reading file: ${error.message}`);
+                }
+            }
+        });
+
+        // Clear import file handler
+        document.getElementById('clear-import-file').addEventListener('click', () => {
+            const fileImportField = document.getElementById('file-import-field');
+            const filePathInput = document.getElementById('file-import-path');
+            const preview = document.getElementById('file-import-preview');
+            const clearBtn = document.getElementById('clear-import-file');
+            
+            // Clear file data
+            filePathInput.value = '';
+            delete filePathInput.dataset.importData;
+            preview.style.display = 'none';
+            clearBtn.style.display = 'none';
+            
+            // Reset field to not using file import
+            const previousField = fileImportField.value;
+            fileImportField.value = '';
+            
+            // Re-enable the field input
+            updateFieldImportState(previousField, false);
+            
+            // Reset row count to 1
+            document.getElementById('row-count').value = '1';
+            updateUIVisibility();
             validateForm();
         });
 
@@ -347,10 +519,9 @@ async function createSingleSISFile(e) {
         function validateForm() {
             const fileType = document.getElementById('file-type').value;
             const rowCount = document.getElementById('row-count').value;
-            const outputPath = document.getElementById('output-path').value;
-            
-            const isValid = fileType && rowCount && parseInt(rowCount) > 0 && outputPath;
-            
+
+            const isValid = fileType && rowCount && parseInt(rowCount) > 0;
+
             document.getElementById('generate-sis-file').disabled = !isValid;
         }
 
@@ -367,25 +538,117 @@ async function createSingleSISFile(e) {
         document.getElementById('generate-sis-file').addEventListener('click', async (e) => {
             e.preventDefault(); // Prevent form submission
             e.stopPropagation();
-            
+
             const fileType = document.getElementById('file-type').value;
             const rowCount = parseInt(document.getElementById('row-count').value);
-            const outputPath = document.getElementById('output-path').value;
             const emailDomain = fileType === 'users'
                 ? (document.getElementById('email-domain').value.trim() || '@instructure.com')
                 : '@instructure.com';
             const authProviderId = ''; // Removed auth provider functionality
+            const generateBtn = document.getElementById('generate-sis-file');
+            const originalBtnText = generateBtn.innerHTML;
+
+            // Show save dialog to let user choose where to save the file
+            const defaultFileName = `${fileType}_${rowCount}_rows.csv`;
+            const saveResult = await window.electronAPI.showSaveDialog({
+                defaultPath: defaultFileName,
+                filters: [
+                    { name: 'CSV Files', extensions: ['csv'] },
+                    { name: 'All Files', extensions: ['*'] }
+                ]
+            });
+
+            // If user canceled the dialog, return
+            if (!saveResult || !saveResult.filePath) {
+                return;
+            }
+
+            const outputPath = saveResult.filePath;
+
+            // Show progress for large files
+            const isLargeFile = rowCount >= 1000;
+            let progressDiv, progressBar, progressText;
+            
+            if (isLargeFile) {
+                // Create progress indicator
+                progressDiv = document.createElement('div');
+                progressDiv.id = 'generation-progress';
+                progressDiv.className = 'mt-3';
+                progressDiv.innerHTML = `
+                    <div class="alert alert-info">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>Generating ${rowCount.toLocaleString()} rows...</strong>
+                            <span id="progress-text">Starting...</span>
+                        </div>
+                        <div class="progress" style="height: 20px;">
+                            <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                0%
+                            </div>
+                        </div>
+                    </div>
+                `;
+                generateBtn.parentNode.appendChild(progressDiv);
+                progressBar = progressDiv.querySelector('#progress-bar');
+                progressText = progressDiv.querySelector('#progress-text');
+                
+                // Disable button and show generating state
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Generating...';
+                
+                // Simulate progress (since we don't have real progress events yet)
+                let simulatedProgress = 0;
+                const progressInterval = setInterval(() => {
+                    if (simulatedProgress < 90) {
+                        simulatedProgress += Math.random() * 10;
+                        if (simulatedProgress > 90) simulatedProgress = 90;
+                        progressBar.style.width = `${simulatedProgress}%`;
+                        progressBar.textContent = `${Math.round(simulatedProgress)}%`;
+                        progressBar.setAttribute('aria-valuenow', simulatedProgress);
+                        
+                        const rowsProcessed = Math.round((simulatedProgress / 100) * rowCount);
+                        progressText.textContent = `Processing... (~${rowsProcessed.toLocaleString()} rows)`;
+                    }
+                }, 500);
+                
+                // Store interval to clear it later
+                progressDiv.dataset.intervalId = progressInterval;
+            } else {
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Generating...';
+            }
 
             // Use the proper field mapping function
             const allOptions = gatherAllOptions(fileType);
 
-            // Check if search results are available and pass them
-            const searchResults = document.getElementById('search-results');
-            if (searchResults && searchResults.dataset.searchData) {
+            // Check if file import is being used
+            const fileImportPathInput = document.getElementById('file-import-path');
+            const fileImportField = document.getElementById('file-import-field').value;
+            
+            if (fileImportField && fileImportPathInput.dataset.importData) {
                 try {
-                    allOptions.searchData = JSON.parse(searchResults.dataset.searchData);
+                    const importData = JSON.parse(fileImportPathInput.dataset.importData);
+                    console.log(`>>> Using file import for field: ${fileImportField}, ${importData.length} values`);
+                    
+                    // Store import data in allOptions
+                    allOptions.fileImport = {
+                        field: fileImportField,
+                        values: importData
+                    };
                 } catch (e) {
-                    console.warn('Could not parse search data:', e);
+                    console.error('Error parsing import data:', e);
+                }
+            }
+
+            // Check if search results are available and pass them (only for small files)
+            if (!isLargeFile) {
+                const searchResults = document.getElementById('search-results');
+                if (searchResults && searchResults.dataset.searchData) {
+                    try {
+                        allOptions.searchData = JSON.parse(searchResults.dataset.searchData);
+                    } catch (e) {
+                        console.warn('Could not parse search data:', e);
+                    }
                 }
             }
 
@@ -399,15 +662,52 @@ async function createSingleSISFile(e) {
                     allOptions
                 );
 
+                // Clear progress simulation
+                if (progressDiv) {
+                    const intervalId = progressDiv.dataset.intervalId;
+                    if (intervalId) {
+                        clearInterval(parseInt(intervalId));
+                    }
+                    
+                    // Show completion
+                    progressBar.style.width = '100%';
+                    progressBar.textContent = '100%';
+                    progressBar.classList.remove('progress-bar-animated');
+                    progressBar.classList.add('bg-success');
+                    progressText.textContent = `Complete! ${rowCount.toLocaleString()} rows generated.`;
+                    
+                    // Remove progress after delay
+                    setTimeout(() => {
+                        if (progressDiv && progressDiv.parentNode) {
+                            progressDiv.remove();
+                        }
+                    }, 3000);
+                }
+
                 // createSISFile returns an object with success, fileName and filePath
                 if (result.success) {
-                    showResult(`SIS file generated successfully: ${result.fileName} at ${result.filePath}`, 'success');
+                    // Extract filename from full path
+                    const fileName = result.filePath.split(/[/\\]/).pop();
+                    showResult(`SIS file generated successfully: ${fileName}`, 'success');
                 } else {
                     showResult(`Error generating SIS file: ${result.error || 'Unknown error'}`, 'danger');
                 }
             } catch (error) {
                 console.error('Generation error:', error);
+                
+                // Clear progress and show error
+                if (progressDiv) {
+                    const intervalId = progressDiv.dataset.intervalId;
+                    if (intervalId) {
+                        clearInterval(parseInt(intervalId));
+                    }
+                    progressDiv.remove();
+                }
+                
                 showResult(`Error generating SIS file: ${error.message}`, 'danger');
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = originalBtnText;
             }
         });
 
@@ -416,9 +716,28 @@ async function createSingleSISFile(e) {
             const fileType = document.getElementById('file-type').value;
             const searchBtn = document.getElementById('search-data-btn');
             const originalText = searchBtn.innerHTML;
-            
+
             searchBtn.disabled = true;
             searchBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Searching...';
+
+            // Create progress indicator for enrollment searches
+            let progressDiv = null;
+            if (fileType === 'enrollments') {
+                progressDiv = document.createElement('div');
+                progressDiv.id = 'search-progress';
+                progressDiv.className = 'mt-2';
+                progressDiv.innerHTML = `
+                    <div class="alert alert-info mb-0">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm me-2" role="status">
+                                <span class="visually-hidden">Searching...</span>
+                            </div>
+                            <span id="search-progress-text">Searching for enrollments...</span>
+                        </div>
+                    </div>
+                `;
+                searchBtn.parentNode.appendChild(progressDiv);
+            }
 
             try {
                 // Get domain and token from the main form
@@ -477,6 +796,16 @@ async function createSingleSISFile(e) {
                             searchParams.id_type = userIdType;
                         }
                         break;
+                    case 'enrollments':
+                        const enrollmentSearchType = document.getElementById('enrollment-search-type').value;
+                        const enrollmentIdSearch = document.getElementById('enrollment-id-search').value.trim();
+
+                        if (enrollmentIdSearch) {
+                            searchParams.search_type = enrollmentSearchType; // 'course' or 'user'
+                            searchParams.id = enrollmentIdSearch;
+                            // No status/type filters - we fetch everything and filter client-side
+                        }
+                        break;
                 }
 
                 const result = await window.electronAPI.searchCanvasData(fileType, searchParams);
@@ -485,6 +814,18 @@ async function createSingleSISFile(e) {
                 
                 if (result.success && result.data) {
                     console.log('Showing search results for', fileType, '- count:', result.data.length);
+
+                    // Update progress indicator for enrollments
+                    if (progressDiv) {
+                        const progressText = document.getElementById('search-progress-text');
+                        if (progressText) {
+                            progressText.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i>Found ${result.data.length} enrollment(s)`;
+                        }
+                        // Remove spinner
+                        const spinner = progressDiv.querySelector('.spinner-border');
+                        if (spinner) spinner.remove();
+                    }
+
                     showSearchResults(result.data, fileType);
                 } else {
                     showSearchError(result.error || 'No data found');
@@ -495,6 +836,15 @@ async function createSingleSISFile(e) {
             } finally {
                 searchBtn.disabled = false;
                 searchBtn.innerHTML = originalText;
+
+                // Remove progress indicator after a delay
+                if (progressDiv) {
+                    setTimeout(() => {
+                        if (progressDiv && progressDiv.parentNode) {
+                            progressDiv.remove();
+                        }
+                    }, 3000);
+                }
             }
         });
 
@@ -561,11 +911,31 @@ async function createSingleSISFile(e) {
     function addManualRow(fileType) {
         const fieldContainer = document.getElementById('field-checkboxes-container');
         const csvDataResults = document.getElementById('csv-data-results');
+        const rowCountInput = document.getElementById('row-count');
         
         if (!fieldContainer || !csvDataResults) return;
 
-        // Gather field values from configuration
-        const fieldValues = {};
+        // Get the number of rows to add from the row count input
+        const rowsToAdd = rowCountInput ? parseInt(rowCountInput.value) || 1 : 1;
+
+        // Check if file import is being used
+        const fileImportPathInput = document.getElementById('file-import-path');
+        const fileImportField = document.getElementById('file-import-field').value;
+        let fileImportData = null;
+        
+        if (fileImportField && fileImportPathInput.dataset.importData) {
+            try {
+                fileImportData = {
+                    field: fileImportField,
+                    values: JSON.parse(fileImportPathInput.dataset.importData)
+                };
+            } catch (e) {
+                console.error('Error parsing import data:', e);
+            }
+        }
+
+        // Gather field values from configuration (user-provided values)
+        const userProvidedValues = {};
         const inputFields = fieldContainer.querySelectorAll('input[type="text"]');
         const fieldDefinitions = getSISFieldDefinitions(fileType);
         
@@ -573,40 +943,9 @@ async function createSingleSISFile(e) {
             const fieldName = input.name;
             const fieldValue = input.value.trim();
             if (fieldValue) {
-                fieldValues[fieldName] = fieldValue;
+                userProvidedValues[fieldName] = fieldValue;
             }
         });
-
-        // Fill in missing required fields with random values ONLY
-        // Don't fill in optional fields - leave them empty if not provided
-        // Special handling for change_sis_ids: either regular IDs OR integration IDs must be provided
-        if (fileType === 'change_sis_ids') {
-            // Check if user provided regular IDs or integration IDs
-            const hasRegularIds = fieldValues.old_id || fieldValues.new_id;
-            const hasIntegrationIds = fieldValues.old_integration_id || fieldValues.new_integration_id;
-            
-            // Only generate random values if neither set is provided
-            if (!hasRegularIds && !hasIntegrationIds) {
-                // Generate random values for old_id and new_id only
-                if (!fieldValues.old_id) {
-                    fieldValues.old_id = generateRandomValueForField({ name: 'old_id', required: true }, fileType);
-                }
-                if (!fieldValues.new_id) {
-                    fieldValues.new_id = generateRandomValueForField({ name: 'new_id', required: true }, fileType);
-                }
-            }
-            // Always ensure type has a value
-            if (!fieldValues.type) {
-                fieldValues.type = generateRandomValueForField({ name: 'type', required: true }, fileType);
-            }
-        } else {
-            // For other file types, use the standard logic
-            fieldDefinitions.forEach(field => {
-                if (field.required && !fieldValues[field.name]) {
-                    fieldValues[field.name] = generateRandomValueForField(field, fileType);
-                }
-            });
-        }
 
         // Get current CSV data or initialize empty array
         let data = [];
@@ -618,38 +957,80 @@ async function createSingleSISFile(e) {
             }
         }
 
-        // Create new row based on file type - ensure ALL fields from definitions are included
-        let newRow = {};
-        if (fileType === 'logins') {
-            newRow = {
-                sis_user_id: fieldValues.user_id || '',
-                unique_id: fieldValues.login_id || '',
-                authentication_provider_id: fieldValues.authentication_provider_id || '',
-                password: fieldValues.password || '',
-                existing_user_id: fieldValues.existing_user_id || '',
-                existing_integration_id: fieldValues.existing_integration_id || '',
-                existing_canvas_user_id: fieldValues.existing_canvas_user_id || '',
-                email: fieldValues.email || '',
-                status: fieldValues.status || 'active'
-            };
-        } else if (fileType === 'change_sis_ids') {
-            // For change_sis_ids, explicitly map all fields and preserve empty values
-            newRow = {
-                old_id: fieldValues.old_id || '',
-                new_id: fieldValues.new_id || '',
-                old_integration_id: fieldValues.old_integration_id || '',
-                new_integration_id: fieldValues.new_integration_id || '',
-                type: fieldValues.type || 'user'
-            };
-        } else {
-            // For other file types, ensure ALL fields from definitions are included
-            fieldDefinitions.forEach(field => {
-                newRow[field.name] = fieldValues[field.name] || '';
-            });
-        }
+        // Add the specified number of rows to data
+        for (let i = 0; i < rowsToAdd; i++) {
+            // Create a fresh copy of user-provided values for each row
+            const fieldValues = { ...userProvidedValues };
+            
+            // If file import is active, use the imported value for this row
+            if (fileImportData && fileImportData.values.length > 0) {
+                const importIndex = data.length + i; // Use cumulative index
+                fieldValues[fileImportData.field] = fileImportData.values[importIndex % fileImportData.values.length];
+            }
+            
+            // Fill in missing required fields with NEW random values for each row
+            // Special handling for change_sis_ids: either regular IDs OR integration IDs must be provided
+            if (fileType === 'change_sis_ids') {
+                // Check if user provided regular IDs or integration IDs
+                const hasRegularIds = fieldValues.old_id || fieldValues.new_id;
+                const hasIntegrationIds = fieldValues.old_integration_id || fieldValues.new_integration_id;
+                
+                // Only generate random values if neither set is provided
+                if (!hasRegularIds && !hasIntegrationIds) {
+                    // Generate random values for old_id and new_id only
+                    if (!fieldValues.old_id) {
+                        fieldValues.old_id = generateRandomValueForField({ name: 'old_id', required: true }, fileType);
+                    }
+                    if (!fieldValues.new_id) {
+                        fieldValues.new_id = generateRandomValueForField({ name: 'new_id', required: true }, fileType);
+                    }
+                }
+                // Always ensure type has a value
+                if (!fieldValues.type) {
+                    fieldValues.type = generateRandomValueForField({ name: 'type', required: true }, fileType);
+                }
+            } else {
+                // For other file types, use the standard logic
+                fieldDefinitions.forEach(field => {
+                    if (field.required && !fieldValues[field.name]) {
+                        fieldValues[field.name] = generateRandomValueForField(field, fileType);
+                    }
+                });
+            }
 
-        // Add the new row to data
-        data.push(newRow);
+            // Create new row based on file type - ensure ALL fields from definitions are included
+            let newRow = {};
+            if (fileType === 'logins') {
+                newRow = {
+                    sis_user_id: fieldValues.user_id || '',
+                    unique_id: fieldValues.login_id || '',
+                    authentication_provider_id: fieldValues.authentication_provider_id || '',
+                    password: fieldValues.password || '',
+                    existing_user_id: fieldValues.existing_user_id || '',
+                    existing_integration_id: fieldValues.existing_integration_id || '',
+                    existing_canvas_user_id: fieldValues.existing_canvas_user_id || '',
+                    email: fieldValues.email || '',
+                    status: fieldValues.status || 'active'
+                };
+            } else if (fileType === 'change_sis_ids') {
+                // For change_sis_ids, explicitly map all fields and preserve empty values
+                newRow = {
+                    old_id: fieldValues.old_id || '',
+                    new_id: fieldValues.new_id || '',
+                    old_integration_id: fieldValues.old_integration_id || '',
+                    new_integration_id: fieldValues.new_integration_id || '',
+                    type: fieldValues.type || 'user'
+                };
+            } else {
+                // For other file types, ensure ALL fields from definitions are included
+                fieldDefinitions.forEach(field => {
+                    newRow[field.name] = fieldValues[field.name] || '';
+                });
+            }
+
+            // Add this row to data
+            data.push(newRow);
+        }
 
         // Update stored CSV data
         csvDataResults.dataset.csvData = JSON.stringify(data);
@@ -732,6 +1113,170 @@ async function createSingleSISFile(e) {
         
         // Hide the CSV data section
         document.getElementById('csv-data-section').style.display = 'none';
+    }
+
+    function parseImportFile(fileContent, fieldName) {
+        const lines = fileContent.split(/\r?\n/).filter(line => line.trim());
+        
+        if (lines.length === 0) return [];
+        
+        // Check if first line is a CSV header
+        const firstLine = lines[0].trim();
+        const hasHeader = firstLine.includes(',') || firstLine.toLowerCase().includes('id');
+        
+        let values = [];
+        
+        if (hasHeader && firstLine.includes(',')) {
+            // CSV format - find the column for our field
+            const headers = firstLine.split(',').map(h => h.trim().toLowerCase());
+            const fieldIndex = headers.findIndex(h => 
+                h === fieldName.toLowerCase() || 
+                h === fieldName.replace('_', ' ').toLowerCase() ||
+                h.includes(fieldName.split('_')[0])
+            );
+            
+            if (fieldIndex >= 0) {
+                // Extract values from that column
+                for (let i = 1; i < lines.length; i++) {
+                    const columns = lines[i].split(',');
+                    if (columns[fieldIndex]) {
+                        const value = columns[fieldIndex].trim().replace(/^["']|["']$/g, '');
+                        if (value) values.push(value);
+                    }
+                }
+            } else {
+                // Header exists but field not found, treat as simple list (skip header)
+                for (let i = 1; i < lines.length; i++) {
+                    const value = lines[i].trim().replace(/^["']|["']$/g, '');
+                    if (value) values.push(value);
+                }
+            }
+        } else {
+            // Simple list format (one ID per line)
+            values = lines.map(line => line.trim().replace(/^["']|["']$/g, '')).filter(v => v);
+        }
+        
+        return values;
+    }
+
+    function updateFieldImportState(fieldName, isImporting) {
+        // Find the field input and update its state
+        if (fieldName) {
+            const fieldInput = document.getElementById(`field-${fieldName}`);
+            if (fieldInput) {
+                if (isImporting) {
+                    fieldInput.disabled = true;
+                    fieldInput.placeholder = 'Using file data';
+                    fieldInput.value = '';
+                    fieldInput.style.backgroundColor = '#e9ecef';
+                    fieldInput.style.cursor = 'not-allowed';
+                } else {
+                    fieldInput.disabled = false;
+                    fieldInput.placeholder = fieldInput.dataset.originalPlaceholder || '';
+                    fieldInput.style.backgroundColor = '';
+                    fieldInput.style.cursor = '';
+                }
+            }
+        } else {
+            // Re-enable all field inputs when file import is cleared
+            const allFieldInputs = document.querySelectorAll('[id^="field-"]');
+            allFieldInputs.forEach(input => {
+                input.disabled = false;
+                input.placeholder = input.dataset.originalPlaceholder || '';
+                input.style.backgroundColor = '';
+                input.style.cursor = '';
+            });
+        }
+    }
+
+    async function generateLargeCSVFromConfig(fileType) {
+        console.log(`>>> generateLargeCSVFromConfig CALLED - fileType: ${fileType}`);
+        const rowCountInput = document.getElementById('row-count');
+        const outputPath = document.getElementById('output-path').value;
+        const emailDomain = fileType === 'users' 
+            ? (document.getElementById('email-domain').value.trim() || '@instructure.com')
+            : '@instructure.com';
+        
+        console.log(`>>> outputPath: ${outputPath}, rowCount: ${rowCountInput.value}`);
+        
+        if (!outputPath) {
+            alert('Please select an output path first.');
+            return;
+        }
+        
+        const rowCount = parseInt(rowCountInput.value) || 1;
+        
+        // Gather user-provided field values
+        const allOptions = gatherAllOptions(fileType);
+        console.log(`>>> allOptions gathered:`, JSON.stringify(allOptions, null, 2));
+        
+        // Check if file import is being used
+        const fileImportPathInput = document.getElementById('file-import-path');
+        const fileImportField = document.getElementById('file-import-field').value;
+        
+        if (fileImportField && fileImportPathInput.dataset.importData) {
+            try {
+                const importData = JSON.parse(fileImportPathInput.dataset.importData);
+                console.log(`>>> Using file import for field: ${fileImportField}, ${importData.length} values`);
+                
+                // Store import data in allOptions
+                allOptions.fileImport = {
+                    field: fileImportField,
+                    values: importData
+                };
+            } catch (e) {
+                console.error('Error parsing import data:', e);
+            }
+        }
+        
+        try {
+            // Call the IPC handler to generate the file (must pass as individual arguments, not object)
+            const result = await window.electronAPI.createSISFile(
+                fileType,
+                rowCount,
+                outputPath,
+                emailDomain,
+                '',
+                allOptions
+            );
+            
+            alert(`Successfully generated ${rowCount.toLocaleString()} rows to ${result.filePath}`);
+        } catch (error) {
+            console.error('Error generating CSV:', error);
+            alert(`Error generating CSV: ${error.message}`);
+        }
+    }
+
+    async function generateLargeCSVRandom(fileType) {
+        const rowCountInput = document.getElementById('row-count');
+        const outputPath = document.getElementById('output-path').value;
+        const emailDomain = fileType === 'users' 
+            ? (document.getElementById('email-domain').value.trim() || '@instructure.com')
+            : '@instructure.com';
+        
+        if (!outputPath) {
+            alert('Please select an output path first.');
+            return;
+        }
+        
+        const rowCount = parseInt(rowCountInput.value) || 1;
+        
+        try {
+            // Call the IPC handler with no field values (pure random generation)
+            const result = await window.electronAPI.createSISFile(
+                fileType,
+                rowCount,
+                outputPath,
+                emailDomain,
+                '',
+                { fieldValues: {}, searchData: null }
+            );
+            
+            alert(`Successfully generated ${rowCount.toLocaleString()} random rows to ${result.filePath}`);
+        } catch (error) {
+            console.error('Error generating CSV:', error);
+            alert(`Error generating CSV: ${error.message}`);
+        }
     }
 
     function addRemoveRowListeners(fileType) {
@@ -838,6 +1383,10 @@ async function createSingleSISFile(e) {
             case 'role_id':
                 return `role_${randomId()}`;
             
+            // Status field - use default value from field definition or 'active'
+            case 'status':
+                return field.defaultValue || 'active';
+            
             // Observer fields
             case 'observer_id':
                 return `observer_${randomId()}`;
@@ -870,6 +1419,9 @@ async function createSingleSISFile(e) {
             searchData: null
         };
 
+        // Get field definitions to access default values
+        const fieldDefinitions = getSISFieldDefinitions(fileType);
+
         // Get field values from input fields
         const fieldContainer = document.getElementById('field-checkboxes-container');
         if (fieldContainer) {
@@ -879,6 +1431,12 @@ async function createSingleSISFile(e) {
                 const fieldValue = input.value.trim();
                 if (fieldValue) {
                     options.fieldValues[fieldName] = fieldValue;
+                } else {
+                    // Apply default value if field is empty and has a default value defined
+                    const fieldDef = fieldDefinitions.find(f => f.name === fieldName);
+                    if (fieldDef && fieldDef.defaultValue) {
+                        options.fieldValues[fieldName] = fieldDef.defaultValue;
+                    }
                 }
             });
         }
@@ -933,7 +1491,7 @@ async function createSingleSISFile(e) {
                 searchHTML = `
                     <div class="row mb-2">
                         <div class="col-md-6">
-                            <label class="form-label">Search by Account Name</label>
+                            <label class="form-label">Search by Account ID</label>
                             <input type="text" id="account-search" class="form-control" placeholder="Enter account name...">
                         </div>
                         <div class="col-md-6">
@@ -962,6 +1520,29 @@ async function createSingleSISFile(e) {
                     </div>
                 `;
                 break;
+            case 'enrollments':
+                searchHTML = `
+                    <div class="row mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Search By</label>
+                            <select id="enrollment-search-type" class="form-select">
+                                <option value="course">Course ID</option>
+                                <option value="user">User ID</option>
+                            </select>
+                            <small class="form-text text-muted">Choose whether to search by course or user</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">ID</label>
+                            <input type="text" id="enrollment-id-search" class="form-control" placeholder="Enter Course ID or User ID...">
+                            <small class="form-text text-muted">Enter the numeric Canvas ID</small>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mt-2">
+                        <i class="bi bi-info-circle me-2"></i>
+                        All enrollments will be fetched. Use the filters in the results preview to narrow down by status or role.
+                    </div>
+                `;
+                break;
             default:
                 searchHTML = `
                     <div class="alert alert-info">
@@ -976,7 +1557,7 @@ async function createSingleSISFile(e) {
 
         // Add search validation
         const searchBtn = document.getElementById('search-data-btn');
-        if (fileType === 'users' || fileType === 'courses' || fileType === 'accounts' || fileType === 'logins') {
+        if (fileType === 'users' || fileType === 'courses' || fileType === 'accounts' || fileType === 'logins' || fileType === 'enrollments') {
             const searchInput = container.querySelector('input[type="text"]');
             if (searchInput) {
                 searchInput.addEventListener('input', () => {
@@ -1008,6 +1589,7 @@ async function createSingleSISFile(e) {
             const isRequired = field.required ? ' (Required)' : '';
             const placeholder = field.required ? 'Required field' : 'Optional - leave empty for sample data';
             const isDisabled = field.required ? '' : ''; // Remove disabled attribute to allow editing
+            const defaultValue = field.defaultValue || '';
             
             fieldsHTML += `
                 <div class="col-md-6 col-lg-4 mb-3">
@@ -1019,6 +1601,8 @@ async function createSingleSISFile(e) {
                            id="field-${field.name}" 
                            name="${field.name}"
                            placeholder="${placeholder}"
+                           data-original-placeholder="${placeholder}"
+                           value="${defaultValue}"
                            ${isDisabled}>
                 </div>
             `;
@@ -1026,6 +1610,56 @@ async function createSingleSISFile(e) {
         
         fieldsHTML += '</div>';
         container.innerHTML = fieldsHTML;
+        
+        // Populate file import field dropdown
+        const fileImportFieldSelect = document.getElementById('file-import-field');
+        if (fileImportFieldSelect) {
+            let importOptions = '<option value="">Don\'t use file import</option>';
+            fieldDefinitions.forEach(field => {
+                // Common fields that might be imported from files
+                const importableFields = ['user_id', 'course_id', 'section_id', 'account_id', 'term_id', 'login_id'];
+                if (importableFields.includes(field.name)) {
+                    importOptions += `<option value="${field.name}">${field.display}</option>`;
+                }
+            });
+            fileImportFieldSelect.innerHTML = importOptions;
+        }
+        
+        // Add validation for status field
+        setTimeout(() => {
+            const statusField = document.getElementById('field-status');
+            if (statusField) {
+                statusField.addEventListener('blur', function() {
+                    const value = this.value.trim().toLowerCase();
+                    const validValues = ['active', 'deleted', 'suspended', ''];
+                    
+                    if (value && !validValues.includes(value)) {
+                        this.classList.add('is-invalid');
+                        // Add or update validation message
+                        let feedback = this.nextElementSibling;
+                        if (!feedback || !feedback.classList.contains('invalid-feedback')) {
+                            feedback = document.createElement('div');
+                            feedback.className = 'invalid-feedback';
+                            this.parentNode.appendChild(feedback);
+                        }
+                        feedback.textContent = 'Status must be: active, deleted, or suspended';
+                    } else {
+                        this.classList.remove('is-invalid');
+                        const feedback = this.nextElementSibling;
+                        if (feedback && feedback.classList.contains('invalid-feedback')) {
+                            feedback.remove();
+                        }
+                        // If empty, set to default
+                        if (!value) {
+                            this.value = 'active';
+                        } else {
+                            // Normalize the value
+                            this.value = value;
+                        }
+                    }
+                });
+            }
+        }, 100);
         
         // Add event listeners for the buttons in Field Configuration
         setTimeout(() => {
@@ -1053,6 +1687,22 @@ async function createSingleSISFile(e) {
                 const newClearAllBtn = document.getElementById('clear-all-rows');
                 newClearAllBtn.addEventListener('click', () => clearAllRows(fileType));
             }
+            
+            // Large file mode buttons
+            const generateFromConfigBtn = document.getElementById('generate-csv-from-config');
+            const generateRandomBtn = document.getElementById('generate-csv-random');
+            
+            if (generateFromConfigBtn) {
+                generateFromConfigBtn.replaceWith(generateFromConfigBtn.cloneNode(true));
+                const newGenerateFromConfigBtn = document.getElementById('generate-csv-from-config');
+                newGenerateFromConfigBtn.addEventListener('click', () => generateLargeCSVFromConfig(fileType));
+            }
+            
+            if (generateRandomBtn) {
+                generateRandomBtn.replaceWith(generateRandomBtn.cloneNode(true));
+                const newGenerateRandomBtn = document.getElementById('generate-csv-random');
+                newGenerateRandomBtn.addEventListener('click', () => generateLargeCSVRandom(fileType));
+            }
         }, 0);
     }
 
@@ -1070,7 +1720,7 @@ async function createSingleSISFile(e) {
                 { name: 'sortable_name', display: 'Sortable Name', recommended: true },
                 { name: 'short_name', display: 'Short Name' },
                 { name: 'email', display: 'Email', recommended: true },
-                { name: 'status', display: 'Status', recommended: true, description: 'active, deleted, suspended' },
+                { name: 'status', display: 'Status', required: true, defaultValue: 'active', description: 'active, deleted, suspended' },
                 { name: 'integration_id', display: 'Integration ID', description: 'Secondary unique identifier for complex SIS integrations' },
                 { name: 'pronouns', display: 'Pronouns', description: 'User\'s preferred pronouns' },
                 { name: 'declared_user_type', display: 'Declared User Type', description: 'administrative, observer, staff, student, student_other, teacher' },
@@ -1315,12 +1965,53 @@ async function createSingleSISFile(e) {
 
         // Store search data temporarily (not in dataset yet - only selected items will be added)
         searchResults.dataset.searchResults = JSON.stringify(data);
+        searchResults.dataset.allData = JSON.stringify(data); // Store original unfiltered data
 
         let resultsHTML = `
             <div class="alert alert-info">
                 <i class="bi bi-info-circle me-2"></i>
                 Found ${data.length} ${fileType} record(s). Select the items you want to add to the CSV file.
             </div>
+        `;
+
+        // Add filter controls for enrollments
+        if (fileType === 'enrollments') {
+            resultsHTML += `
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="bi bi-funnel me-2"></i>Filter Results</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Filter by Status</label>
+                                <select id="filter-enrollment-status" class="form-select">
+                                    <option value="all">All Statuses</option>
+                                    <option value="active">Active</option>
+                                    <option value="invited">Invited</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="deleted">Deleted</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Filter by Role</label>
+                                <select id="filter-enrollment-role" class="form-select">
+                                    <option value="all">All Roles</option>
+                                    <option value="student">Student</option>
+                                    <option value="teacher">Teacher</option>
+                                    <option value="ta">TA</option>
+                                    <option value="designer">Designer</option>
+                                    <option value="observer">Observer</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        resultsHTML += `
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h6 class="mb-0">Search Results Preview (SIS CSV Format)</h6>
@@ -1408,6 +2099,87 @@ async function createSingleSISFile(e) {
         
         // Add event listeners for selection
         addSearchResultsSelectionListeners(fileType);
+
+        // Add filter event listeners for enrollments
+        if (fileType === 'enrollments') {
+            addEnrollmentFilterListeners();
+        }
+    }
+
+    function addEnrollmentFilterListeners() {
+        const statusFilter = document.getElementById('filter-enrollment-status');
+        const roleFilter = document.getElementById('filter-enrollment-role');
+
+        if (!statusFilter || !roleFilter) return;
+
+        const applyFilters = () => {
+            const searchResults = document.getElementById('search-results');
+            const allData = JSON.parse(searchResults.dataset.allData || '[]');
+
+            const statusValue = statusFilter.value;
+            const roleValue = roleFilter.value;
+
+            // Filter the data
+            let filteredData = allData.filter(item => {
+                const statusMatch = statusValue === 'all' || item.status === statusValue;
+                const roleMatch = roleValue === 'all' || item.role === roleValue;
+                return statusMatch && roleMatch;
+            });
+
+            // Update the info alert
+            const infoAlert = searchResults.querySelector('.alert-info');
+            if (infoAlert) {
+                infoAlert.innerHTML = `
+                    <i class="bi bi-info-circle me-2"></i>
+                    Showing ${filteredData.length} of ${allData.length} enrollment(s). Select the items you want to add to the CSV file.
+                `;
+            }
+
+            // Update the searchResults dataset with filtered data (but keep allData intact!)
+            searchResults.dataset.searchResults = JSON.stringify(filteredData);
+
+            // Rebuild the table body without calling showSearchResults (which would reset allData)
+            rebuildEnrollmentTable(filteredData);
+        };
+
+        statusFilter.addEventListener('change', applyFilters);
+        roleFilter.addEventListener('change', applyFilters);
+    }
+
+    function rebuildEnrollmentTable(data) {
+        const searchResults = document.getElementById('search-results');
+        const table = searchResults.querySelector('#search-results-table');
+        if (!table) return;
+
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        // Clear existing rows
+        tbody.innerHTML = '';
+
+        // Add filtered rows
+        data.forEach((item, rowIndex) => {
+            let rowHTML = `<tr data-row-index="${rowIndex}">`;
+
+            // Add checkbox column
+            rowHTML += `<td><input type="checkbox" class="result-checkbox" data-row-index="${rowIndex}"></td>`;
+
+            // Add data columns
+            const sampleItem = data[0];
+            Object.keys(sampleItem).forEach(key => {
+                if (!key.startsWith('_') && key !== 'id') {
+                    const value = item[key] || '';
+                    const displayValue = String(value).substring(0, 50) + (String(value).length > 50 ? '...' : '');
+                    rowHTML += `<td title="${value}">${displayValue}</td>`;
+                }
+            });
+
+            rowHTML += '</tr>';
+            tbody.innerHTML += rowHTML;
+        });
+
+        // Re-attach event listeners for the new checkboxes
+        addSearchResultsSelectionListeners('enrollments');
     }
 
     function addSearchResultsSelectionListeners(fileType) {

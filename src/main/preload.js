@@ -52,6 +52,10 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('Inside preload axios:checkCommDomain');
         return await ipcRenderer.invoke('axios:checkCommDomain', data);
     },
+    saveSuppressedEmails: async (options) => {
+        console.log('Inside preload axios:saveSuppressedEmails');
+        return await ipcRenderer.invoke('axios:saveSuppressedEmails', options);
+    },
     resetCommChannelsByPattern: async (data) => {
         console.log('Inside preload axios:resetCommChannelsByPattern');
         return await ipcRenderer.invoke('axios:resetCommChannelsByPattern', data);
@@ -530,6 +534,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     selectFolder: async () => {
         return await ipcRenderer.invoke('sis:selectFolder');
     },
+    selectFile: async (options) => {
+        return await ipcRenderer.invoke('sis:selectFile', options);
+    },
+    readFile: async (filePath) => {
+        return await ipcRenderer.invoke('sis:readFile', filePath);
+    },
+    saveFile: async (options) => {
+        return await ipcRenderer.invoke('file:save', options);
+    },
+    showSaveDialog: async (options) => {
+        return await ipcRenderer.invoke('file:save', options);
+    },
+    writeFile: async (filePath, content) => {
+        return await ipcRenderer.invoke('file:write', filePath, content);
+    },
     previewSISData: async (fileType, rowCount, emailDomain, authProviderId, allOptions) => {
         return await ipcRenderer.invoke('sis:previewData', fileType, rowCount, emailDomain, authProviderId, allOptions);
     },
@@ -581,7 +600,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
             case 'sections':
                 return await ipcRenderer.invoke('sections:search', domain, token, searchParams.search_term);
             case 'enrollments':
-                return await ipcRenderer.invoke('enrollments:search', domain, token, searchParams.search_term, searchParams.search_type);
+                return await ipcRenderer.invoke('enrollments:search', domain, token, searchParams.search_type, searchParams.id);
             case 'logins':
                 return await ipcRenderer.invoke('logins:search', domain, token, searchParams.user_id, searchParams.id_type);
             default:

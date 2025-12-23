@@ -61,6 +61,7 @@ const sisImports = require('../shared/canvas-api/sis_imports');
 const imports = require('../shared/canvas-api/imports');
 const groupCategories = require('../shared/canvas-api/group_categories');
 const { analyzeEmailPattern } = require('../shared/email_pattern_analyzer');
+const { HARAnalyzer } = require('../shared/harAnalyzer');
 const os = require('os');
 
 let debugLoggingEnabled = false;
@@ -157,6 +158,21 @@ function parseEmailsFromCSV(csvContent) {
                 if (emailMatch) {
                     emails.push(emailMatch[1].trim());
                 }
+            }
+        }
+    }
+
+    // If still no emails found, try simple line-by-line email extraction
+    // This handles CSV files with no headers - just a list of email addresses
+    if (emails.length === 0) {
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            // Extract any email from the line
+            const emailMatch = line.match(emailRegex);
+            if (emailMatch) {
+                emails.push(emailMatch[1].trim());
             }
         }
     }
@@ -806,6 +822,77 @@ function registerSisIpcHandlers() {
         return result.filePaths[0];
     });
 
+    ipcMain.handle('sis:selectFile', async (event, options = {}) => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openFile'],
+            filters: options.filters || [{ name: 'All Files', extensions: ['*'] }]
+        });
+        if (result.canceled) return null;
+        return { filePath: result.filePaths[0] };
+    });
+
+    ipcMain.handle('sis:readFile', async (event, filePath) => {
+        try {
+            const content = fs.readFileSync(filePath, 'utf8');
+            return content;
+        } catch (error) {
+            throw new Error(`Failed to read file: ${error.message}`);
+        }
+    });
+
+    ipcMain.handle('file:save', async (event, options = {}) => {
+        const result = await dialog.showSaveDialog(mainWindow, {
+            defaultPath: options.defaultPath || 'download.txt',
+            filters: options.filters || [{ name: 'All Files', extensions: ['*'] }]
+        });
+        if (result.canceled) return null;
+        return { filePath: result.filePath };
+    });
+
+    ipcMain.handle('file:write', async (event, filePath, content) => {
+        try {
+            fs.writeFileSync(filePath, content, 'utf8');
+            return { success: true };
+        } catch (error) {
+            throw new Error(`Failed to write file: ${error.message}`);
+        }
+    });
+
+    // HAR Analyzer IPC Handlers
+    ipcMain.handle('har:selectFile', async () => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openFile'],
+            filters: [
+                { name: 'HAR Files', extensions: ['har'] },
+                { name: 'JSON Files', extensions: ['json'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        });
+        if (result.canceled) return { canceled: true };
+        return { canceled: false, filePath: result.filePaths[0] };
+    });
+
+    ipcMain.handle('har:analyze', async (event, filePath) => {
+        try {
+            // Read HAR file
+            const harContent = fs.readFileSync(filePath, 'utf8');
+            const harData = JSON.parse(harContent);
+
+            // Create analyzer instance
+            const analyzer = new HARAnalyzer(harData);
+
+            // Generate comprehensive report
+            const report = analyzer.generateReport();
+
+            // Add diagnosis for incomplete auth flows
+            report.diagnosis = analyzer.diagnoseIncompleteAuth();
+
+            return report;
+        } catch (error) {
+            throw new Error(`Failed to analyze HAR file: ${error.message}`);
+        }
+    });
+
     ipcMain.handle('sis:previewData', async (event, fileType, rowCount, emailDomain = '@school.edu', authProviderId = '', allOptions = {}) => {
         try {
             let csvContent = '';
@@ -910,6 +997,8 @@ function registerSisIpcHandlers() {
     });
 
     ipcMain.handle('sis:createFile', async (event, fileType, rowCount, outputPath, emailDomain = '@school.edu', authProviderId = '', allOptions = {}) => {
+        console.log(`>>> IPC sis:createFile RECEIVED - fileType: ${fileType}, rowCount: ${rowCount}`);
+        console.log(`>>> allOptions:`, JSON.stringify(allOptions, null, 2));
         try {
             const enrollmentOptions = allOptions.enrollmentOptions || {};
             const userOptions = allOptions.userOptions || {};
@@ -946,6 +1035,9 @@ function registerSisIpcHandlers() {
                 if (fileType === 'accounts') {
                     accountOptions.searchData = allOptions.searchData;
                 }
+                if (fileType === 'enrollments') {
+                    enrollmentOptions.searchData = allOptions.searchData;
+                }
             }
 
             // Pass field values to all options for customization
@@ -967,6 +1059,27 @@ function registerSisIpcHandlers() {
                 Object.assign(differentiationTagSetOptions, allOptions.fieldValues);
                 Object.assign(differentiationTagOptions, allOptions.fieldValues);
                 Object.assign(differentiationTagMembershipOptions, allOptions.fieldValues);
+            }
+
+            // Pass file import data to all options
+            if (allOptions.fileImport) {
+                loginOptions.fileImport = allOptions.fileImport;
+                userOptions.fileImport = allOptions.fileImport;
+                enrollmentOptions.fileImport = allOptions.fileImport;
+                courseOptions.fileImport = allOptions.fileImport;
+                sectionOptions.fileImport = allOptions.fileImport;
+                termOptions.fileImport = allOptions.fileImport;
+                accountOptions.fileImport = allOptions.fileImport;
+                groupCategoryOptions.fileImport = allOptions.fileImport;
+                groupOptions.fileImport = allOptions.fileImport;
+                groupMembershipOptions.fileImport = allOptions.fileImport;
+                adminOptions.fileImport = allOptions.fileImport;
+                crossListingOptions.fileImport = allOptions.fileImport;
+                userObserverOptions.fileImport = allOptions.fileImport;
+                changeSisIdOptions.fileImport = allOptions.fileImport;
+                differentiationTagSetOptions.fileImport = allOptions.fileImport;
+                differentiationTagOptions.fileImport = allOptions.fileImport;
+                differentiationTagMembershipOptions.fileImport = allOptions.fileImport;
             }
 
             const filePath = await sisImports.createSISImportFile(
@@ -1245,34 +1358,6 @@ function registerSisIpcHandlers() {
         }
     });
 
-    // Enrollments search IPC handler
-    ipcMain.handle('enrollments:search', async (event, domain, token, searchTerm, searchType) => {
-        console.log('main.js > enrollments:search IPC handler');
-        try {
-            let result;
-
-            // Determine which search function to use based on searchType
-            switch (searchType) {
-                case 'user':
-                    result = await enrollments.getUserEnrollments(domain, token, searchTerm);
-                    break;
-                case 'course':
-                    result = await enrollments.getCourseEnrollments(domain, token, searchTerm);
-                    break;
-                case 'section':
-                    result = await enrollments.getSectionEnrollments(domain, token, searchTerm);
-                    break;
-                default:
-                    return { success: false, error: 'Invalid search type. Use user, course, or section.' };
-            }
-
-            return result;
-        } catch (error) {
-            console.error('Error searching enrollments:', error);
-            return { success: false, error: error.message };
-        }
-    });
-
     // Logins search IPC handler
     ipcMain.handle('logins:search', async (event, domain, token, userId, idType) => {
         console.log('main.js > logins:search IPC handler');
@@ -1281,6 +1366,36 @@ function registerSisIpcHandlers() {
             return { success: true, data: logins };
         } catch (error) {
             console.error('Error searching user logins:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Enrollments search IPC handler
+    ipcMain.handle('enrollments:search', async (event, domain, token, searchType, id) => {
+        console.log('main.js > enrollments:search IPC handler');
+        console.log(`Search type: ${searchType}, ID: ${id}`);
+        try {
+            // Set up axios for API calls
+            const axios = require('axios');
+            axios.defaults.baseURL = `https://${domain}/api/v1`;
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+            let enrollments;
+
+            // Route to the correct search function based on search type
+            if (searchType === 'user') {
+                // User search fetches ALL enrollment types/states - filtering happens client-side
+                enrollments = await sisImports.searchEnrollmentsByUser(id);
+                console.log(`Found ${enrollments.length} enrollments for user ${id}`);
+            } else {
+                // Course search also fetches ALL enrollment types/states - filtering happens client-side
+                enrollments = await sisImports.searchEnrollments(id);
+                console.log(`Found ${enrollments.length} enrollments for course ${id}`);
+            }
+
+            return { success: true, data: enrollments };
+        } catch (error) {
+            console.error('Error searching enrollments:', error);
             return { success: false, error: error.message };
         }
     });
@@ -1571,6 +1686,41 @@ app.whenReady().then(() => {
 
     });
 
+    // Save suppressed emails to file
+    ipcMain.handle('axios:saveSuppressedEmails', async (event, options) => {
+        try {
+            if (suppressedEmails.length === 0) {
+                throw new Error('No suppressed emails to save');
+            }
+
+            // Show save dialog
+            const result = await dialog.showSaveDialog(mainWindow, {
+                defaultPath: options.defaultPath || 'suppressed_emails.csv',
+                filters: options.filters || [
+                    { name: 'CSV Files', extensions: ['csv'] },
+                    { name: 'Text Files', extensions: ['txt'] },
+                    { name: 'All Files', extensions: ['*'] }
+                ]
+            });
+
+            if (result.canceled) {
+                return { success: false, cancelled: true };
+            }
+
+            // Write emails to file
+            const csvContent = suppressedEmails.join('\n');
+            fs.writeFileSync(result.filePath, csvContent, 'utf8');
+
+            return {
+                success: true,
+                filePath: result.filePath,
+                count: suppressedEmails.length
+            };
+        } catch (error) {
+            throw new Error(`Failed to save file: ${error.message}`);
+        }
+    });
+
     // Checking communication domain (per renderer)
     ipcMain.handle('axios:checkCommDomain', async (event, data) => {
         console.log('inside axios:checkCommDomain');
@@ -1591,12 +1741,11 @@ app.whenReady().then(() => {
             const response = await checkCommDomain(data);
             processLargeArray(response);
 
-            // suppressedEmails.push(...response);
-            if (suppressedEmails.length > 0) {
-                return true;
-            } else {
-                return false;
-            }
+            // Return metadata about the results
+            return {
+                count: suppressedEmails.length,
+                hasResults: suppressedEmails.length > 0
+            };
         } catch (error) {
             throw error.message;
         }

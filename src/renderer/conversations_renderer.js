@@ -380,6 +380,14 @@ async function getDeletedConversations(e) {
                 #get-deleted-conversations-form .mb-4 { margin-bottom: 0.5rem !important; }
                 #get-deleted-conversations-form .mt-2 { margin-top: 0.5rem !important; }
                 #get-deleted-conversations-form .mt-3 { margin-top: 0.5rem !important; }
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                .spin {
+                    animation: spin 1s linear infinite;
+                    display: inline-block;
+                }
             </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
@@ -678,13 +686,13 @@ async function getDeletedConversations(e) {
             evt.preventDefault(); 
             evt.stopPropagation();
 
-            searchBtn.disabled = true; 
-            cancelSingleBtn.disabled = false; 
+            searchBtn.disabled = true;
+            cancelSingleBtn.disabled = false;
             responseDiv.innerHTML = '';
             responseCard.hidden = true;
-            singleProgressCard.hidden = false; 
-            singleProgressBar.style.width = '0%'; 
-            singleProgressInfo.innerHTML = 'Fetching deleted conversations...';
+            singleProgressCard.hidden = false;
+            singleProgressBar.style.width = '100%';
+            singleProgressInfo.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Searching for deleted conversations...';
 
             const domain = document.querySelector('#domain').value.trim();
             const token = document.querySelector('#token').value.trim();
@@ -717,8 +725,8 @@ async function getDeletedConversations(e) {
                 }
 
                 const results = await window.axios.getDeletedConversations(params);
-                const count = results.length; 
-                singleProgressInfo.innerHTML = cancelled ? `Cancelled.` : `Found ${count} deleted conversation(s).`; 
+                const count = results.length;
+                singleProgressInfo.innerHTML = cancelled ? `Cancelled.` : `<i class="bi bi-check-circle text-success"></i> Found ${count} deleted conversation(s).`;
                 singleProgressBar.style.width = '100%';
                 
                 if (count > 0) { 
@@ -1060,6 +1068,14 @@ async function deleteConvos(e) {
                 #delete-conversations-subject-form .mt-1 { margin-top: 0.25rem !important; }
                 #delete-conversations-subject-form .mt-2 { margin-top: 0.5rem !important; }
                 #delete-conversations-subject-form .mt-3 { margin-top: 0.5rem !important; }
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                .spin {
+                    animation: spin 1s linear infinite;
+                    display: inline-block;
+                }
             </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
@@ -1137,7 +1153,7 @@ async function deleteConvos(e) {
             evt.preventDefault(); evt.stopPropagation();
 
             searchBtn.disabled = true; cancelSearchBtn.disabled = false; deleteBtn.disabled = true; resultDiv.innerHTML = '';
-            searchProgressDiv.hidden = false; searchProgressInfo.textContent = 'Searching for conversations...';
+            searchProgressDiv.hidden = false; searchProgressInfo.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Searching for conversations...';
 
             const domain = document.querySelector('#domain').value.trim();
             const token = document.querySelector('#token').value.trim();

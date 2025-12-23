@@ -89,14 +89,22 @@ function generateUsersCSV(rowCount, emailDomain = '@school.edu', authProviderId 
     const statuses = ['active', 'suspended', 'deleted'];
 
     for (let i = 0; i < rowCount; i++) {
+        // Helper to get field value (checks file import first, then options, then default)
+        const getFieldValue = (fieldName, defaultValue) => {
+            if (userOptions.fileImport && userOptions.fileImport.field === fieldName && userOptions.fileImport.values) {
+                return userOptions.fileImport.values[i % userOptions.fileImport.values.length];
+            }
+            return userOptions[fieldName] || userOptions[`specific${fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_([a-z])/g, (m, p1) => p1.toUpperCase())}`] || defaultValue;
+        };
+        
         // Use specific values if provided, otherwise generate random ones
         const { firstName, lastName } = generateRandomName();
 
-        const userId = 'specificUserId' in userOptions ? userOptions.specificUserId : generateRandomId('U', 6);
-        const loginId = 'specificLoginId' in userOptions ? userOptions.specificLoginId : `${firstName.toLowerCase()}${lastName.toLowerCase()}${Math.floor(Math.random() * 100)}`;
-        const authProviderIdToUse = 'specificAuthProviderId' in userOptions ? userOptions.specificAuthProviderId : authProviderId;
-        const password = 'specificPassword' in userOptions ? userOptions.specificPassword : 'temppass123';
-        const sshaPassword = 'specificSshaPassword' in userOptions ? userOptions.specificSshaPassword : '';
+        const userId = getFieldValue('user_id', generateRandomId('U', 6));
+        const loginId = getFieldValue('login_id', `${firstName.toLowerCase()}${lastName.toLowerCase()}${Math.floor(Math.random() * 100)}`);
+        const authProviderIdToUse = getFieldValue('authentication_provider_id', authProviderId);
+        const password = getFieldValue('password', 'temppass123');
+        const sshaPassword = getFieldValue('ssha_password', '');
 
         // For first/last name, email - check if explicitly provided, if so use them (even if blank), otherwise generate random
         const firstNameToUse = 'specificFirstName' in userOptions ? userOptions.specificFirstName : firstName;
@@ -352,18 +360,48 @@ function generateEnrollmentsCSV(rowCount, enrollmentOptions = {}) {
     const headers = 'course_id,user_id,role,section_id,status,user_integration_id,role_id,root_account';
     const rows = [headers];
 
+    // If search data is available, use it instead of generating random data
+    if (enrollmentOptions.searchData && Array.isArray(enrollmentOptions.searchData)) {
+        console.log('Using search data for enrollments CSV generation');
+
+        enrollmentOptions.searchData.forEach(enrollment => {
+            // Map from the search API response format to SIS CSV format
+            const courseId = escapeCSVValue(enrollment.course_id || '');
+            const userId = escapeCSVValue(enrollment.user_id || '');
+            const role = escapeCSVValue(enrollment.role || '');
+            const sectionId = escapeCSVValue(enrollment.section_id || '');
+            const status = escapeCSVValue(enrollment.status || '');
+            const userIntegrationId = escapeCSVValue(enrollment.user_integration_id || '');
+            const roleId = escapeCSVValue(enrollment.role_id || '');
+            const rootAccount = escapeCSVValue(enrollment.root_account || '');
+
+            const row = `${courseId},${userId},${role},${sectionId},${status},${userIntegrationId},${roleId},${rootAccount}`;
+            rows.push(row);
+        });
+
+        return rows.join('\n');
+    }
+
     const roles = ['student', 'teacher', 'ta', 'observer', 'designer'];
 
     for (let i = 0; i < rowCount; i++) {
+        // Helper to get field value (checks file import first, then options, then default)
+        const getFieldValue = (fieldName, defaultValue) => {
+            if (enrollmentOptions.fileImport && enrollmentOptions.fileImport.field === fieldName && enrollmentOptions.fileImport.values) {
+                return enrollmentOptions.fileImport.values[i % enrollmentOptions.fileImport.values.length];
+            }
+            return enrollmentOptions[fieldName] || enrollmentOptions[`specific${fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_([a-z])/g, (m, p1) => p1.toUpperCase())}`] || defaultValue;
+        };
+
         // Use specific values if provided, otherwise generate random ones
-        const courseId = enrollmentOptions.specificCourseId || generateRandomId('C', 6);
-        const userId = enrollmentOptions.specificUserId || generateRandomId('U', 6);
-        const role = enrollmentOptions.specificRole || roles[Math.floor(Math.random() * roles.length)];
-        const sectionId = enrollmentOptions.specificSectionId || generateRandomId('S', 6);
-        const status = enrollmentOptions.specificStatus || 'active';
-        const userIntegrationId = enrollmentOptions.specificUserIntegrationId || '';
-        const roleId = enrollmentOptions.specificRoleId || '';
-        const rootAccount = enrollmentOptions.specificRootAccount || '';
+        const courseId = getFieldValue('course_id', generateRandomId('C', 6));
+        const userId = getFieldValue('user_id', generateRandomId('U', 6));
+        const role = getFieldValue('role', roles[Math.floor(Math.random() * roles.length)]);
+        const sectionId = getFieldValue('section_id', generateRandomId('S', 6));
+        const status = getFieldValue('status', 'active');
+        const userIntegrationId = getFieldValue('user_integration_id', '');
+        const roleId = getFieldValue('role_id', '');
+        const rootAccount = getFieldValue('root_account', '');
 
         const row = `${escapeCSVValue(courseId)},${escapeCSVValue(userId)},${escapeCSVValue(role)},${escapeCSVValue(sectionId)},${escapeCSVValue(status)},${escapeCSVValue(userIntegrationId)},${escapeCSVValue(roleId)},${escapeCSVValue(rootAccount)}`;
         rows.push(row);
@@ -694,70 +732,18 @@ function generateChangeSisIdCSV(rowCount, changeSisIdOptions = {}) {
 
 // Export functions
 async function createSISImportFile(fileType, rowCount, outputPath, emailDomain = '@school.edu', authProviderId = '', enrollmentOptions = {}, userOptions = {}, accountOptions = {}, termOptions = {}, courseOptions = {}, sectionOptions = {}, groupCategoryOptions = {}, groupOptions = {}, groupMembershipOptions = {}, adminOptions = {}, loginOptions = {}, crossListingOptions = {}, userObserverOptions = {}, changeSisIdOptions = {}, differentiationTagSetOptions = {}, differentiationTagOptions = {}, differentiationTagMembershipOptions = {}) {
-    let csvContent = '';
+    console.log(`>>> createSISImportFile ENTRY - fileType: ${fileType}, rowCount: ${rowCount}`);
 
-    switch (fileType) {
-        case 'users':
-            csvContent = generateUsersCSV(rowCount, emailDomain, authProviderId, userOptions);
-            break;
-        case 'accounts':
-            csvContent = generateAccountsCSV(rowCount, accountOptions);
-            break;
-        case 'terms':
-            csvContent = generateTermsCSV(rowCount, termOptions);
-            break;
-        case 'courses':
-            csvContent = generateCoursesCSV(rowCount, courseOptions);
-            break;
-        case 'sections':
-            csvContent = generateSectionsCSV(rowCount, sectionOptions);
-            break;
-        case 'enrollments':
-            csvContent = generateEnrollmentsCSV(rowCount, enrollmentOptions);
-            break;
-        case 'group_categories':
-            csvContent = generateGroupCategoriesCSV(rowCount, groupCategoryOptions);
-            break;
-        case 'groups':
-            csvContent = generateGroupsCSV(rowCount, groupOptions);
-            break;
-        case 'group_memberships':
-            csvContent = generateGroupMembershipsCSV(rowCount, groupMembershipOptions);
-            break;
-        case 'differentiation_tag_sets':
-            csvContent = generateDifferentiationTagSetsCSV(rowCount, differentiationTagSetOptions);
-            break;
-        case 'differentiation_tags':
-            csvContent = generateDifferentiationTagsCSV(rowCount, differentiationTagOptions);
-            break;
-        case 'differentiation_tag_membership':
-            csvContent = generateDifferentiationTagMembershipCSV(rowCount, differentiationTagMembershipOptions);
-            break;
-        case 'xlists':
-            csvContent = generateXlistsCSV(rowCount, crossListingOptions);
-            break;
-        case 'cross_listings':
-            csvContent = generateXlistsCSV(rowCount, crossListingOptions);
-            break;
-        case 'user_observers':
-            csvContent = generateUserObserversCSV(rowCount, userObserverOptions);
-            break;
-        case 'logins':
-            csvContent = generateLoginsCSV(rowCount, emailDomain, authProviderId, loginOptions);
-            break;
-        case 'change_sis_id':
-        case 'change_sis_ids':
-            csvContent = generateChangeSisIdCSV(rowCount, changeSisIdOptions);
-            break;
-        case 'admins':
-            csvContent = generateAdminsCSV(rowCount, emailDomain, adminOptions);
-            break;
-        default:
-            throw new Error(`Unsupported file type: ${fileType}`);
+    // Check if outputPath is a full file path (has extension) or just a directory
+    let filePath;
+    if (path.extname(outputPath)) {
+        // outputPath is a full file path
+        filePath = outputPath;
+    } else {
+        // outputPath is a directory, create filename
+        const fileName = `${fileType}.csv`;
+        filePath = path.join(outputPath, fileName);
     }
-
-    const fileName = `${fileType}.csv`;
-    const filePath = path.join(outputPath, fileName);
 
     // Ensure directory exists
     const dir = path.dirname(filePath);
@@ -765,8 +751,437 @@ async function createSISImportFile(fileType, rowCount, outputPath, emailDomain =
         fs.mkdirSync(dir, { recursive: true });
     }
 
-    fs.writeFileSync(filePath, csvContent, 'utf8');
+    // For large row counts (>=1000), use streaming to avoid memory issues
+    const STREAMING_THRESHOLD = 1000;
+    const useStreaming = rowCount >= STREAMING_THRESHOLD;
+    
+    console.log(`=== createSISImportFile called ===`);
+    console.log(`fileType: ${fileType}, rowCount: ${rowCount}`);
+    console.log(`useStreaming: ${useStreaming} (threshold: ${STREAMING_THRESHOLD})`);
+
+    if (useStreaming) {
+        // Use streaming approach for large files
+        console.log(`Using streaming approach for ${rowCount} rows`);
+        console.log(`userOptions:`, JSON.stringify(userOptions, null, 2));
+        console.log(`accountOptions:`, JSON.stringify(accountOptions, null, 2));
+        console.log(`CALLING createSISImportFileStreaming NOW`);
+        await createSISImportFileStreaming(fileType, rowCount, filePath, emailDomain, authProviderId, enrollmentOptions, userOptions, accountOptions, termOptions, courseOptions, sectionOptions, groupCategoryOptions, groupOptions, groupMembershipOptions, adminOptions, loginOptions, crossListingOptions, userObserverOptions, changeSisIdOptions, differentiationTagSetOptions, differentiationTagOptions, differentiationTagMembershipOptions);
+        console.log(`STREAMING COMPLETED, returning filePath: ${filePath}`);
+    } else {
+        // Use in-memory approach for smaller files (simpler, faster for small datasets)
+        let csvContent = '';
+
+        switch (fileType) {
+            case 'users':
+                csvContent = generateUsersCSV(rowCount, emailDomain, authProviderId, userOptions);
+                break;
+            case 'accounts':
+                csvContent = generateAccountsCSV(rowCount, accountOptions);
+                break;
+            case 'terms':
+                csvContent = generateTermsCSV(rowCount, termOptions);
+                break;
+            case 'courses':
+                csvContent = generateCoursesCSV(rowCount, courseOptions);
+                break;
+            case 'sections':
+                csvContent = generateSectionsCSV(rowCount, sectionOptions);
+                break;
+            case 'enrollments':
+                csvContent = generateEnrollmentsCSV(rowCount, enrollmentOptions);
+                break;
+            case 'group_categories':
+                csvContent = generateGroupCategoriesCSV(rowCount, groupCategoryOptions);
+                break;
+            case 'groups':
+                csvContent = generateGroupsCSV(rowCount, groupOptions);
+                break;
+            case 'group_memberships':
+                csvContent = generateGroupMembershipsCSV(rowCount, groupMembershipOptions);
+                break;
+            case 'differentiation_tag_sets':
+                csvContent = generateDifferentiationTagSetsCSV(rowCount, differentiationTagSetOptions);
+                break;
+            case 'differentiation_tags':
+                csvContent = generateDifferentiationTagsCSV(rowCount, differentiationTagOptions);
+                break;
+            case 'differentiation_tag_membership':
+                csvContent = generateDifferentiationTagMembershipCSV(rowCount, differentiationTagMembershipOptions);
+                break;
+            case 'xlists':
+                csvContent = generateXlistsCSV(rowCount, crossListingOptions);
+                break;
+            case 'cross_listings':
+                csvContent = generateXlistsCSV(rowCount, crossListingOptions);
+                break;
+            case 'user_observers':
+                csvContent = generateUserObserversCSV(rowCount, userObserverOptions);
+                break;
+            case 'logins':
+                csvContent = generateLoginsCSV(rowCount, emailDomain, authProviderId, loginOptions);
+                break;
+            case 'change_sis_id':
+            case 'change_sis_ids':
+                csvContent = generateChangeSisIdCSV(rowCount, changeSisIdOptions);
+                break;
+            case 'admins':
+                csvContent = generateAdminsCSV(rowCount, emailDomain, adminOptions);
+                break;
+            default:
+                throw new Error(`Unsupported file type: ${fileType}`);
+        }
+
+        // Write with UTF-8 BOM to ensure proper encoding of special characters
+        const BOM = '\uFEFF';
+        fs.writeFileSync(filePath, BOM + csvContent, 'utf8');
+    }
+
     return filePath;
+}
+
+// Streaming CSV generation for large files
+async function createSISImportFileStreaming(fileType, rowCount, filePath, emailDomain, authProviderId, enrollmentOptions, userOptions, accountOptions, termOptions, courseOptions, sectionOptions, groupCategoryOptions, groupOptions, groupMembershipOptions, adminOptions, loginOptions, crossListingOptions, userObserverOptions, changeSisIdOptions, differentiationTagSetOptions, differentiationTagOptions, differentiationTagMembershipOptions) {
+    console.log('=== createSISImportFileStreaming called ===');
+    console.log(`fileType: ${fileType}, rowCount: ${rowCount}, filePath: ${filePath}`);
+    console.log(`userOptions:`, userOptions);
+    
+    return new Promise((resolve, reject) => {
+        console.log('Creating write stream...');
+        const writeStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
+        const BATCH_SIZE = 1000; // Process 1000 rows at a time
+        
+        writeStream.on('error', (err) => {
+            console.error('Write stream error:', err);
+            reject(err);
+        });
+        writeStream.on('finish', () => {
+            console.log('Write stream finished successfully');
+            resolve(filePath);
+        });
+
+        // Write header first
+        let header = '';
+        switch (fileType) {
+            case 'users':
+                header = 'user_id,login_id,authentication_provider_id,password,ssha_password,first_name,last_name,full_name,sortable_name,short_name,email,status,integration_id,pronouns,declared_user_type,canvas_password_notification,home_account';
+                break;
+            case 'accounts':
+                header = 'account_id,parent_account_id,name,status';
+                break;
+            case 'terms':
+                header = 'term_id,name,status,start_date,end_date,integration_id,date_override_enrollment_type';
+                break;
+            case 'courses':
+                header = 'course_id,short_name,long_name,account_id,term_id,status,start_date,end_date,course_code,integration_id,blueprint_course_id';
+                break;
+            case 'sections':
+                header = 'section_id,course_id,name,status,start_date,end_date,integration_id,restriction_section_id';
+                break;
+            case 'enrollments':
+                header = 'course_id,user_id,role,role_id,section_id,status,associated_user_id,start_date,end_date,limit_section_privileges';
+                break;
+            case 'group_categories':
+                header = 'group_category_id,account_id,course_id,category_name,status';
+                break;
+            case 'groups':
+                header = 'group_id,account_id,name,status,group_category_id';
+                break;
+            case 'group_memberships':
+                header = 'group_id,user_id,status';
+                break;
+            case 'xlists':
+            case 'cross_listings':
+                header = 'xlist_course_id,section_id,status';
+                break;
+            case 'user_observers':
+                header = 'observer_id,student_id,status';
+                break;
+            case 'logins':
+                header = 'user_id,login_id,authentication_provider_id,password,ssha_password,existing_user_id,existing_integration_id,existing_canvas_user_id,status,declared_user_type';
+                break;
+            case 'change_sis_id':
+            case 'change_sis_ids':
+                header = 'old_id,new_id,old_integration_id,new_integration_id,type';
+                break;
+            case 'admins':
+                header = 'user_id,account_id,role_id,role,status';
+                break;
+            default:
+                return reject(new Error(`Unsupported file type: ${fileType}`));
+        }
+
+        console.log(`Writing header: ${header}`);
+        // Write UTF-8 BOM first to ensure proper encoding of special characters
+        const BOM = '\uFEFF';
+        writeStream.write(BOM + header + '\n');
+
+        // Process rows in batches
+        let currentRow = 0;
+        const processBatch = () => {
+            console.log(`processBatch called, currentRow=${currentRow}, rowCount=${rowCount}`);
+            const batchEnd = Math.min(currentRow + BATCH_SIZE, rowCount);
+            const batchCount = batchEnd - currentRow;
+            
+            console.log(`batchEnd=${batchEnd}, batchCount=${batchCount}`);
+            if (batchCount <= 0) {
+                console.log('No more batches, ending stream');
+                writeStream.end();
+                return;
+            }
+
+            // Generate batch of rows (using modified generators that return single rows)
+            const batchRows = [];
+            console.log(`Generating batch: rows ${currentRow} to ${batchEnd}, batchCount=${batchCount}`);
+            for (let i = 0; i < batchCount; i++) {
+                const rowIndex = currentRow + i;
+                let row = '';
+                switch (fileType) {
+                    case 'users':
+                        row = generateUserRow(emailDomain, authProviderId, userOptions, rowIndex);
+                        console.log(`Generated user row ${rowIndex}: ${row.substring(0, 100)}...`);
+                        break;
+                    case 'accounts':
+                        row = generateAccountRow(rowIndex, accountOptions);
+                        break;
+                    case 'terms':
+                        row = generateTermRow(rowIndex, termOptions);
+                        break;
+                    case 'courses':
+                        row = generateCourseRow(rowIndex, courseOptions);
+                        break;
+                    case 'sections':
+                        row = generateSectionRow(rowIndex, sectionOptions);
+                        break;
+                    case 'enrollments':
+                        row = generateEnrollmentRow(rowIndex, enrollmentOptions);
+                        break;
+                    case 'group_categories':
+                        row = generateGroupCategoryRow(currentRow + i, groupCategoryOptions);
+                        break;
+                    case 'groups':
+                        row = generateGroupRow(currentRow + i, groupOptions);
+                        break;
+                    case 'group_memberships':
+                        row = generateGroupMembershipRow(currentRow + i, groupMembershipOptions);
+                        break;
+                    case 'xlists':
+                    case 'cross_listings':
+                        row = generateXlistRow(currentRow + i, crossListingOptions);
+                        break;
+                    case 'user_observers':
+                        row = generateUserObserverRow(currentRow + i, userObserverOptions);
+                        break;
+                    case 'logins':
+                        row = generateLoginRow(emailDomain, authProviderId, loginOptions);
+                        break;
+                    case 'change_sis_id':
+                    case 'change_sis_ids':
+                        row = generateChangeSisIdRow(currentRow + i, changeSisIdOptions);
+                        break;
+                    case 'admins':
+                        row = generateAdminRow(emailDomain, adminOptions);
+                        break;
+                }
+                batchRows.push(row);
+            }
+
+            const batchContent = batchRows.join('\n') + '\n';
+            console.log(`Writing batch of ${batchRows.length} rows, total chars: ${batchContent.length}`);
+            console.log(`First row preview: ${batchRows[0]?.substring(0, 150)}`);
+            writeStream.write(batchContent);
+            currentRow = batchEnd;
+
+            // Schedule next batch (allow event loop to process other tasks)
+            setImmediate(processBatch);
+        };
+
+        processBatch();
+    });
+}
+
+// Helper functions to generate single rows (extracted from the loop bodies of existing generators)
+function generateUserRow(emailDomain, authProviderId, userOptions = {}, rowIndex = 0) {
+    console.log('generateUserRow called with userOptions:', JSON.stringify(userOptions));
+    
+    // Helper to get field value (checks file import first, then options, then default)
+    const getFieldValue = (fieldName, defaultValue) => {
+        if (userOptions.fileImport && userOptions.fileImport.field === fieldName && userOptions.fileImport.values) {
+            return userOptions.fileImport.values[rowIndex % userOptions.fileImport.values.length];
+        }
+        return userOptions[fieldName] || userOptions[`specific${fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_([a-z])/g, (m, p1) => p1.toUpperCase())}`] || defaultValue;
+    };
+    
+    const { firstName, lastName } = generateRandomName();
+    const userId = getFieldValue('user_id', generateRandomId('U', 6));
+    const loginId = getFieldValue('login_id', `${firstName.toLowerCase()}${lastName.toLowerCase()}${Math.floor(Math.random() * 100)}`);
+    const authProviderIdToUse = getFieldValue('authentication_provider_id', authProviderId);
+    const password = getFieldValue('password', 'temppass123');
+    const sshaPassword = getFieldValue('ssha_password', '');
+    const firstNameToUse = getFieldValue('first_name', firstName);
+    const lastNameToUse = getFieldValue('last_name', lastName);
+    const fullName = getFieldValue('full_name', `${firstNameToUse} ${lastNameToUse}`);
+    const sortableName = getFieldValue('sortable_name', `${lastNameToUse}, ${firstNameToUse}`);
+    const shortName = getFieldValue('short_name', `${firstNameToUse} ${lastNameToUse.charAt(0)}.`);
+    const email = getFieldValue('email', generateRandomEmail(firstNameToUse, lastNameToUse, emailDomain));
+    const status = getFieldValue('status', 'active');
+    const integrationId = getFieldValue('integration_id', '');
+    const pronouns = getFieldValue('pronouns', '');
+    const declaredUserType = getFieldValue('declared_user_type', '');
+    const canvasPasswordNotification = getFieldValue('canvas_password_notification', '');
+    const homeAccount = getFieldValue('home_account', '');
+    
+    return `${escapeCSVValue(userId)},${escapeCSVValue(loginId)},${escapeCSVValue(authProviderIdToUse)},${escapeCSVValue(password)},${escapeCSVValue(sshaPassword)},${escapeCSVValue(firstNameToUse)},${escapeCSVValue(lastNameToUse)},${escapeCSVValue(fullName)},${escapeCSVValue(sortableName)},${escapeCSVValue(shortName)},${escapeCSVValue(email)},${escapeCSVValue(status)},${escapeCSVValue(integrationId)},${escapeCSVValue(pronouns)},${escapeCSVValue(declaredUserType)},${escapeCSVValue(canvasPasswordNotification)},${escapeCSVValue(homeAccount)}`;
+}
+
+// Placeholder row generators for other types (these would need to be filled in similarly)
+function generateAccountRow(index, options) {
+    const departments = ['Humanities', 'Sciences', 'Engineering', 'Business', 'Arts', 'Social Sciences'];
+    const accountId = options.account_id || options.specificAccountId || generateRandomId('A', 4);
+    const parentId = options.parent_account_id || options.specificParentAccountId || (index === 0 ? '' : generateRandomId('A', 4));
+    const name = options.name || options.specificName || (departments[index % departments.length] + (index > 5 ? ` ${Math.floor(index / 6) + 1}` : ''));
+    const status = options.status || options.specificStatus || 'active';
+    return `${escapeCSVValue(accountId)},${escapeCSVValue(parentId)},${escapeCSVValue(name)},${escapeCSVValue(status)}`;
+}
+
+function generateTermRow(index, options) {
+    const seasons = ['Fall', 'Spring', 'Summer', 'Winter'];
+    const currentYear = new Date().getFullYear();
+    const termId = options.term_id || options.specificTermId || generateRandomId('T', 6);
+    const name = options.name || options.specificName || `${seasons[index % 4]} ${currentYear + Math.floor(index / 4)}`;
+    const status = options.status || options.specificStatus || 'active';
+    const startDate = options.start_date || options.specificStartDate || generateDate(index * 90);
+    const endDate = options.end_date || options.specificEndDate || generateDate(index * 90 + 90);
+    const integrationId = options.integration_id || options.specificIntegrationId || '';
+    const dateOverride = options.date_override_enrollment_type || options.specificDateOverrideEnrollmentType || '';
+    return `${escapeCSVValue(termId)},${escapeCSVValue(name)},${escapeCSVValue(status)},${escapeCSVValue(startDate)},${escapeCSVValue(endDate)},${escapeCSVValue(integrationId)},${escapeCSVValue(dateOverride)}`;
+}
+
+function generateCourseRow(index, options) {
+    const courseId = options.course_id || options.specificCourseId || generateRandomId('C', 6);
+    const subject = subjects[index % subjects.length];
+    const shortName = options.short_name || options.specificShortName || `${subject.substring(0, 4).toUpperCase()}${100 + index}`;
+    const longName = options.long_name || options.specificLongName || `Introduction to ${subject}`;
+    const accountId = options.account_id || options.specificAccountId || 'root';
+    const termId = options.term_id || options.specificTermId || generateRandomId('T', 6);
+    const status = options.status || options.specificStatus || 'active';
+    const startDate = options.start_date || options.specificStartDate || '';
+    const endDate = options.end_date || options.specificEndDate || '';
+    const courseCode = options.course_code || options.specificCourseCode || shortName;
+    const integrationId = options.integration_id || options.specificIntegrationId || '';
+    const blueprintCourseId = options.blueprint_course_id || options.specificBlueprintCourseId || '';
+    return `${escapeCSVValue(courseId)},${escapeCSVValue(shortName)},${escapeCSVValue(longName)},${escapeCSVValue(accountId)},${escapeCSVValue(termId)},${escapeCSVValue(status)},${escapeCSVValue(startDate)},${escapeCSVValue(endDate)},${escapeCSVValue(courseCode)},${escapeCSVValue(integrationId)},${escapeCSVValue(blueprintCourseId)}`;
+}
+
+function generateSectionRow(index, options) {
+    const sectionId = options.section_id || options.specificSectionId || generateRandomId('S', 6);
+    const courseId = options.course_id || options.specificCourseId || generateRandomId('C', 6);
+    const name = options.name || options.specificName || `Section ${index + 1}`;
+    const status = options.status || options.specificStatus || 'active';
+    const startDate = options.start_date || options.specificStartDate || '';
+    const endDate = options.end_date || options.specificEndDate || '';
+    const integrationId = options.integration_id || options.specificIntegrationId || '';
+    const restrictionSectionId = options.restriction_section_id || options.specificRestrictionSectionId || '';
+    return `${escapeCSVValue(sectionId)},${escapeCSVValue(courseId)},${escapeCSVValue(name)},${escapeCSVValue(status)},${escapeCSVValue(startDate)},${escapeCSVValue(endDate)},${escapeCSVValue(integrationId)},${escapeCSVValue(restrictionSectionId)}`;
+}
+
+function generateEnrollmentRow(index, options) {
+    const roles = ['student', 'teacher', 'ta', 'observer', 'designer'];
+    
+    // Check for file import data
+    const getFieldValue = (fieldName, defaultValue) => {
+        if (options.fileImport && options.fileImport.field === fieldName && options.fileImport.values) {
+            return options.fileImport.values[index % options.fileImport.values.length];
+        }
+        return options[fieldName] || options[`specific${fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_([a-z])/g, (m, p1) => p1.toUpperCase())}`] || defaultValue;
+    };
+    
+    const courseId = getFieldValue('course_id', generateRandomId('C', 6));
+    const userId = getFieldValue('user_id', generateRandomId('U', 6));
+    const role = getFieldValue('role', roles[index % roles.length]);
+    const roleId = getFieldValue('role_id', '');
+    const sectionId = getFieldValue('section_id', '');
+    const status = getFieldValue('status', 'active');
+    const associatedUserId = getFieldValue('associated_user_id', '');
+    const startDate = getFieldValue('start_date', '');
+    const endDate = getFieldValue('end_date', '');
+    const limitSectionPrivileges = getFieldValue('limit_section_privileges', '');
+    
+    return `${escapeCSVValue(courseId)},${escapeCSVValue(userId)},${escapeCSVValue(role)},${escapeCSVValue(roleId)},${escapeCSVValue(sectionId)},${escapeCSVValue(status)},${escapeCSVValue(associatedUserId)},${escapeCSVValue(startDate)},${escapeCSVValue(endDate)},${escapeCSVValue(limitSectionPrivileges)}`;
+}
+
+function generateGroupCategoryRow(index, options) {
+    const categories = ['Study Groups', 'Project Teams', 'Lab Sections', 'Discussion Groups'];
+    const groupCategoryId = options.group_category_id || options.specificGroupCategoryId || generateRandomId('GC', 6);
+    const accountId = options.account_id || options.specificAccountId || '';
+    const courseId = options.course_id || options.specificCourseId || generateRandomId('C', 6);
+    const categoryName = options.category_name || options.specificCategoryName || categories[index % categories.length];
+    const status = options.status || options.specificStatus || 'available';
+    return `${escapeCSVValue(groupCategoryId)},${escapeCSVValue(accountId)},${escapeCSVValue(courseId)},${escapeCSVValue(categoryName)},${escapeCSVValue(status)}`;
+}
+
+function generateGroupRow(index, options) {
+    const groupId = options.group_id || options.specificGroupId || generateRandomId('G', 6);
+    const accountId = options.account_id || options.specificAccountId || '';
+    const name = options.name || options.specificName || `Group ${index + 1}`;
+    const status = options.status || options.specificStatus || 'available';
+    const groupCategoryId = options.group_category_id || options.specificGroupCategoryId || generateRandomId('GC', 6);
+    return `${escapeCSVValue(groupId)},${escapeCSVValue(accountId)},${escapeCSVValue(name)},${escapeCSVValue(status)},${escapeCSVValue(groupCategoryId)}`;
+}
+
+function generateGroupMembershipRow(index, options) {
+    const groupId = options.group_id || options.specificGroupId || generateRandomId('G', 6);
+    const userId = options.user_id || options.specificUserId || generateRandomId('U', 6);
+    const status = options.status || options.specificStatus || 'accepted';
+    return `${escapeCSVValue(groupId)},${escapeCSVValue(userId)},${escapeCSVValue(status)}`;
+}
+
+function generateXlistRow(index, options) {
+    const xlistCourseId = options.xlist_course_id || options.specificXlistCourseId || generateRandomId('C', 6);
+    const sectionId = options.section_id || options.specificSectionId || generateRandomId('S', 6);
+    const status = options.status || options.specificStatus || 'active';
+    return `${escapeCSVValue(xlistCourseId)},${escapeCSVValue(sectionId)},${escapeCSVValue(status)}`;
+}
+
+function generateUserObserverRow(index, options) {
+    const observerId = options.observer_id || options.specificObserverId || generateRandomId('U', 6);
+    const studentId = options.student_id || options.specificStudentId || generateRandomId('U', 6);
+    const status = options.status || options.specificStatus || 'active';
+    return `${escapeCSVValue(observerId)},${escapeCSVValue(studentId)},${escapeCSVValue(status)}`;
+}
+
+function generateLoginRow(emailDomain, authProviderId, options) {
+    const { firstName, lastName } = generateRandomName();
+    const userId = options.user_id || options.specificUserId || generateRandomId('U', 6);
+    const loginId = options.login_id || options.specificLoginId || `${firstName.toLowerCase()}${lastName.toLowerCase()}${Math.floor(Math.random() * 100)}`;
+    const authProviderIdToUse = options.authentication_provider_id || options.specificAuthProviderId || authProviderId;
+    const password = options.password || options.specificPassword || 'temppass123';
+    const sshaPassword = options.ssha_password || options.specificSshaPassword || '';
+    const existingUserId = options.existing_user_id || options.specificExistingUserId || '';
+    const existingIntegrationId = options.existing_integration_id || options.specificExistingIntegrationId || '';
+    const existingCanvasUserId = options.existing_canvas_user_id || options.specificExistingCanvasUserId || '';
+    const status = options.status || options.specificStatus || 'active';
+    const declaredUserType = options.declared_user_type || options.specificDeclaredUserType || '';
+    return `${escapeCSVValue(userId)},${escapeCSVValue(loginId)},${escapeCSVValue(authProviderIdToUse)},${escapeCSVValue(password)},${escapeCSVValue(sshaPassword)},${escapeCSVValue(existingUserId)},${escapeCSVValue(existingIntegrationId)},${escapeCSVValue(existingCanvasUserId)},${escapeCSVValue(status)},${escapeCSVValue(declaredUserType)}`;
+}
+
+function generateChangeSisIdRow(index, options) {
+    const types = ['user', 'course', 'section', 'term', 'account'];
+    const oldId = options.old_id || options.specificOldId || generateRandomId('OLD', 6);
+    const newId = options.new_id || options.specificNewId || generateRandomId('NEW', 6);
+    const oldIntegrationId = options.old_integration_id || options.specificOldIntegrationId || '';
+    const newIntegrationId = options.new_integration_id || options.specificNewIntegrationId || '';
+    const type = options.type || options.specificType || types[index % types.length];
+    return `${escapeCSVValue(oldId)},${escapeCSVValue(newId)},${escapeCSVValue(oldIntegrationId)},${escapeCSVValue(newIntegrationId)},${escapeCSVValue(type)}`;
+}
+
+function generateAdminRow(emailDomain, options) {
+    const { firstName, lastName } = generateRandomName();
+    const userId = options.user_id || options.specificUserId || generateRandomId('U', 6);
+    const accountId = options.account_id || options.specificAccountId || 'root';
+    const roleId = options.role_id || options.specificRoleId || generateRandomId('R', 4);
+    const role = options.role || options.specificRole || 'AccountAdmin';
+    const status = options.status || options.specificStatus || 'active';
+    return `${escapeCSVValue(userId)},${escapeCSVValue(accountId)},${escapeCSVValue(roleId)},${escapeCSVValue(role)},${escapeCSVValue(status)}`;
 }
 
 async function createBulkSISImport(fileTypes, rowCounts, outputPath, emailDomain = '@school.edu', authProviderId = '', enrollmentOptions = {}) {
@@ -832,6 +1247,248 @@ function getProviderDisplayName(provider) {
     return `${typeName} (ID: ${provider.id})`;
 }
 
+/**
+ * Search for enrollments in a course using Canvas GraphQL API
+ * Fetches ALL enrollment types and states - filtering happens client-side
+ * @param {string} courseId - The Canvas course ID
+ * @returns {Promise<Array>} Array of enrollment objects formatted for SIS CSV
+ */
+async function searchEnrollments(courseId) {
+    try {
+        const graphqlUrl = axios.defaults.baseURL.replace('/api/v1', '/api/graphql');
+        let allEnrollments = [];
+        let hasNextPage = true;
+        let cursor = null;
+
+        console.log(`Searching ALL enrollments for course ${courseId}`);
+
+        while (hasNextPage) {
+            // Fetch ALL enrollment types and states - we'll filter client-side in the UI
+            const allStates = ['invited', 'active', 'completed', 'deleted', 'inactive'];
+            const allTypes = ['StudentEnrollment', 'TeacherEnrollment', 'TaEnrollment', 'DesignerEnrollment', 'ObserverEnrollment'];
+
+            const statesEnum = allStates.join(', ');
+            const typesEnum = allTypes.join(', ');
+
+            const graphqlQuery = {
+                query: `
+                    query GetCourseEnrollments($courseId: ID!, $first: Int!, $after: String) {
+                        course(id: $courseId) {
+                            sisId
+                            enrollmentsConnection(
+                                first: $first
+                                filter: { states: [${statesEnum}], types: [${typesEnum}] }
+                                after: $after
+                            ) {
+                                pageInfo {
+                                    endCursor
+                                    hasNextPage
+                                }
+                                edges {
+                                    node {
+                                        userId
+                                        user {
+                                            sisId
+                                        }
+                                        section {
+                                            sisId
+                                        }
+                                        sisRole
+                                        state
+                                        startAt
+                                        endAt
+                                    }
+                                }
+                            }
+                        }
+                    }
+                `,
+                variables: {
+                    courseId: courseId,
+                    first: 100,
+                    after: cursor
+                }
+            };
+
+            console.log(`Fetching page with cursor: ${cursor || 'initial'}`);
+
+            const response = await axios.post(graphqlUrl, graphqlQuery, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.data.errors) {
+                throw new Error(`GraphQL errors: ${JSON.stringify(response.data.errors)}`);
+            }
+
+            const courseData = response.data.data.course;
+            if (!courseData) {
+                throw new Error(`Course with ID ${courseId} not found`);
+            }
+
+            const courseSisId = courseData.sisId;
+            const enrollmentsConnection = courseData.enrollmentsConnection;
+            const edges = enrollmentsConnection.edges || [];
+
+            // Transform GraphQL response to SIS CSV format
+            const enrollments = edges.map(edge => {
+                const node = edge.node;
+                return {
+                    course_id: courseSisId || '',
+                    user_id: node.user?.sisId || '',
+                    role: node.sisRole || '',
+                    section_id: node.section?.sisId || '',
+                    status: node.state || '',
+                    start_date: node.startAt || '',
+                    end_date: node.endAt || '',
+                    user_integration_id: '',
+                    role_id: '',
+                    root_account: ''
+                };
+            });
+
+            allEnrollments = allEnrollments.concat(enrollments);
+
+            // Check if there are more pages
+            hasNextPage = enrollmentsConnection.pageInfo.hasNextPage;
+            cursor = enrollmentsConnection.pageInfo.endCursor;
+
+            console.log(`Fetched ${enrollments.length} enrollments. Total so far: ${allEnrollments.length}. Has next page: ${hasNextPage}`);
+        }
+
+        console.log(`Completed fetching enrollments. Total: ${allEnrollments.length}`);
+        return allEnrollments;
+
+    } catch (error) {
+        console.error('Error searching enrollments:', error);
+        if (error.response) {
+            console.error('Response status:', error.response.status);
+            console.error('Response data:', error.response.data);
+        }
+        throw new Error(`Failed to search enrollments: ${error.message}`);
+    }
+}
+
+/**
+ * Search for enrollments by user ID using Canvas GraphQL API
+ * Fetches ALL enrollment types and states - filtering happens client-side
+ * @param {string} userId - The Canvas user ID
+ * @returns {Promise<Array>} Array of enrollment objects formatted for SIS CSV
+ */
+async function searchEnrollmentsByUser(userId) {
+    try {
+        const graphqlUrl = axios.defaults.baseURL.replace('/api/v1', '/api/graphql');
+        let allEnrollments = [];
+        let hasNextPage = true;
+        let cursor = null;
+
+        console.log(`Searching ALL enrollments for user ${userId}`);
+
+        while (hasNextPage) {
+            // Fetch ALL enrollment types - we'll filter client-side in the UI
+            const allTypes = ['StudentEnrollment', 'TeacherEnrollment', 'TaEnrollment', 'DesignerEnrollment', 'ObserverEnrollment'];
+
+            const graphqlQuery = {
+                query: `
+                    query GetUserEnrollments($userId: ID!, $types: [EnrollmentType!]!, $first: Int!, $after: String) {
+                        legacyNode(_id: $userId, type: User) {
+                            ... on User {
+                                sisId
+                                enrollmentsConnection(
+                                    enrollmentTypes: $types
+                                    first: $first
+                                    after: $after
+                                ) {
+                                    pageInfo {
+                                        endCursor
+                                        hasNextPage
+                                    }
+                                    edges {
+                                        node {
+                                            course {
+                                                sisId
+                                            }
+                                            sisSectionId
+                                            sisRole
+                                            state
+                                            startAt
+                                            endAt
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                `,
+                variables: {
+                    userId: userId,
+                    types: allTypes,
+                    first: 100,
+                    after: cursor
+                }
+            };
+
+            console.log(`Fetching page with cursor: ${cursor || 'initial'}`);
+
+            const response = await axios.post(graphqlUrl, graphqlQuery, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.data.errors) {
+                throw new Error(`GraphQL errors: ${JSON.stringify(response.data.errors)}`);
+            }
+
+            const userData = response.data.data.legacyNode;
+            if (!userData) {
+                throw new Error(`User with ID ${userId} not found`);
+            }
+
+            const userSisId = userData.sisId;
+            const enrollmentsConnection = userData.enrollmentsConnection;
+            const edges = enrollmentsConnection.edges || [];
+
+            // Transform GraphQL response to SIS CSV format
+            const enrollments = edges.map(edge => {
+                const node = edge.node;
+                return {
+                    course_id: node.course?.sisId || '',
+                    user_id: userSisId || '',
+                    role: node.sisRole || '',
+                    section_id: node.sisSectionId || '',
+                    status: node.state || '',
+                    start_date: node.startAt || '',
+                    end_date: node.endAt || '',
+                    user_integration_id: '',
+                    role_id: '',
+                    root_account: ''
+                };
+            });
+
+            allEnrollments = allEnrollments.concat(enrollments);
+
+            // Check if there are more pages
+            hasNextPage = enrollmentsConnection.pageInfo.hasNextPage;
+            cursor = enrollmentsConnection.pageInfo.endCursor;
+
+            console.log(`Fetched ${enrollments.length} enrollments. Total so far: ${allEnrollments.length}. Has next page: ${hasNextPage}`);
+        }
+
+        console.log(`Completed fetching enrollments for user. Total: ${allEnrollments.length}`);
+        return allEnrollments;
+
+    } catch (error) {
+        console.error('Error searching enrollments by user:', error);
+        if (error.response) {
+            console.error('Response status:', error.response.status);
+            console.error('Response data:', error.response.data);
+        }
+        throw new Error(`Failed to search enrollments by user: ${error.message}`);
+    }
+}
+
 module.exports = {
     createSISImportFile,
     createBulkSISImport,
@@ -852,5 +1509,7 @@ module.exports = {
     generateLoginsCSV,
     generateChangeSisIdCSV,
     generateAdminsCSV,
-    fetchAuthenticationProviders
+    fetchAuthenticationProviders,
+    searchEnrollments,
+    searchEnrollmentsByUser
 };

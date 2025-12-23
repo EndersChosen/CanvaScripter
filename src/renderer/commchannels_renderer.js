@@ -629,14 +629,45 @@ function checkComm(e) {
                 currentProcessType = null;
             }
 
-            if (response) {
-                responseContainer.innerHTML += `<p>Found suppressed email. Download them here: <button id="download-emails">Download Emails</button>.</p>`;
-                const downloadEmails = responseContainer.querySelector('#download-emails');
-                downloadEmails.addEventListener('click', (e) => {
+            if (response && response.hasResults) {
+                const emailCount = response.count || 0;
+                responseContainer.innerHTML += `
+                    <div class="alert alert-success mt-3">
+                        <i class="bi bi-check-circle me-2"></i>
+                        Found <strong>${emailCount.toLocaleString()}</strong> suppressed email(s) matching the pattern.
+                    </div>
+                    <button id="save-emails-to-file" class="btn btn-primary">
+                        <i class="bi bi-download me-1"></i>Save to File
+                    </button>
+                `;
+                
+                const saveEmailsBtn = responseContainer.querySelector('#save-emails-to-file');
+                saveEmailsBtn.addEventListener('click', async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
 
-                    window.csv.sendToText();
+                    try {
+                        const fileName = `suppressed_emails_${domainPattern.replace(/[@.]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+                        
+                        // Call backend to save the file directly (avoids passing large arrays through IPC)
+                        const result = await window.axios.saveSuppressedEmails({
+                            defaultPath: fileName,
+                            filters: [
+                                { name: 'CSV Files', extensions: ['csv'] },
+                                { name: 'Text Files', extensions: ['txt'] },
+                                { name: 'All Files', extensions: ['*'] }
+                            ]
+                        });
+                        
+                        if (result.success) {
+                            alert(`File saved successfully!\n\nLocation: ${result.filePath}\nEmails saved: ${result.count.toLocaleString()}`);
+                        } else if (result.cancelled) {
+                            // User cancelled the save dialog
+                        }
+                    } catch (error) {
+                        console.error('Error saving file:', error);
+                        alert(`Error saving file: ${error.message}`);
+                    }
                 });
             } else if (!hasError) {
                 responseContainer.innerHTML += `<p>Didn't find any emails matching the specified pattern.</p>`;

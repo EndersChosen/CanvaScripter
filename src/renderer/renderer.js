@@ -317,6 +317,11 @@ function routeEndpointRequest(e, category) {
                 importsTemplate(e);
             }
             break;
+        case 'har-analyzer':
+            if (typeof harAnalyzerTemplate === 'function') {
+                harAnalyzerTemplate(e);
+            }
+            break;
         default:
             console.warn('No template function found for category:', normalizedCategory);
             break;
