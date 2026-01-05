@@ -14,9 +14,6 @@ const {
 } = require('electron');
 
 const csvExporter = require('../shared/csvExporter');
-const sisImports = require('../shared/canvas-api/sis_imports');
-const { searchUsers } = require('../shared/canvas-api/users');
-const sections = require('../shared/canvas-api/sections');
 const { HARAnalyzer } = require('../shared/harAnalyzer');
 const { analyzeHAR } = require('../shared/harAnalyzer');
 const os = require('os');
@@ -103,13 +100,6 @@ function parseEmailsFromCSV(csvContent) {
         }
     }
     return Array.from(new Set(emails));
-}
-
-function normalizeQuotes(text) {
-    if (!text) return text;
-    return text
-        .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
-        .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
 }
 
 // Debug logging functions
