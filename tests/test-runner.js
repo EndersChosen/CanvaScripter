@@ -54,6 +54,28 @@ class TestRunner {
         }
     }
 
+    async runIntegrationTests() {
+        this.log('Running integration tests...', 'info');
+
+        try {
+            const IntegrationTests = require('./integration.test.js');
+            const integrationTests = new IntegrationTests();
+            const results = await integrationTests.runAll();
+
+            this.testResults.integration = {
+                passed: results.passed,
+                failed: results.failed,
+                errors: results.errors
+            };
+
+            this.log(`Integration tests completed: ${results.passed} passed, ${results.failed} failed`,
+                results.failed === 0 ? 'success' : 'warning');
+        } catch (error) {
+            this.log(`Integration tests failed to run: ${error.message}`, 'error');
+            this.testResults.integration = { passed: 0, failed: 1, errors: [error.message] };
+        }
+    }
+
     async runAppTests() {
         this.log('Running application tests...', 'info');
 
@@ -327,6 +349,7 @@ class TestRunner {
 
         // Run all test types
         await this.runUnitTests();
+        await this.runIntegrationTests();
         // await this.runAppTests(); // Commented out as it requires Electron context
 
         // Run additional checks
