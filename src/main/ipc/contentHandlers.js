@@ -4,15 +4,15 @@
  */
 
 // Import required Canvas API modules
-const discussions = require('../shared/canvas-api/discussions');
-const pages = require('../shared/canvas-api/pages');
-const sections = require('../shared/canvas-api/sections');
-const imports = require('../shared/canvas-api/imports');
-const files = require('../shared/canvas-api/files');
-const folders = require('../shared/canvas-api/folders');
-const groupCategories = require('../shared/canvas-api/group_categories');
-const grading_standards = require('../shared/canvas-api/grading_standards');
-const { getPageViews, updateNotifications } = require('../shared/canvas-api/users');
+const discussions = require('../../shared/canvas-api/discussions');
+const pages = require('../../shared/canvas-api/pages');
+const sections = require('../../shared/canvas-api/sections');
+const imports = require('../../shared/canvas-api/imports');
+const files = require('../../shared/canvas-api/files');
+const folders = require('../../shared/canvas-api/folders');
+const groupCategories = require('../../shared/canvas-api/group_categories');
+const grading_standards = require('../../shared/canvas-api/grading_standards');
+const { getPageViews, updateNotifications } = require('../../shared/canvas-api/users');
 
 // State management for cancellation tracking
 const operationCancelFlags = new Map();
@@ -67,7 +67,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
     ipcMain.handle('axios:createAnnouncements', async (event, data) => {
         const operationId = `create-announcements-${Date.now()}`;
         console.log(`[${operationId}] Starting - ${data.number} announcements requested`);
-        
+
         let completedRequests = 0;
         let totalRequests = data.number;
         const processedIds = new Set(); // Track which requests have been processed for progress
@@ -118,7 +118,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
         const senderId = event.sender.id;
         const createAnnouncementsCancelFlags = new Map();
         const isCancelled = () => createAnnouncementsCancelFlags.get(senderId) === true;
-        
+
         console.log(`[${operationId}] Calling batchHandler...`);
         const batchResponse = await batchHandler(requests, getBatchConfig({ isCancelled, operationId }));
 
@@ -170,7 +170,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
     ipcMain.handle('axios:getAnnouncements', async (event, data) => {
         console.log('main.js > axios:getAnnouncements');
         const { domain, token, course_id } = data;
-        
+
         let allAnnouncements = [];
         let hasNextPage = true;
         let after = null;
@@ -179,7 +179,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
         try {
             while (hasNextPage) {
                 pageCount++;
-                
+
                 // Send progress update to renderer
                 mainWindow?.webContents.send('update-progress', {
                     mode: 'indeterminate',
@@ -200,9 +200,9 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
             }
 
             console.log(`Fetched ${allAnnouncements.length} announcements across ${pageCount} page(s)`);
-            return { 
-                announcements: allAnnouncements, 
-                count: allAnnouncements.length 
+            return {
+                announcements: allAnnouncements,
+                count: allAnnouncements.length
             };
         } catch (error) {
             console.error('Error getting announcements:', error);
@@ -217,12 +217,12 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
         console.log('main.js > axios:deleteAnnouncementsGraphQL');
         const items = Array.isArray(data.discussions) ? data.discussions : [];
         const operationId = data.operationId || null;
-        
+
         // Initialize cancellation flag for this operation
         if (operationId) {
             operationCancelFlags.set(operationId, false);
         }
-        
+
         let completed = 0;
         const total = items.length || 1;
         const update = () => {
@@ -231,10 +231,10 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
                 mode: 'determinate', label: 'Deleting announcements', processed: completed, total, value: completed / total
             });
         };
-        
+
         // Cancellation check function for batchHandler
         const isCancelled = operationId ? () => operationCancelFlags.get(operationId) === true : null;
-        
+
         const requests = items.map((discussion, idx) => ({
             id: idx + 1,
             request: async () => {
@@ -248,7 +248,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
                 } finally { update(); }
             }
         }));
-        
+
         const batchConfig = getBatchConfig();
         const res = await batchHandler(requests, {
             ...batchConfig,
@@ -258,12 +258,12 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
 
         // Check if operation was cancelled
         const wasCancelled = operationId && operationCancelFlags.get(operationId) === true;
-        
+
         // Clean up cancellation flag
         if (operationId) {
             operationCancelFlags.delete(operationId);
         }
-        
+
         console.log(`Finished deleting announcements. ${wasCancelled ? '(Cancelled)' : ''}`);
         return { ...res, cancelled: wasCancelled };
     });
@@ -578,16 +578,16 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
                 const { dialog } = require('electron');
                 const fs = require('fs');
                 const csvExporter = require('../shared/csvExporter');
-                
+
                 const userId = data.user || data.userIds[0];
                 const filename = `${userId}_page_views.csv`;
-                
+
                 // Get file save location
                 const result = await dialog.showSaveDialog({
                     defaultPath: filename,
                     filters: [{ name: 'CSV', extensions: ['csv'] }]
                 });
-                
+
                 if (!result.canceled && result.filePath) {
                     await csvExporter.exportToCSV(response, result.filePath);
                     return { success: true, isZipped: false };
@@ -610,14 +610,14 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
             if (response.data && Array.isArray(response.data)) {
                 const { dialog } = require('electron');
                 const csvExporter = require('../shared/csvExporter');
-                
+
                 const filename = `user_${response.userId}_page_views.csv`;
-                
+
                 const result = await dialog.showSaveDialog({
                     defaultPath: filename,
                     filters: [{ name: 'CSV', extensions: ['csv'] }]
                 });
-                
+
                 if (!result.canceled && result.filePath) {
                     await csvExporter.exportToCSV(response.data, result.filePath);
                     return { success: true, isZipped: false };
@@ -660,7 +660,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
         console.log(`main.js > axios:cancelOperation - ${operationId}`);
         console.log('Operation exists in map:', operationCancelFlags.has(operationId));
         console.log('Current cancel flags:', Array.from(operationCancelFlags.entries()));
-        
+
         if (operationId && operationCancelFlags.has(operationId)) {
             console.log('Setting cancellation flag to true for:', operationId);
             operationCancelFlags.set(operationId, true);
