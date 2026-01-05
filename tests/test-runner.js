@@ -160,7 +160,7 @@ class TestRunner {
 
         // Check package.json for known vulnerabilities
         try {
-            const packagePath = path.join(__dirname, 'package.json');
+            const packagePath = path.join(__dirname, '..', 'package.json');
             const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 
             // Check for outdated electron version
