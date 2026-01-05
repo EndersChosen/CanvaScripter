@@ -127,7 +127,7 @@ class UnitTestSuite {
         try {
             const packagePath = path.join(__dirname, '..', 'package.json');
             const packageContent = fs.readFileSync(packagePath, 'utf8');
-            
+
             // Verify it starts with a valid JSON object (not "npm {" or other text)
             const trimmed = packageContent.trim();
             if (!trimmed.startsWith('{')) {
@@ -135,7 +135,7 @@ class UnitTestSuite {
             } else {
                 this.assert(true, 'package.json starts with valid JSON object');
             }
-            
+
             const packageData = JSON.parse(packageContent);
 
             this.assert(packageData.name, 'package.json has name field');
