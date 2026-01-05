@@ -137,12 +137,30 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
-            sandbox: false
+            sandbox: true
         },
         icon: path.join(__dirname, '../../assets/icon.png')
     });
 
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+
+    // Set up context menu (right-click menu)
+    mainWindow.webContents.on('context-menu', (event, params) => {
+        const contextMenu = Menu.buildFromTemplate([
+            { role: 'cut', enabled: params.editFlags.canCut },
+            { role: 'copy', enabled: params.editFlags.canCopy },
+            { role: 'paste', enabled: params.editFlags.canPaste },
+            { role: 'selectAll' },
+            { type: 'separator' },
+            {
+                label: 'Inspect Element',
+                click: () => {
+                    mainWindow.webContents.inspectElement(params.x, params.y);
+                }
+            }
+        ]);
+        contextMenu.popup();
+    });
 
     // Cleanup on window close
     mainWindow.webContents.on('destroyed', () => {
@@ -258,7 +276,7 @@ app.whenReady().then(() => {
 
     // Register all modular IPC handlers
     logDebug('Registering modular IPC handlers...');
-    
+
     // File operations
     registerFileHandlers({
         mainWindow,
@@ -272,28 +290,28 @@ app.whenReady().then(() => {
         parsers: { parseEmailsFromCSV },
         harAnalyzer: { HARAnalyzer, analyzeHAR }
     });
-    
+
     // Utility operations
     registerUtilityHandlers(ipcMain, logDebug);
-    
+
     // Search operations
     registerSearchHandlers(ipcMain, logDebug);
-    
+
     // SIS data generation
     registerSISHandlers(ipcMain, logDebug);
-    
+
     // Conversation handlers
     registerConversationHandlers(ipcMain, logDebug, mainWindow);
-    
+
     // Communication channel handlers
     registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConfig);
-    
+
     // Assignment handlers
     registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig);
-    
+
     // Course/Quiz/Module handlers
     registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig);
-    
+
     // Content handlers (discussions, pages, etc.)
     registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig);
 
