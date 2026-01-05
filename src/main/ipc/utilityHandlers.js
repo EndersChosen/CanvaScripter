@@ -18,36 +18,8 @@ const { rememberPath, isAllowedPath } = require('../security/ipcSecurity');
  * @param {Function} logDebug - Debug logging function
  */
 function registerUtilityHandlers(ipcMain, logDebug) {
-    // HAR File Selection and Analysis
-    ipcMain.handle('har:selectFile', async (event) => {
-        const rendererId = event.sender.id;
-        const result = await dialog.showOpenDialog({
-            title: 'Select HAR File',
-            properties: ['openFile'],
-            filters: [{ name: 'HAR Files', extensions: ['har'] }]
-        });
-        if (!result.canceled && result.filePaths.length > 0) {
-            const filePath = result.filePaths[0];
-            rememberPath(rendererId, filePath, 'read');
-            logDebug('[har:selectFile] Selected and remembered read path', { rendererId, filePath });
-            return filePath;
-        }
-        return null;
-    });
-
-    ipcMain.handle('har:analyze', async (event, filePath) => {
-        const rendererId = event.sender.id;
-        if (!isAllowedPath(rendererId, filePath, 'read')) {
-            const error = `[har:analyze] Access denied: path not in allowlist: ${filePath}`;
-            logDebug(error, { rendererId });
-            throw new Error(error);
-        }
-        const harContent = fs.readFileSync(filePath, 'utf8');
-        const harData = JSON.parse(harContent);
-        const analysis = analyzeHAR(harData);
-        return analysis;
-    });
-
+    // Note: har:selectFile and har:analyze are registered in fileHandlers.js
+    
     // CSV Parsing
     ipcMain.handle('parseEmailsFromCSV', async (event, csvContent) => {
         try {
@@ -194,7 +166,7 @@ function registerUtilityHandlers(ipcMain, logDebug) {
         const rendererId = event.sender.id;
         const { filePath, content } = payload;
         const dir = path.dirname(filePath);
-        
+
         const dirResult = await dialog.showOpenDialog({
             title: 'Select Save Location',
             properties: ['openDirectory']
