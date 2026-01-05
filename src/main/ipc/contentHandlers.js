@@ -26,7 +26,7 @@ const deleteCancelFlags = new Map();
  * @param {Function} getBatchConfig - Function to get batch handler configuration
  */
 function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
-    const batchHandler = require('../shared/batchHandler');
+    const batchHandler = require('../../shared/batchHandler');
 
     // ==================== DISCUSSIONS & ANNOUNCEMENTS ====================
 
