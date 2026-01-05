@@ -94,45 +94,8 @@ function registerUtilityHandlers(ipcMain, logDebug) {
         return userIds;
     });
 
-    // File Upload: Pick CSV or ZIP
-    ipcMain.handle('fileUpload:pickCsvOrZip', async (event) => {
-        const rendererId = event.sender.id;
-        const result = await dialog.showOpenDialog({
-            title: 'Select CSV or ZIP File',
-            properties: ['openFile'],
-            filters: [
-                { name: 'CSV or ZIP', extensions: ['csv', 'zip'] }
-            ]
-        });
-
-        if (result.canceled || result.filePaths.length === 0) {
-            return null;
-        }
-
-        const filePath = result.filePaths[0];
-        rememberPath(rendererId, filePath, 'read');
-        return filePath;
-    });
-
-    // File Upload: Read File
-    ipcMain.handle('fileUpload:readFile', async (event, payload) => {
-        const rendererId = event.sender.id;
-        const { filePath } = payload;
-        if (!isAllowedPath(rendererId, filePath, 'read')) {
-            throw new Error(`Access denied: ${filePath}`);
-        }
-        return fs.readFileSync(filePath, 'utf8');
-    });
-
-    // File Upload: Read File Buffer
-    ipcMain.handle('fileUpload:readFileBuffer', async (event, payload) => {
-        const rendererId = event.sender.id;
-        const { filePath } = payload;
-        if (!isAllowedPath(rendererId, filePath, 'read')) {
-            throw new Error(`Access denied: ${filePath}`);
-        }
-        return fs.readFileSync(filePath);
-    });
+    // Note: fileUpload:pickCsvOrZip, fileUpload:readFile, and fileUpload:readFileBuffer
+    // are registered in fileHandlers.js
 
     // File Upload: Write Errors File
     ipcMain.handle('fileUpload:writeErrorsFile', async (event, payload) => {
