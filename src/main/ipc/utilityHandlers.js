@@ -18,35 +18,8 @@ const { rememberPath, isAllowedPath } = require('../security/ipcSecurity');
  * @param {Function} logDebug - Debug logging function
  */
 function registerUtilityHandlers(ipcMain, logDebug) {
-    // Note: har:selectFile and har:analyze are registered in fileHandlers.js
-    
-    // CSV Parsing
-    ipcMain.handle('parseEmailsFromCSV', async (event, csvContent) => {
-        try {
-            const emails = parseEmailsFromCSVContent(csvContent);
-            return emails;
-        } catch (error) {
-            console.error('[parseEmailsFromCSV] Error:', error);
-            throw error;
-        }
-    });
-
-    // Excel Parsing
-    ipcMain.handle('parseEmailsFromExcel', async (event, { filePath, fileBuffer }) => {
-        const rendererId = event.sender.id;
-        if (filePath && !isAllowedPath(rendererId, filePath, 'read')) {
-            const error = `[parseEmailsFromExcel] Access denied: path not in allowlist: ${filePath}`;
-            logDebug(error, { rendererId });
-            throw new Error(error);
-        }
-        try {
-            const emails = parseEmailsFromExcelFile(filePath, fileBuffer);
-            return emails;
-        } catch (error) {
-            console.error('[parseEmailsFromExcel] Error:', error);
-            throw error;
-        }
-    });
+    // Note: har:selectFile, har:analyze, parseEmailsFromCSV, and parseEmailsFromExcel 
+    // are registered in fileHandlers.js
 
     // Email Pattern Analysis
     ipcMain.handle('analyzeEmailPattern', async (event, filePath, emailColumnIndex = 4) => {
