@@ -55,11 +55,11 @@ async function canvasRateLimitedHandler(requests, options = {}, mainWindow) {
                         const headers = err?.response?.headers || {};
                         const data = err?.response?.data || {};
                         const msg = (Array.isArray(data?.errors) ? data.errors.map(e => e?.message || '').join(' ') : (data?.message || '')) + '';
-                        const looksThrottled = /throttl|rate.?limit|too many|try again later|exceed/i.test(msg) || 
-                            String(headers['x-rate-limit-remaining'] || headers['X-Rate-Limit-Remaining'] || '').trim() === '0' || 
+                        const looksThrottled = /throttl|rate.?limit|too many|try again later|exceed/i.test(msg) ||
+                            String(headers['x-rate-limit-remaining'] || headers['X-Rate-Limit-Remaining'] || '').trim() === '0' ||
                             typeof headers['retry-after'] !== 'undefined' || typeof headers['Retry-After'] !== 'undefined';
                         const isRetryable = [429, 500, 502, 503, 504].includes(status) || (!status) || (status === 403 && looksThrottled);
-                        
+
                         if (attempt < maxRetries && isRetryable) {
                             const retryAfter = Number(headers['retry-after'] ?? headers['Retry-After']);
                             const base = isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : baseDelayMs * Math.pow(2, attempt);
@@ -105,9 +105,9 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
             }
             const controller = new AbortController();
             getConvosControllers.set(senderId, controller);
-            
+
             const sentMessages = await convos.getConversationsGraphQL({ ...data, signal: controller.signal });
-            
+
             // Clean up if still the active controller
             if (getConvosControllers.get(senderId) === controller) {
                 getConvosControllers.delete(senderId);
@@ -154,9 +154,9 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
             }
             const controller = new AbortController();
             getDeletedConvosControllers.set(senderId, controller);
-            
+
             const results = await convos.getDeletedConversations({ ...data, signal: controller.signal });
-            
+
             // Clean up if still the active controller
             if (getDeletedConvosControllers.get(senderId) === controller) {
                 getDeletedConvosControllers.delete(senderId);
@@ -196,7 +196,7 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
     ipcMain.handle('axios:restoreDeletedConversations', async (event, data) => {
         logDebug('[axios:restoreDeletedConversations] Starting restoration', { rowCount: data.rows?.length });
         const senderId = event.sender.id;
-        
+
         // Reset cancel flag for this invocation
         restoreConvosCancelFlags.set(senderId, false);
 
@@ -205,17 +205,17 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
             const n = parseInt(v, 10);
             return Number.isFinite(n) ? n : null;
         };
-        
+
         const normalized = rows.map(r => ({
             user_id: toInt(r.user_id),
             message_id: toInt(r.message_id),
             conversation_id: toInt(r.conversation_id)
         }));
-        
+
         const valid = normalized.filter(r => r.user_id !== null && r.message_id !== null && r.conversation_id !== null);
         const skipped = rows.length - valid.length;
         logDebug('[axios:restoreDeletedConversations] Validated rows', { valid: valid.length, skipped });
-        
+
         const total = valid.length || 1;
 
         const requests = valid.map((row, idx) => ({
@@ -236,7 +236,7 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
             maxRetries: 3,
             isCancelled: () => restoreConvosCancelFlags.get(senderId) === true
         }, mainWindow);
-        
+
         // Fallback probe if no results
         if ((response.successful?.length || 0) + (response.failed?.length || 0) === 0 && valid.length > 0) {
             try {
@@ -254,17 +254,17 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
                 response.failed.push({ id: 0, status, reason });
             }
         }
-        
+
         // Clean up cancel flag and include cancelled state
         const cancelled = restoreConvosCancelFlags.get(senderId) === true;
         restoreConvosCancelFlags.delete(senderId);
-        
-        logDebug('[axios:restoreDeletedConversations] Complete', { 
-            successful: response.successful.length, 
-            failed: response.failed.length, 
-            cancelled 
+
+        logDebug('[axios:restoreDeletedConversations] Complete', {
+            successful: response.successful.length,
+            failed: response.failed.length,
+            cancelled
         });
-        
+
         return { ...response, cancelled };
     });
 
@@ -310,11 +310,11 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
         const failed = [];
         const batchSize = 35;
         const timeDelay = 2000;
-        
+
         for (let i = 0; i < requests.length; i += batchSize) {
             // Check cancellation before starting batch
             if (deleteConvosCancelFlags.get(senderId)) break;
-            
+
             const batch = requests.slice(i, i + batchSize);
             const results = await Promise.allSettled(batch.map(r =>
                 convos.deleteForAll(r.requestData)
@@ -322,21 +322,21 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
                     .catch(err => ({ ok: false, err, id: r.id }))
                     .finally(() => updateProgress())
             ));
-            
+
             for (const r of results) {
                 const val = r.value || r.reason;
                 if (r.status === 'fulfilled' && val?.ok) {
                     successful.push({ id: val.id, value: val.res });
                 } else {
                     const vv = r.status === 'fulfilled' ? r.value : r.reason;
-                    failed.push({ 
-                        id: vv?.id, 
-                        reason: (vv?.err?.message || vv?.err || 'Unknown error'), 
-                        status: vv?.err?.status 
+                    failed.push({
+                        id: vv?.id,
+                        reason: (vv?.err?.message || vv?.err || 'Unknown error'),
+                        status: vv?.err?.status
                     });
                 }
             }
-            
+
             // Delay between batches if not cancelled
             if (i + batchSize < requests.length && !deleteConvosCancelFlags.get(senderId)) {
                 await new Promise(r => setTimeout(r, timeDelay));
@@ -345,13 +345,13 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
 
         const cancelled = deleteConvosCancelFlags.get(senderId) === true;
         deleteConvosCancelFlags.delete(senderId);
-        
-        logDebug('[axios:deleteConvos] Complete', { 
-            successful: successful.length, 
-            failed: failed.length, 
-            cancelled 
+
+        logDebug('[axios:deleteConvos] Complete', {
+            successful: successful.length,
+            failed: failed.length,
+            cancelled
         });
-        
+
         return { successful, failed, cancelled };
     });
 
@@ -381,19 +381,19 @@ function cleanupConversationState(rendererId) {
         try { getConvosController.abort('renderer_closed'); } catch { }
         getConvosControllers.delete(rendererId);
     }
-    
+
     const getDeletedConvosController = getDeletedConvosControllers.get(rendererId);
     if (getDeletedConvosController) {
         try { getDeletedConvosController.abort('renderer_closed'); } catch { }
         getDeletedConvosControllers.delete(rendererId);
     }
-    
+
     // Clean up cancel flags
     restoreConvosCancelFlags.delete(rendererId);
     deleteConvosCancelFlags.delete(rendererId);
 }
 
-module.exports = { 
+module.exports = {
     registerConversationHandlers,
     cleanupConversationState
 };

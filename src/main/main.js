@@ -144,24 +144,6 @@ function createWindow() {
 
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-    // Set up context menu (right-click menu)
-    mainWindow.webContents.on('context-menu', (event, params) => {
-        const contextMenu = Menu.buildFromTemplate([
-            { role: 'cut', enabled: params.editFlags.canCut },
-            { role: 'copy', enabled: params.editFlags.canCopy },
-            { role: 'paste', enabled: params.editFlags.canPaste },
-            { role: 'selectAll' },
-            { type: 'separator' },
-            {
-                label: 'Inspect Element',
-                click: () => {
-                    mainWindow.webContents.inspectElement(params.x, params.y);
-                }
-            }
-        ]);
-        contextMenu.popup();
-    });
-
     // Cleanup on window close
     mainWindow.webContents.on('destroyed', () => {
         const rendererId = mainWindow.webContents.id;
@@ -317,6 +299,37 @@ app.whenReady().then(() => {
 
     logDebug('All IPC handlers registered successfully');
     console.log('✓ Phase 2 Migration Complete: All 86 handlers registered via modular system');
+
+    // Context menu IPC handler (for sandbox mode compatibility)
+    ipcMain.on('show-context-menu', (event, { x, y }) => {
+        console.log('Context menu requested from renderer:', { x, y });
+        const template = [
+            { role: 'cut' },
+            { role: 'copy' },
+            { role: 'paste' },
+            { role: 'selectAll' },
+            { type: 'separator' },
+            {
+                label: 'Inspect Element',
+                click: () => {
+                    const win = BrowserWindow.fromWebContents(event.sender);
+                    if (win) {
+                        win.webContents.inspectElement(x, y);
+                    }
+                }
+            },
+            { type: 'separator' },
+            { role: 'reload' },
+            { role: 'forceReload' },
+            { role: 'toggleDevTools' }
+        ];
+
+        const menu = Menu.buildFromTemplate(template);
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (win) {
+            menu.popup({ window: win });
+        }
+    });
 
     // CSV Export handlers
     ipcMain.handle('csv:sendToCSV', async (event, data, filename = 'download.csv') => {

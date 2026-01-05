@@ -89,7 +89,7 @@ module.exports = {
     allowedWritePaths,
     allowedDirPaths,
     clearRendererPaths,
-    
+
     // URL validation
     validateExternalUrl
 };

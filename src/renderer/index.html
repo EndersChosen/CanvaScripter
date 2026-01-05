@@ -5,9 +5,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:" />
-    <meta http-equiv="X-Content-Security-Policy" content="default-src 'self'; script-src 'self'" />
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:" />
     <title>CanvaScripter</title>
+    <script>
+        // Global context menu handler for sandbox mode
+        console.log('Context menu script loaded');
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded fired');
+            console.log('window.contextMenu:', window.contextMenu);
+            document.addEventListener('contextmenu', (event) => {
+                console.log('Context menu event fired at', event.x, event.y);
+                event.preventDefault();
+                if (window.contextMenu) {
+                    console.log('Calling window.contextMenu.show()');
+                    window.contextMenu.show(event.x, event.y);
+                } else {
+                    console.error('window.contextMenu is not defined!');
+                }
+            });
+        });
+    </script>
     <link rel="stylesheet" href="bootstrap.min.css">
     <link rel="stylesheet" href="bootstrap-icons.min.css">
     <link rel="stylesheet" href="styles.css">

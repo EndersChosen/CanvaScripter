@@ -43,7 +43,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
         console.log('Received operation ID:', data.operationId);
 
         const operationId = data.operationId || null;
-        
+
         // Initialize cancellation flag for this operation
         if (operationId) {
             console.log('Initializing cancellation flag for:', operationId);
@@ -104,7 +104,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
 
         // Cancellation check function for batchHandler
         const isCancelled = operationId ? () => operationCancelFlags.get(operationId) === true : null;
-        
+
         const batchConfig = getBatchConfig();
         const batchResponse = await batchHandler(requests, {
             ...batchConfig,
@@ -114,7 +114,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
 
         // Check if operation was cancelled
         const wasCancelled = operationId && operationCancelFlags.get(operationId) === true;
-        
+
         // Clean up cancellation flag
         if (operationId) {
             operationCancelFlags.delete(operationId);
@@ -133,7 +133,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
         console.log('Received operation ID:', data.operationId);
 
         const operationId = data.operationId || null;
-        
+
         // Initialize cancellation flag for this operation
         if (operationId) {
             console.log('Initializing cancellation flag for:', operationId);
@@ -175,17 +175,17 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
 
         // Cancellation check function for batchHandler
         const isCancelled = operationId ? () => operationCancelFlags.get(operationId) === true : null;
-        
+
         const batchResponse = await batchHandler(requests, getBatchConfig({ isCancelled, operationId }));
-        
+
         // Check if operation was cancelled
         const wasCancelled = operationId && operationCancelFlags.get(operationId) === true;
-        
+
         // Clean up cancellation flag
         if (operationId) {
             operationCancelFlags.delete(operationId);
         }
-        
+
         console.log(`Finished deleting assignments. ${wasCancelled ? '(Cancelled)' : ''}`);
         return { ...batchResponse, cancelled: wasCancelled };
     });
@@ -249,7 +249,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
                     if (deleteEmptyAssignmentGroupsCancelFlags.get(senderId)) {
                         throw new Error('Request cancelled');
                     }
-                    
+
                     try {
                         const response = await assignmentGroups.deleteEmptyAssignmentGroup(requestData);
                         return response;
@@ -322,7 +322,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             if (createAssignmentGroupsCancelFlags.get(senderId)) {
                 throw new Error('Request cancelled');
             }
-            
+
             try {
                 const response = await assignmentGroups.createAssignmentGroups(requestData);
                 return response;

@@ -234,7 +234,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
         logDebug('[axios:checkUnconfirmedEmails] Checking unconfirmed emails');
         try {
             const response = await checkUnconfirmedEmails(data);
-            
+
             const chunks = [];
             return new Promise((resolve, reject) => {
                 response.on('data', (chunk) => chunks.push(chunk));
@@ -284,14 +284,14 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
         progressUpdateDeterminate(0, totalRequests, mainWindow, 'Confirming emails...');
         const batchResponse = await batchHandler(requests, getBatchConfig());
         progressDone(mainWindow);
-        
+
         let confirmedCount = 0;
         batchResponse.successful.forEach((success) => {
             if (success.value && success.value.confirmed) {
                 confirmedCount++;
             }
         });
-        
+
         return {
             failed: batchResponse.failed,
             successful: batchResponse.successful,
@@ -360,10 +360,10 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
 
         const request = async (reqData) => {
             try {
-                const bounceRes = await bounceReset({ 
-                    domain: reqData.domain, 
-                    token: reqData.token, 
-                    email: reqData.email 
+                const bounceRes = await bounceReset({
+                    domain: reqData.domain,
+                    token: reqData.token,
+                    email: reqData.email
                 });
                 return { bounce: bounceRes };
             } catch (err) {
@@ -379,10 +379,10 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
             request: () => request({ domain: data.domain, token: data.token, region: data.region, email })
         }));
 
-        const batchResponse = await batchHandler(requests, { 
-            batchSize: concurrency, 
-            timeDelay: process.env.TIME_DELAY, 
-            isCancelled 
+        const batchResponse = await batchHandler(requests, {
+            batchSize: concurrency,
+            timeDelay: process.env.TIME_DELAY,
+            isCancelled
         });
 
         // Bulk AWS reset
@@ -399,10 +399,10 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
                 not_found: []
             }
         };
-        
+
         let awsProcessed = 0;
         const awsTotal = emails.length;
-        
+
         for (let i = 0; i < emails.length; i += chunksize) {
             awsProcessed = i;
             mainWindow.webContents.send('update-progress', {
@@ -412,12 +412,12 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
                 total: awsTotal,
                 value: awsTotal > 0 ? awsProcessed / awsTotal : 0
             });
-            
+
             const bulkArray = [{ value: emails.slice(i, i + chunksize) }];
 
             if (isCancelled()) break;
             await waitFunc(process.env.TIME_DELAY);
-            
+
             try {
                 const awsRes = await bulkAWSReset({ region: data.region, token: data.token, emails: bulkArray });
                 if (awsRes.status === 204) {
@@ -436,7 +436,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
                 continue;
             }
         }
-        
+
         mainWindow.webContents.send('update-progress', {
             mode: 'determinate',
             label: 'Resetting emails (AWS suppression list)...',
@@ -448,14 +448,14 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
         const cancelled = isCancelled();
         resetEmailsCancelFlags.delete(senderId);
         const combinedResults = combineResetResults(awsResetResponse, batchResponse);
-        
-        logDebug('[axios:resetEmails] Complete', { 
-            total: emails.length, 
+
+        logDebug('[axios:resetEmails] Complete', {
+            total: emails.length,
             bounceResets: combinedResults.summary.bounceListResets,
             awsRemoved: awsResetResponse.removed,
-            cancelled 
+            cancelled
         });
-        
+
         return { combinedResults, cancelled };
     });
 
@@ -470,7 +470,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
     // Reset communication channels by pattern (iterative bounce list clearing)
     ipcMain.handle('axios:resetCommChannelsByPattern', async (event, data) => {
         logDebug('[axios:resetCommChannelsByPattern] Starting pattern reset', { pattern: data.pattern });
-        
+
         const senderId = event.sender.id;
         resetPatternCancelFlags.set(senderId, false);
         const isCancelled = () => resetPatternCancelFlags.get(senderId) === true;
@@ -483,12 +483,12 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
             let totalProcessed = 0;
             let iterationCount = 0;
             const maxIterations = 100;
-            
+
             while (iterationCount < maxIterations) {
                 iterationCount++;
-                
-                const batchLabel = iterationCount === 1 ? 
-                    'Checking bounce list...' : 
+
+                const batchLabel = iterationCount === 1 ?
+                    'Checking bounce list...' :
                     `Checking bounce list again (found ${totalProcessed} so far)...`;
                 progressStartIndeterminate(batchLabel, mainWindow);
 
@@ -509,7 +509,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
                 }
 
                 const emails = Array.from(targets);
-                
+
                 if (emails.length === 0) {
                     logDebug('[axios:resetCommChannelsByPattern] No more emails found', { passes: iterationCount });
                     progressDone(mainWindow);
@@ -517,21 +517,21 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
                     return allResults;
                 }
 
-                logDebug('[axios:resetCommChannelsByPattern] Pass iteration', { 
-                    pass: iterationCount, 
-                    count: emails.length 
+                logDebug('[axios:resetCommChannelsByPattern] Pass iteration', {
+                    pass: iterationCount,
+                    count: emails.length
                 });
 
                 try {
-                    const bounceLabel = iterationCount === 1 ? 
-                        `Clearing ${emails.length} email(s) from bounce list...` : 
+                    const bounceLabel = iterationCount === 1 ?
+                        `Clearing ${emails.length} email(s) from bounce list...` :
                         `Clearing ${emails.length} more email(s) from bounce list...`;
                     progressStartIndeterminate(bounceLabel, mainWindow);
                     await patternBounceReset(base, isCancelled);
                 } catch (error) {
-                    logDebug('[axios:resetCommChannelsByPattern] Bounce reset error', { 
-                        pass: iterationCount, 
-                        error: error.message 
+                    logDebug('[axios:resetCommChannelsByPattern] Bounce reset error', {
+                        pass: iterationCount,
+                        error: error.message
                     });
                 }
 
@@ -543,9 +543,9 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
 
                 let awsProcessed = 0;
                 const awsTotal = emails.length;
-                
+
                 progressUpdateDeterminate(0, awsTotal, mainWindow, 'Resetting AWS suppression...');
-                
+
                 const updateAwsProgress = (email) => {
                     awsProcessed++;
                     const percentage = awsTotal > 0 ? awsProcessed / awsTotal : 0;
@@ -558,7 +558,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
                     });
                     try { mainWindow.setProgressBar(percentage, { mode: 'normal' }); } catch { }
                 };
-                
+
                 const request = async (requestData) => {
                     try {
                         const res = await awsReset(requestData);
@@ -577,10 +577,10 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
                         token: data.token,
                         email: emails[i]
                     };
-                    requests.push({ 
-                        id: totalProcessed + i + 1, 
-                        request: () => request(requestData), 
-                        email: emails[i] 
+                    requests.push({
+                        id: totalProcessed + i + 1,
+                        request: () => request(requestData),
+                        email: emails[i]
                     });
                 }
 
@@ -588,10 +588,10 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
 
                 for (let i = 0; i < emails.length; i++) {
                     const email = emails[i];
-                    const awsResult = batchResponse.successful?.find(s => 
+                    const awsResult = batchResponse.successful?.find(s =>
                         requests.find(r => r.id === s.id)?.email === email
                     );
-                    
+
                     allResults.push({
                         email: email,
                         bounce: { reset: 1 },
@@ -600,10 +600,10 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
                 }
 
                 totalProcessed += emails.length;
-                logDebug('[axios:resetCommChannelsByPattern] Pass complete', { 
-                    pass: iterationCount, 
-                    processed: emails.length, 
-                    total: totalProcessed 
+                logDebug('[axios:resetCommChannelsByPattern] Pass complete', {
+                    pass: iterationCount,
+                    processed: emails.length,
+                    total: totalProcessed
                 });
 
                 if (isCancelled()) {
@@ -688,7 +688,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
         progressUpdateDeterminate(0, totalRequests, mainWindow, 'Confirming emails...');
         const batchResponse = await batchHandler(requests, getBatchConfig());
         progressDone(mainWindow);
-        
+
         let confirmedCount = 0;
         batchResponse.successful.forEach((success) => {
             if (success.value && success.value.confirmed) {
@@ -715,17 +715,17 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
         };
         const result = await dialog.showOpenDialog(mainWindow, options);
         if (result.canceled) return 'cancelled';
-        
+
         const filePath = result.filePaths[0];
         const fileContents = await fs.promises.readFile(filePath, 'utf8');
         const ext = path.extname(filePath).toLowerCase();
 
         let normalized = fileContents;
         if (ext === '.csv') {
-            try { 
-                normalized = parseEmailsFromCSV(fileContents); 
-            } catch (e) { 
-                throw new Error(`CSV parsing error: ${e.message}`); 
+            try {
+                normalized = parseEmailsFromCSV(fileContents);
+            } catch (e) {
+                throw new Error(`CSV parsing error: ${e.message}`);
             }
         } else if (ext === '.txt') {
             normalized = removeBlanks(fileContents.split(/\r?\n|\r|,/))
@@ -805,7 +805,7 @@ function clearSuppressedEmails() {
     suppressedEmails = [];
 }
 
-module.exports = { 
+module.exports = {
     registerCommChannelHandlers,
     cleanupCommChannelState,
     getSuppressedEmails,

@@ -228,14 +228,14 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
             progressStartIndeterminate(mainWindow, 'Creating course...');
             response = await createSupportCourse(data);
             console.log('Finished creating course. Checking options....');
-            
+
             // Update label after creation
             mainWindow.webContents.send('update-progress', { label: 'Course created. Processing options...' });
 
             // If no options selected, return early
-            const hasOptions = data.usersToEnroll || data.modulesToCreate || data.assignmentsToCreate || 
-                             data.discussionsToCreate || data.announcementsToCreate || data.pagesToCreate;
-            
+            const hasOptions = data.usersToEnroll || data.modulesToCreate || data.assignmentsToCreate ||
+                data.discussionsToCreate || data.announcementsToCreate || data.pagesToCreate;
+
             if (!hasOptions) {
                 progressDone(mainWindow);
                 return response;
@@ -244,7 +244,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
             // Count total units of work for progress tracking
             let totalUnits = 1; // Base course creation
             let completedUnits = 1; // Base course already complete
-            
+
             // Count users to enroll
             const studentsCount = Array.isArray(data.usersToEnroll?.students) ? data.usersToEnroll.students.length : 0;
             const teachersCount = Array.isArray(data.usersToEnroll?.teachers) ? data.usersToEnroll.teachers.length : 0;
@@ -433,7 +433,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
      */
     ipcMain.handle('axios:getClassicQuizzes', async (event, data) => {
         console.log('courseHandlers.js > getClassicQuizzes');
-        
+
         try {
             const quizzes = await quizzes_classic.getClassicQuizzes(data);
             return quizzes;

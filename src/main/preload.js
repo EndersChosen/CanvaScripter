@@ -7,6 +7,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // });
 
+// Expose context menu API for sandbox mode
+contextBridge.exposeInMainWorld('contextMenu', {
+    show: (x, y) => ipcRenderer.send('show-context-menu', { x, y })
+});
+
 contextBridge.exposeInMainWorld('axios', {
     awsCheck: async (data) => {
         return await ipcRenderer.invoke('axios:awsCheck', data);

@@ -17,7 +17,7 @@ class StateManager {
 
         // Data stores
         this.suppressedEmails = [];
-        
+
         // Operation controllers for AbortController pattern
         this.operationControllers = new Map(); // operationId -> AbortController
     }
@@ -63,7 +63,7 @@ class StateManager {
                 this.operationControllers.get(operationId).abort('superseded');
             } catch { }
         }
-        
+
         const controller = new AbortController();
         this.operationControllers.set(operationId, controller);
         return controller;
@@ -127,7 +127,7 @@ class StateManager {
         this.resetPatternCancelFlags.delete(senderId);
         this.createAssignmentGroupsCancelFlags.delete(senderId);
         this.deleteEmptyAssignmentGroupsCancelFlags.delete(senderId);
-        
+
         // Cancel any operations associated with this sender
         for (const [opId, controller] of this.operationControllers.entries()) {
             if (opId.startsWith(`${senderId}-`)) {

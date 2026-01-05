@@ -42,8 +42,8 @@ class MockWindow {
     constructor() {
         this.webContents = {
             id: Math.floor(Math.random() * 10000),
-            send: () => {},
-            on: () => {}
+            send: () => { },
+            on: () => { }
         };
     }
 }
@@ -104,7 +104,7 @@ class IntegrationTests {
             const ipcMain = new MockIpcMain();
             const { registerSearchHandlers } = require('../src/main/ipc/searchHandlers');
 
-            const logDebug = () => {};
+            const logDebug = () => { };
             registerSearchHandlers(ipcMain, logDebug);
 
             const expectedHandlers = [
@@ -133,7 +133,7 @@ class IntegrationTests {
             const ipcMain = new MockIpcMain();
             const { registerSISHandlers } = require('../src/main/ipc/sisHandlers');
 
-            const logDebug = () => {};
+            const logDebug = () => { };
             registerSISHandlers(ipcMain, logDebug);
 
             const expectedHandlers = [
@@ -162,7 +162,7 @@ class IntegrationTests {
             const mainWindow = new MockWindow();
             const { registerConversationHandlers } = require('../src/main/ipc/conversationHandlers');
 
-            const logDebug = () => {};
+            const logDebug = () => { };
             registerConversationHandlers(ipcMain, logDebug, mainWindow);
 
             const expectedHandlers = [
@@ -280,7 +280,7 @@ class IntegrationTests {
 
             // Set cancel flag
             StateManager.setCancelFlag(StateManager.resetEmailsCancelFlags, senderId, true);
-            
+
             // Get cancel flag
             const isCancelled = StateManager.getCancelFlag(StateManager.resetEmailsCancelFlags, senderId);
             if (!isCancelled) {
@@ -289,7 +289,7 @@ class IntegrationTests {
 
             // Clear cancel flag
             StateManager.clearCancelFlag(StateManager.resetEmailsCancelFlags, senderId);
-            
+
             // Verify cleared
             const isCleared = StateManager.getCancelFlag(StateManager.resetEmailsCancelFlags, senderId);
             if (isCleared) {
@@ -304,7 +304,7 @@ class IntegrationTests {
 
             // Create controller
             const controller = StateManager.createOperationController(operationId);
-            
+
             if (!controller || !controller.signal) {
                 throw new Error('Controller should have a signal property');
             }
@@ -321,7 +321,7 @@ class IntegrationTests {
             // Create and cancel operation
             const controller = StateManager.createOperationController(operationId);
             const wasCancelled = StateManager.cancelOperation(operationId);
-            
+
             if (!wasCancelled) {
                 throw new Error('Operation should be cancelled');
             }
@@ -337,10 +337,10 @@ class IntegrationTests {
 
             // Clear any existing emails
             StateManager.clearSuppressedEmails();
-            
+
             // Add emails
             StateManager.addSuppressedEmails(['test1@example.com', 'test2@example.com']);
-            
+
             // Get emails
             const emails = StateManager.getSuppressedEmails();
             if (emails.length !== 2) {
@@ -432,7 +432,7 @@ class IntegrationTests {
             };
 
             const config = getBatchConfig();
-            
+
             if (config.batchSize !== 35) {
                 throw new Error(`Expected batchSize 35, got ${config.batchSize}`);
             }
@@ -443,7 +443,7 @@ class IntegrationTests {
 
             // Test overrides
             const overrideConfig = getBatchConfig({ batchSize: 50, timeDelay: 1000 });
-            
+
             if (overrideConfig.batchSize !== 50) {
                 throw new Error(`Expected override batchSize 50, got ${overrideConfig.batchSize}`);
             }

@@ -26,7 +26,7 @@ function normalizeQuotes(text) {
 function splitNameWithQuotes(fullName) {
     const name = normalizeQuotes((fullName || '').trim());
     if (!name) return { firstName: '', lastName: '' };
-    
+
     // Find all quoted sections
     const quotedSections = [];
     const quoteRegex = /"[^"]*"/g;
@@ -38,7 +38,7 @@ function splitNameWithQuotes(fullName) {
             text: match[0]
         });
     }
-    
+
     // If no quotes, use simple split
     if (quotedSections.length === 0) {
         const parts = name.split(/\s+/);
@@ -47,7 +47,7 @@ function splitNameWithQuotes(fullName) {
             lastName: parts.slice(1).join(' ') || ''
         };
     }
-    
+
     // Replace quoted sections with placeholders to split safely
     let safeName = name;
     const placeholders = [];
@@ -56,10 +56,10 @@ function splitNameWithQuotes(fullName) {
         placeholders.push({ placeholder, text: section.text });
         safeName = safeName.substring(0, section.start) + placeholder + safeName.substring(section.end);
     });
-    
+
     // Split on whitespace
     const parts = safeName.split(/\s+/);
-    
+
     // Restore quoted sections
     const restoredParts = parts.map(part => {
         const placeholderMatch = placeholders.find(p => part.includes(p.placeholder));
@@ -68,7 +68,7 @@ function splitNameWithQuotes(fullName) {
         }
         return part;
     });
-    
+
     return {
         firstName: restoredParts[0] || '',
         lastName: restoredParts.slice(1).join(' ') || ''
@@ -91,11 +91,11 @@ function registerSearchHandlers(ipcMain, logDebug) {
 
             const users = await searchUsers(searchTerm, ['email']);
             logDebug('[users:search] Raw Canvas users', { count: users.length });
-            
+
             // Transform Canvas user data to SIS CSV format
             const sisUsers = users.map(user => {
                 const { firstName, lastName } = splitNameWithQuotes(user.name);
-                
+
                 return {
                     user_id: user.sis_user_id || '',
                     login_id: user.login_id || '',
@@ -108,7 +108,7 @@ function registerSearchHandlers(ipcMain, logDebug) {
                     status: 'active'
                 };
             });
-            
+
             logDebug('[users:search] Transformed SIS users', { count: sisUsers.length });
             return { success: true, data: sisUsers };
         } catch (error) {
@@ -126,7 +126,7 @@ function registerSearchHandlers(ipcMain, logDebug) {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
             const accounts = await searchAccounts(searchTerm);
-            
+
             // Transform Canvas account data to SIS CSV format
             const sisAccounts = accounts.map(account => ({
                 account_id: account.sis_account_id || '',
@@ -134,7 +134,7 @@ function registerSearchHandlers(ipcMain, logDebug) {
                 name: account.name || '',
                 status: 'active'
             }));
-            
+
             return { success: true, data: sisAccounts };
         } catch (error) {
             logDebug('[accounts:search] Error', { error: error.message });
@@ -151,7 +151,7 @@ function registerSearchHandlers(ipcMain, logDebug) {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
             const terms = await searchTerms(searchTerm);
-            
+
             // Transform Canvas term data to SIS CSV format
             const sisTerms = terms.map(term => ({
                 term_id: term.sis_term_id || '',
@@ -160,7 +160,7 @@ function registerSearchHandlers(ipcMain, logDebug) {
                 start_date: term.start_at || '',
                 end_date: term.end_at || ''
             }));
-            
+
             return { success: true, data: sisTerms };
         } catch (error) {
             logDebug('[terms:search] Error', { error: error.message });
