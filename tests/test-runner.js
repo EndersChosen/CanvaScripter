@@ -36,7 +36,7 @@ class TestRunner {
         this.log('Running unit tests...', 'info');
 
         try {
-            const UnitTestSuite = require('./tests/unit.test.js');
+            const UnitTestSuite = require('./unit.test.js');
             const unitTests = new UnitTestSuite();
             await unitTests.runAllTests();
 
@@ -58,7 +58,7 @@ class TestRunner {
         this.log('Running application tests...', 'info');
 
         try {
-            const AppTestSuite = require('./tests/app.test.js');
+            const AppTestSuite = require('./app.test.js');
             const appTests = new AppTestSuite();
             await appTests.runAllTests();
 
@@ -171,7 +171,7 @@ class TestRunner {
 
         // Check main.js for security best practices
         try {
-            const mainPath = path.join(__dirname, 'main.js');
+            const mainPath = path.join(__dirname, '..', 'src', 'main', 'main.js');
             const mainContent = fs.readFileSync(mainPath, 'utf8');
 
             if (!mainContent.includes('nodeIntegration: false')) {
@@ -181,6 +181,11 @@ class TestRunner {
 
             if (!mainContent.includes('contextIsolation: true')) {
                 this.log('contextIsolation should be enabled for security', 'warning');
+                securityIssues++;
+            }
+
+            if (!mainContent.includes('sandbox: true')) {
+                this.log('sandbox should be enabled for security', 'warning');
                 securityIssues++;
             }
 
@@ -205,10 +210,10 @@ class TestRunner {
 
         // Check file sizes
         const filesToCheck = [
-            'main.js',
-            'renderer.js',
-            'styles.css',
-            'index.html'
+            'src/main/main.js',
+            'src/renderer/renderer.js',
+            'src/renderer/styles.css',
+            'src/renderer/index.html'
         ];
 
         for (const file of filesToCheck) {
@@ -225,7 +230,7 @@ class TestRunner {
         }
 
         // Check for performance anti-patterns in JavaScript files
-        const jsFiles = ['main.js', 'renderer.js'];
+        const jsFiles = ['src/main/main.js', 'src/renderer/renderer.js'];
         for (const file of jsFiles) {
             const filePath = path.join(__dirname, file);
             if (fs.existsSync(filePath)) {

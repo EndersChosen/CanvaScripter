@@ -113,9 +113,9 @@ class UnitTestSuite {
         // Test file existence checks
         const testFiles = [
             'package.json',
-            'main.js',
-            'index.html',
-            'styles.css'
+            'src/main/main.js',
+            'src/renderer/index.html',
+            'src/renderer/styles.css'
         ];
 
         testFiles.forEach(file => {
@@ -139,7 +139,7 @@ class UnitTestSuite {
 
         // Test main.js basic structure
         try {
-            const mainPath = path.join(__dirname, '..', 'main.js');
+            const mainPath = path.join(__dirname, '..', 'src', 'main', 'main.js');
             const mainContent = fs.readFileSync(mainPath, 'utf8');
 
             this.assert(mainContent.includes('require(\'electron\')'), 'main.js imports electron');

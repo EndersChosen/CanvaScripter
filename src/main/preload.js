@@ -585,11 +585,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     searchCanvasData: async (fileType, searchParams) => {
         // Extract domain and token from searchParams
         const { domain, token } = searchParams;
-        
+
         if (!domain || !token) {
             return { success: false, error: 'Please enter both Canvas domain and API token' };
         }
-        
+
         switch (fileType) {
             case 'users':
                 return await ipcRenderer.invoke('users:search', domain, token, searchParams.search_term);
@@ -615,9 +615,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
 });
 
-// Expose ipcRenderer for direct IPC calls
+// Restricted IPC invoke surface: allowlist only.
+// This prevents arbitrary access to main-process IPC handlers.
+const ALLOWED_INVOKE_CHANNELS = new Set([
+    // HAR analyzer
+    'har:selectFile',
+    'har:analyze',
+
+    // Email parsing helpers
+    'parseEmailsFromCSV',
+    'parseEmailsFromExcel'
+]);
+
 contextBridge.exposeInMainWorld('ipcRenderer', {
-    invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args)
+    invoke: (channel, ...args) => {
+        if (!ALLOWED_INVOKE_CHANNELS.has(channel)) {
+            throw new Error(`Blocked IPC channel: ${channel}`);
+        }
+        return ipcRenderer.invoke(channel, ...args);
+    }
 });
 
 // Small utilities - Properly exposed via contextBridge

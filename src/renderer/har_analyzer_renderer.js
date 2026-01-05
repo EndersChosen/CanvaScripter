@@ -87,6 +87,7 @@ function displayAnalysisResults(analysis) {
         <div class="har-analysis-results">
             ${renderDiagnosis(analysis)}
             ${renderOverview(analysis)}
+            ${renderBrowserInfo(analysis)}
             ${renderErrors(analysis)}
             ${renderAuthFlow(analysis)}
             ${renderStatusCodes(analysis)}
@@ -142,6 +143,75 @@ function renderOverview(analysis) {
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderBrowserInfo(analysis) {
+    const browser = analysis.browserInfo;
+
+    // Determine device icon
+    let deviceIcon = 'bi-laptop';
+    if (browser.deviceType === 'Mobile') deviceIcon = 'bi-phone';
+    else if (browser.deviceType === 'Tablet') deviceIcon = 'bi-tablet';
+
+    // Determine browser icon
+    let browserIcon = 'bi-browser-chrome';
+    if (browser.browserName.includes('Firefox')) browserIcon = 'bi-browser-firefox';
+    else if (browser.browserName.includes('Edge')) browserIcon = 'bi-browser-edge';
+    else if (browser.browserName.includes('Safari')) browserIcon = 'bi-browser-safari';
+
+    return `
+        <div class="card mb-3">
+            <div class="card-header bg-secondary text-white" role="button" data-bs-toggle="collapse" data-bs-target="#browser-collapse" aria-expanded="true">
+                <h5 class="mb-0">
+                    <i class="bi ${browserIcon}"></i> Browser & Environment
+                    <i class="bi bi-chevron-down float-end"></i>
+                </h5>
+            </div>
+            <div id="browser-collapse" class="collapse show">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi ${browserIcon} fs-4 me-2 text-primary"></i>
+                                <div>
+                                    <strong>Browser</strong>
+                                    <div class="text-muted">${browser.fullBrowserString}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-hdd fs-4 me-2 text-success"></i>
+                                <div>
+                                    <strong>Operating System</strong>
+                                    <div class="text-muted">${browser.fullOSString}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi ${deviceIcon} fs-4 me-2 text-info"></i>
+                                <div>
+                                    <strong>Device Type</strong>
+                                    <div class="text-muted">${browser.deviceType}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    ${browser.userAgent ? `
+                        <div class="mt-3">
+                            <strong>User-Agent String:</strong>
+                            <div class="mt-1">
+                                <code class="d-block p-2 bg-light rounded" style="font-size: 0.75rem; word-break: break-all;">
+                                    ${browser.userAgent}
+                                </code>
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>
             </div>
         </div>

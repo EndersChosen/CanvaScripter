@@ -135,8 +135,8 @@ window.ProgressUtils = {
 
         // Return a detach function
         return () => {
-            if (unsubscribe && window.ipcRenderer && window.ipcRenderer.removeListener) {
-                try { window.ipcRenderer.removeListener('update-progress', handler); } catch { }
+            if (typeof unsubscribe === 'function') {
+                try { unsubscribe(); } catch { }
             }
             if (container.dataset) delete container.dataset.progressAttached;
         };

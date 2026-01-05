@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "start:forge": "electron-forge start",
-    "test": "node test-runner.js",
+    "test": "node tests/test-runner.js",
     "test:unit": "node tests/unit.test.js",
     "test:integration": "echo 'Run window.runTests() in the developer console of the running app'",
     "test:security": "npm audit --audit-level=moderate",

@@ -260,11 +260,158 @@ class HARAnalyzer {
     }
 
     /**
+     * Extract and analyze browser/user-agent information
+     */
+    getBrowserInfo() {
+        let userAgent = null;
+        let browserName = 'Unknown';
+        let browserVersion = 'Unknown';
+        let osName = 'Unknown';
+        let osVersion = 'Unknown';
+        let deviceType = 'Desktop';
+
+        // Try to get user-agent from HAR metadata first
+        if (this.har.log?.browser?.name) {
+            browserName = this.har.log.browser.name;
+            browserVersion = this.har.log.browser.version || 'Unknown';
+        }
+
+        // Get user-agent from first request header
+        if (this.entries.length > 0) {
+            for (const entry of this.entries) {
+                const uaHeader = entry.request.headers.find(
+                    h => h.name.toLowerCase() === 'user-agent'
+                );
+                if (uaHeader) {
+                    userAgent = uaHeader.value;
+                    break;
+                }
+            }
+        }
+
+        // Parse user-agent string if found
+        if (userAgent) {
+            const parsed = this._parseUserAgent(userAgent);
+            if (parsed.browserName !== 'Unknown') {
+                browserName = parsed.browserName;
+                browserVersion = parsed.browserVersion;
+            }
+            osName = parsed.osName;
+            osVersion = parsed.osVersion;
+            deviceType = parsed.deviceType;
+        }
+
+        return {
+            userAgent,
+            browserName,
+            browserVersion,
+            osName,
+            osVersion,
+            deviceType,
+            fullBrowserString: browserName && browserVersion !== 'Unknown'
+                ? `${browserName} ${browserVersion}`
+                : browserName,
+            fullOSString: osVersion && osVersion !== 'Unknown'
+                ? `${osName} ${osVersion}`
+                : osName
+        };
+    }
+
+    /**
+     * Parse user-agent string to extract browser and OS information
+     */
+    _parseUserAgent(ua) {
+        let browserName = 'Unknown';
+        let browserVersion = 'Unknown';
+        let osName = 'Unknown';
+        let osVersion = 'Unknown';
+        let deviceType = 'Desktop';
+
+        // Detect mobile/tablet
+        if (/Mobile|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) {
+            deviceType = /iPad|Android(?!.*Mobile)/i.test(ua) ? 'Tablet' : 'Mobile';
+        }
+
+        // Detect OS
+        if (/Windows NT 10.0/i.test(ua)) {
+            osName = 'Windows';
+            osVersion = '10/11';
+        } else if (/Windows NT 6.3/i.test(ua)) {
+            osName = 'Windows';
+            osVersion = '8.1';
+        } else if (/Windows NT 6.2/i.test(ua)) {
+            osName = 'Windows';
+            osVersion = '8';
+        } else if (/Windows NT 6.1/i.test(ua)) {
+            osName = 'Windows';
+            osVersion = '7';
+        } else if (/Mac OS X ([\d_]+)/i.test(ua)) {
+            osName = 'macOS';
+            const match = ua.match(/Mac OS X ([\d_]+)/i);
+            if (match) {
+                osVersion = match[1].replace(/_/g, '.');
+            }
+        } else if (/Android ([\d.]+)/i.test(ua)) {
+            osName = 'Android';
+            const match = ua.match(/Android ([\d.]+)/i);
+            if (match) osVersion = match[1];
+        } else if (/iPhone OS ([\d_]+)/i.test(ua)) {
+            osName = 'iOS';
+            const match = ua.match(/iPhone OS ([\d_]+)/i);
+            if (match) osVersion = match[1].replace(/_/g, '.');
+        } else if (/iPad.*OS ([\d_]+)/i.test(ua)) {
+            osName = 'iPadOS';
+            const match = ua.match(/OS ([\d_]+)/i);
+            if (match) osVersion = match[1].replace(/_/g, '.');
+        } else if (/Linux/i.test(ua)) {
+            osName = 'Linux';
+        } else if (/CrOS/i.test(ua)) {
+            osName = 'Chrome OS';
+        }
+
+        // Detect Browser (order matters - check more specific browsers first)
+        if (/Edg\/([\d.]+)/i.test(ua)) {
+            browserName = 'Microsoft Edge';
+            const match = ua.match(/Edg\/([\d.]+)/i);
+            if (match) browserVersion = match[1];
+        } else if (/Chrome\/([\d.]+)/i.test(ua) && !/Edg/i.test(ua)) {
+            browserName = 'Google Chrome';
+            const match = ua.match(/Chrome\/([\d.]+)/i);
+            if (match) browserVersion = match[1];
+        } else if (/Firefox\/([\d.]+)/i.test(ua)) {
+            browserName = 'Mozilla Firefox';
+            const match = ua.match(/Firefox\/([\d.]+)/i);
+            if (match) browserVersion = match[1];
+        } else if (/Safari\/([\d.]+)/i.test(ua) && !/Chrome/i.test(ua)) {
+            browserName = 'Safari';
+            const match = ua.match(/Version\/([\d.]+)/i);
+            if (match) browserVersion = match[1];
+        } else if (/Opera\/([\d.]+)/i.test(ua) || /OPR\/([\d.]+)/i.test(ua)) {
+            browserName = 'Opera';
+            const match = ua.match(/(?:Opera|OPR)\/([\d.]+)/i);
+            if (match) browserVersion = match[1];
+        } else if (/MSIE ([\d.]+)/i.test(ua) || /Trident.*rv:([\d.]+)/i.test(ua)) {
+            browserName = 'Internet Explorer';
+            const match = ua.match(/(?:MSIE |rv:)([\d.]+)/i);
+            if (match) browserVersion = match[1];
+        }
+
+        return {
+            browserName,
+            browserVersion,
+            osName,
+            osVersion,
+            deviceType
+        };
+    }
+
+    /**
      * Generate comprehensive analysis report
      */
     generateReport() {
         return {
             basicStats: this.getBasicStats(),
+            browserInfo: this.getBrowserInfo(),
             statusCodes: this.getStatusCodeAnalysis(),
             domains: this.getDomainAnalysis().slice(0, 20),
             contentTypes: this.getContentTypeAnalysis().slice(0, 15),
