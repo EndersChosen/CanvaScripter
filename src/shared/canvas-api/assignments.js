@@ -104,7 +104,7 @@ async function createAssignments(data) {
         "submissionTypes": data.submissionTypes,
         "gradingType": data.grade_type,
         "pointsPossible": data.points,
-        "state": data.publish,
+        "state": data.publish === "published" || data.publish === true ? "published" : "unpublished",
         "peerReviews": data.peer_reviews,
         "peerReviewCount": data.peer_review_count || 1,
         "anonymous": data.anonymous

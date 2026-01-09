@@ -626,6 +626,21 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
     // HAR analyzer
     'har:selectFile',
     'har:analyze',
+    'har:analyzeAi',
+
+    // Settings / API Keys
+    'settings:getApiKey',
+    'settings:saveApiKey',
+    'settings:hasApiKey',
+    'settings:deleteApiKey',
+    'settings:getMaskedApiKey',
+
+    // AI Assistant
+    'ai-assistant:parseIntent',
+    'ai-assistant:getOperationDetails',
+    'ai-assistant:fetchItems',
+    'ai-assistant:executeOperation',
+    'ai-assistant:sendSlackFeedback',
 
     // Email parsing helpers
     'parseEmailsFromCSV',

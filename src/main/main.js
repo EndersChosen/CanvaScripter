@@ -28,6 +28,8 @@ const { registerCommChannelHandlers, cleanupCommChannelState } = require('./ipc/
 const { registerAssignmentHandlers, cleanupAssignmentState } = require('./ipc/assignmentHandlers');
 const { registerCourseHandlers, cleanupCourseState } = require('./ipc/courseHandlers');
 const { registerContentHandlers, cleanupContentState } = require('./ipc/contentHandlers');
+const { registerSettingsHandlers } = require('./ipc/settingsHandlers');
+const { registerAIAssistantHandlers } = require('./ipc/aiAssistantHandlers');
 
 // Import security and state management
 const {
@@ -281,6 +283,12 @@ app.whenReady().then(() => {
 
     // SIS data generation
     registerSISHandlers(ipcMain, logDebug);
+
+    // Settings
+    registerSettingsHandlers();
+
+    // AI Assistant
+    registerAIAssistantHandlers();
 
     // Conversation handlers
     registerConversationHandlers(ipcMain, logDebug, mainWindow);

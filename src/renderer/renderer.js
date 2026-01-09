@@ -6,10 +6,17 @@ function hideEndpoints(e) {
     // Hide all endpoint forms when switching between different requests
     const endpointContent = document.querySelector('#endpoint-content');
     if (endpointContent) {
-        // Instead of clearing content, hide all existing forms
-        const allForms = endpointContent.querySelectorAll('form, div[id$="-form"]');
-        allForms.forEach(form => {
-            form.hidden = true;
+        // Check if the AI Assistant button was clicked
+        const isAIAssistantClick = e && e.target && e.target.id === 'ai-assistant-open';
+
+        // Hide all existing forms and divs
+        // Only exclude ai-assistant-container if AI Assistant button was clicked
+        Array.from(endpointContent.children).forEach(child => {
+            if (isAIAssistantClick && child.id === 'ai-assistant-container') {
+                // Keep AI Assistant visible when AI Assistant button is clicked
+                return;
+            }
+            child.hidden = true;
         });
 
         // Remove active state from all sidebar buttons
@@ -320,6 +327,11 @@ function routeEndpointRequest(e, category) {
         case 'har-analyzer':
             if (typeof harAnalyzerTemplate === 'function') {
                 harAnalyzerTemplate(e);
+            }
+            break;
+        case 'ai-assistant':
+            if (typeof aiAssistantTemplate === 'function') {
+                aiAssistantTemplate(e);
             }
             break;
         default:

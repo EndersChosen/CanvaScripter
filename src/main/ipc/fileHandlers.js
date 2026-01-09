@@ -12,6 +12,8 @@
 const { ipcMain, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const OpenAI = require('openai');
+const Anthropic = require('@anthropic-ai/sdk');
 
 /**
  * Register all file operation IPC handlers
@@ -119,6 +121,85 @@ function registerFileHandlers({ mainWindow, security, parsers, harAnalyzer }) {
         }
     });
 
+    const { getDecryptedKey } = require('./settingsHandlers');
+
+    // AI HAR analysis
+    ipcMain.handle('har:analyzeAi', async (event, { filePath, model, prompt }) => {
+        try {
+            if (!isAllowedPath(allowedReadPaths, event.sender.id, filePath)) {
+                throw new Error('Access denied: HAR file was not selected via dialog');
+            }
+
+            const harContent = fs.readFileSync(filePath, 'utf8');
+            const harData = JSON.parse(harContent);
+
+            // Prepare context for AI (Summarize to fit regular context windows)
+            const summary = summarizeHarForAi(harData);
+            const systemPrompt = `You are an expert HTTP Archive (HAR) analyzer. 
+Analyze the provided network log summary for issues such as authentication failures (SAML/OAuth), unexpected redirects, client-side errors, or performance bottlenecks.
+The user is reporting an issue. Look for anomalies that might explain it.`;
+
+            let userContent = `Analyze the following HAR summary:\n\n${JSON.stringify(summary, null, 2)}`;
+            if (prompt && prompt.trim()) {
+                userContent = `User Issue Description/Question:
+${prompt}
+
+Please answer the user's question and analyze the HAR summary below specifically looking for evidence related to their issue:
+
+${JSON.stringify(summary, null, 2)}`;
+            }
+
+            let responseText = '';
+
+            if (model.startsWith('gpt')) {
+                const apiKey = getDecryptedKey('openai');
+                if (!apiKey) throw new Error('API Key missing. Please entering it in the AI Advisor setttings.');
+
+                const openai = new OpenAI({ apiKey });
+                // Mapping custom user request to actual available model
+                const modelMapper = {
+                    'gpt-5.2': 'gpt-4o', // Fallback as 5.2 doesn't exist publically yet
+                };
+                const targetModel = modelMapper[model] || model;
+
+                const completion = await openai.chat.completions.create({
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userContent }
+                    ],
+                    model: targetModel,
+                });
+                responseText = completion.choices[0].message.content;
+
+            } else if (model.startsWith('claude')) {
+                const apiKey = getDecryptedKey('anthropic');
+                if (!apiKey) throw new Error('API Key missing. Please enter it in the AI Advisor settings.');
+
+                const anthropic = new Anthropic({ apiKey });
+                // Mapping custom user request to actual available model
+                const modelMapper = {
+                    'claude-sonnet-4.5': 'claude-sonnet-4-5-20250929',
+                };
+                const targetModel = modelMapper[model] || 'claude-3-5-sonnet-20240620'; // Fallback to a known stable model if mapping fails
+
+                const msg = await anthropic.messages.create({
+                    model: targetModel,
+                    max_tokens: 4096,
+                    messages: [{ role: "user", content: `${systemPrompt}\n\n${userContent}` }],
+                });
+                responseText = msg.content[0].text;
+            } else {
+                throw new Error(`Unsupported model selected: ${model}`);
+            }
+
+            return responseText;
+
+        } catch (error) {
+            console.error('AI Analysis Error:', error);
+            throw new Error(`Failed to run AI analysis: ${error.message}`);
+        }
+    });
+
     // CSV/ZIP picker
     ipcMain.handle('fileUpload:pickCsvOrZip', async (event) => {
         const result = await dialog.showOpenDialog(mainWindow, {
@@ -193,4 +274,39 @@ function registerFileHandlers({ mainWindow, security, parsers, harAnalyzer }) {
     });
 }
 
+// Helper to sanitize and summarize HAR data for LLM Context
+function summarizeHarForAi(harData) {
+    if (!harData.log || !harData.log.entries) return { error: "Invalid HAR structure" };
+
+    const entries = harData.log.entries.map(e => ({
+        timestamp: e.startedDateTime,
+        method: e.request.method,
+        url: e.request.url,
+        status: e.response.status,
+        statusText: e.response.statusText,
+        time: Math.round(e.time),
+        requestHeaders: filterImportantHeaders(e.request.headers),
+        responseHeaders: filterImportantHeaders(e.response.headers),
+        // Include redirect URL if present
+        redirectURL: e.response.redirectURL || undefined,
+        // Include partial response body for errors
+        errorDetails: (e.response.status >= 400 || e.response.status === 0) ?
+            (e.response.content?.text?.slice(0, 500) || "No content") : undefined
+    }));
+
+    // If too many entries, take start, middle, and end, or just filters for errors + auth
+    // For now, simple slice to prevent token overflow
+    return {
+        creator: harData.log.creator,
+        entries: entries.slice(0, 80) // Limit to first 80 requests for context
+    };
+}
+
+function filterImportantHeaders(headers) {
+    const important = ['set-cookie', 'cookie', 'location', 'content-type', 'authorization', 'referer'];
+    return headers.filter(h => important.includes(h.name.toLowerCase()))
+        .map(h => `${h.name}: ${h.value.length > 100 ? h.value.substring(0, 100) + '...' : h.value}`);
+}
+
+module.exports = { registerFileHandlers };
 module.exports = { registerFileHandlers };
