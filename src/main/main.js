@@ -171,6 +171,14 @@ function createMenu() {
             label: 'File',
             submenu: [
                 {
+                    label: 'AI Integrations...',
+                    accelerator: 'CmdOrCtrl+,',
+                    click: () => {
+                        mainWindow.webContents.send('open-ai-settings');
+                    }
+                },
+                { type: 'separator' },
+                {
                     label: 'Reload',
                     accelerator: 'CmdOrCtrl+R',
                     click: () => mainWindow.webContents.reload()
@@ -307,6 +315,12 @@ app.whenReady().then(() => {
 
     logDebug('All IPC handlers registered successfully');
     console.log('✓ Phase 2 Migration Complete: All 86 handlers registered via modular system');
+
+    // Open external URL handler
+    ipcMain.on('open-external-url', (event, url) => {
+        logDebug(`Opening external URL: ${url}`);
+        shell.openExternal(url);
+    });
 
     // Context menu IPC handler (for sandbox mode compatibility)
     ipcMain.on('show-context-menu', (event, { x, y }) => {

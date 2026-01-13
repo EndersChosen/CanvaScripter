@@ -272,6 +272,130 @@ ${JSON.stringify(summary, null, 2)}`;
             };
         }
     });
+
+    // QTI file selection
+    ipcMain.handle('qti:selectFile', async (event) => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openFile'],
+            filters: [
+                { name: 'QTI Files', extensions: ['xml', 'zip'] },
+                { name: 'XML Files', extensions: ['xml'] },
+                { name: 'ZIP Packages', extensions: ['zip'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        });
+        if (result.canceled) return { canceled: true };
+        const filePath = result.filePaths[0];
+        rememberPath(allowedReadPaths, event.sender.id, filePath);
+        return { canceled: false, filePath };
+    });
+
+    // QTI standard analysis
+    ipcMain.handle('qti:analyze', async (event, filePath) => {
+        try {
+            if (!isAllowedPath(allowedReadPaths, event.sender.id, filePath)) {
+                throw new Error('Access denied: QTI file was not selected via dialog');
+            }
+
+            const { QTIAnalyzer } = require('../../shared/qtiAnalyzer');
+
+            // Determine if ZIP or XML
+            const isZip = filePath.toLowerCase().endsWith('.zip');
+            let qtiData;
+
+            if (isZip) {
+                const zipBuffer = fs.readFileSync(filePath);
+                qtiData = await QTIAnalyzer.analyzePackage(zipBuffer);
+            } else {
+                const xmlContent = fs.readFileSync(filePath, 'utf8');
+                qtiData = await QTIAnalyzer.analyzeXML(xmlContent);
+            }
+
+            return qtiData;
+        } catch (error) {
+            throw new Error(`Failed to analyze QTI file: ${error.message}`);
+        }
+    });
+
+    // QTI AI analysis
+    ipcMain.handle('qti:analyzeAi', async (event, { filePath, model, prompt }) => {
+        try {
+            if (!isAllowedPath(allowedReadPaths, event.sender.id, filePath)) {
+                throw new Error('Access denied: QTI file was not selected via dialog');
+            }
+
+            // First do standard analysis
+            const { QTIAnalyzer } = require('../../shared/qtiAnalyzer');
+            const isZip = filePath.toLowerCase().endsWith('.zip');
+            let qtiData;
+
+            if (isZip) {
+                const zipBuffer = fs.readFileSync(filePath);
+                qtiData = await QTIAnalyzer.analyzePackage(zipBuffer);
+            } else {
+                const xmlContent = fs.readFileSync(filePath, 'utf8');
+                qtiData = await QTIAnalyzer.analyzeXML(xmlContent);
+            }
+
+            // Prepare AI context
+            const summary = {
+                version: qtiData.version,
+                metadata: qtiData.metadata,
+                questionSummary: qtiData.questionSummary,
+                interactionTypes: qtiData.interactionTypes,
+                compatibility: qtiData.canvasCompatibility,
+                warnings: qtiData.warnings,
+                contentAnalysis: qtiData.contentAnalysis
+            };
+
+            const systemPrompt = `You are an expert in QTI (Question and Test Interoperability) standards and Canvas LMS.
+Analyze QTI assessments for Canvas compatibility, quality issues, and provide actionable recommendations.
+Focus on practical import guidance and question improvement suggestions.`;
+
+            let userContent = `Analyze this QTI assessment summary:\n\n${JSON.stringify(summary, null, 2)}`;
+            if (prompt && prompt.trim()) {
+                userContent = `User request: ${prompt}\n\nQTI Assessment Data:\n${JSON.stringify(summary, null, 2)}`;
+            }
+
+            // Call AI (reuse HAR analyzer AI logic)
+            let responseText = '';
+            if (model.startsWith('gpt')) {
+                // OpenAI call
+                const apiKey = getDecryptedKey('openai');
+                if (!apiKey) throw new Error('OpenAI API Key missing');
+
+                const OpenAI = require('openai').default || require('openai');
+                const openai = new OpenAI({ apiKey });
+                const completion = await openai.chat.completions.create({
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userContent }
+                    ],
+                    model: 'gpt-4o',
+                });
+                responseText = completion.choices[0].message.content;
+
+            } else if (model.startsWith('claude')) {
+                // Anthropic call
+                const apiKey = getDecryptedKey('anthropic');
+                if (!apiKey) throw new Error('Anthropic API Key missing');
+
+                const Anthropic = require('@anthropic-ai/sdk').default || require('@anthropic-ai/sdk');
+                const anthropic = new Anthropic({ apiKey });
+                const msg = await anthropic.messages.create({
+                    model: 'claude-sonnet-4-5-20250929',
+                    max_tokens: 4096,
+                    messages: [{ role: "user", content: `${systemPrompt}\n\n${userContent}` }],
+                });
+                responseText = msg.content[0].text;
+            }
+
+            return responseText;
+
+        } catch (error) {
+            throw new Error(`Failed to run AI analysis: ${error.message}`);
+        }
+    });
 }
 
 // Helper to sanitize and summarize HAR data for LLM Context

@@ -324,9 +324,13 @@ function routeEndpointRequest(e, category) {
                 importsTemplate(e);
             }
             break;
-        case 'har-analyzer':
-            if (typeof harAnalyzerTemplate === 'function') {
+        case 'analyzers':
+            // Check which analyzer button was clicked
+            const buttonId = e.target.id;
+            if (buttonId === 'upload-har' && typeof harAnalyzerTemplate === 'function') {
                 harAnalyzerTemplate(e);
+            } else if (buttonId === 'analyze-qti' && typeof qtiAnalyzerTemplate === 'function') {
+                qtiAnalyzerTemplate(e);
             }
             break;
         case 'ai-assistant':

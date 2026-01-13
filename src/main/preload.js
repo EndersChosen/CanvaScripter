@@ -628,6 +628,11 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
     'har:analyze',
     'har:analyzeAi',
 
+    // QTI analyzer
+    'qti:selectFile',
+    'qti:analyze',
+    'qti:analyzeAi',
+
     // Settings / API Keys
     'settings:getApiKey',
     'settings:saveApiKey',
@@ -653,6 +658,22 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
             throw new Error(`Blocked IPC channel: ${channel}`);
         }
         return ipcRenderer.invoke(channel, ...args);
+    },
+    on: (channel, callback) => {
+        // Allow specific receive channels
+        const allowedReceiveChannels = ['open-ai-settings'];
+        if (!allowedReceiveChannels.includes(channel)) {
+            throw new Error(`Blocked IPC receive channel: ${channel}`);
+        }
+        ipcRenderer.on(channel, callback);
+    },
+    send: (channel, ...args) => {
+        // Allow specific send channels
+        const allowedSendChannels = ['open-external-url'];
+        if (!allowedSendChannels.includes(channel)) {
+            throw new Error(`Blocked IPC send channel: ${channel}`);
+        }
+        ipcRenderer.send(channel, ...args);
     }
 });
 
