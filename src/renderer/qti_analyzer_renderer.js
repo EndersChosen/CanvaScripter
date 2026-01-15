@@ -130,13 +130,13 @@ function showQTIAnalyzerUI() {
             const result = await window.ipcRenderer.invoke('qti:selectFile');
             if (result.canceled) return;
 
-            showLoadingState();
+            showQtiLoadingState();
 
             const analysis = await window.ipcRenderer.invoke('qti:analyze', result.filePath);
-            displayAnalysisResults(analysis);
+            displayQtiAnalysisResults(analysis);
 
         } catch (error) {
-            showError('Failed to analyze QTI file: ' + error.message);
+            showQtiError('Failed to analyze QTI file: ' + error.message);
         }
     });
 
@@ -228,7 +228,7 @@ function showQTIAnalyzerUI() {
             const model = modelSelect.value;
             const prompt = document.getElementById('ai-prompt-qti').value;
 
-            showAiLoadingState();
+            showQtiAiLoadingState();
 
             const analysis = await window.ipcRenderer.invoke('qti:analyzeAi', {
                 filePath: result.filePath,
@@ -236,15 +236,15 @@ function showQTIAnalyzerUI() {
                 prompt: prompt
             });
 
-            displayAiResults(analysis);
+            displayQtiAiResults(analysis);
 
         } catch (error) {
-            showAiError('Failed to run AI analysis: ' + error.message);
+            showQtiAiError('Failed to run AI analysis: ' + error.message);
         }
     });
 }
 
-function showLoadingState() {
+function showQtiLoadingState() {
     const resultsDiv = document.getElementById('qti-results');
     resultsDiv.innerHTML = `
         <div class="text-center p-5">
@@ -257,7 +257,7 @@ function showLoadingState() {
     `;
 }
 
-function showAiLoadingState() {
+function showQtiAiLoadingState() {
     const resultsDiv = document.getElementById('qti-ai-results');
     resultsDiv.innerHTML = `
         <div class="text-center p-5">
@@ -269,7 +269,7 @@ function showAiLoadingState() {
     `;
 }
 
-function displayAiResults(analysis) {
+function displayQtiAiResults(analysis) {
     const resultsDiv = document.getElementById('qti-ai-results');
     const content = typeof analysis === 'string' ? analysis : (analysis.content || JSON.stringify(analysis, null, 2));
 
@@ -285,7 +285,7 @@ function displayAiResults(analysis) {
     `;
 }
 
-function showAiError(message) {
+function showQtiAiError(message) {
     const resultsDiv = document.getElementById('qti-ai-results');
     resultsDiv.innerHTML = `
         <div class="alert alert-danger" role="alert">
@@ -294,7 +294,7 @@ function showAiError(message) {
     `;
 }
 
-function showError(message) {
+function showQtiError(message) {
     const resultsDiv = document.getElementById('qti-results');
     resultsDiv.innerHTML = `
         <div class="alert alert-danger" role="alert">
@@ -303,7 +303,7 @@ function showError(message) {
     `;
 }
 
-function displayAnalysisResults(analysis) {
+function displayQtiAnalysisResults(analysis) {
     const resultsDiv = document.getElementById('qti-results');
 
     const html = `

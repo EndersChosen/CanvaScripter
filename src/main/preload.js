@@ -633,6 +633,17 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
     'qti:analyze',
     'qti:analyzeAi',
 
+    // Diff checker
+    'diff:selectFile',
+    'diff:compareFiles',
+    'diff:compareText',
+    'diff:exportDiff',
+
+    // UTF-8 checker
+    'utf8:selectFile',
+    'utf8:validate',
+    'utf8:fix',
+
     // Settings / API Keys
     'settings:getApiKey',
     'settings:saveApiKey',

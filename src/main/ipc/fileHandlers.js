@@ -396,6 +396,151 @@ Focus on practical import guidance and question improvement suggestions.`;
             throw new Error(`Failed to run AI analysis: ${error.message}`);
         }
     });
+
+    // ============================================
+    // Diff Checker Handlers
+    // ============================================
+
+    // Select file for diff comparison
+    ipcMain.handle('diff:selectFile', async (event) => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openFile'],
+            filters: [
+                { name: 'All Files', extensions: ['*'] },
+                { name: 'Text Files', extensions: ['txt', 'log', 'md', 'json', 'xml', 'csv', 'html', 'css', 'js', 'ts', 'py', 'java', 'c', 'cpp', 'h'] }
+            ]
+        });
+
+        if (result.canceled) return { canceled: true };
+
+        const filePath = result.filePaths[0];
+        rememberPath(allowedReadPaths, event.sender.id, filePath);
+
+        const stats = fs.statSync(filePath);
+        return {
+            canceled: false,
+            filePath,
+            fileName: path.basename(filePath),
+            fileSize: stats.size
+        };
+    });
+
+    // Compare two files
+    ipcMain.handle('diff:compareFiles', async (event, { file1Path, file2Path, options }) => {
+        // Validate both paths are allowed
+        if (!isAllowedPath(allowedReadPaths, event.sender.id, file1Path)) {
+            throw new Error('Access denied: File 1 was not selected via dialog');
+        }
+        if (!isAllowedPath(allowedReadPaths, event.sender.id, file2Path)) {
+            throw new Error('Access denied: File 2 was not selected via dialog');
+        }
+
+        const { DiffChecker } = require('../../shared/diffChecker');
+        return await DiffChecker.compareFiles(file1Path, file2Path, options);
+    });
+
+    // Compare two text strings
+    ipcMain.handle('diff:compareText', async (event, { text1, text2, options }) => {
+        const { DiffChecker } = require('../../shared/diffChecker');
+        return DiffChecker.compareText(text1, text2, options);
+    });
+
+    // Export diff to file
+    ipcMain.handle('diff:exportDiff', async (event, diffContent) => {
+        const result = await dialog.showSaveDialog(mainWindow, {
+            title: 'Export Diff',
+            defaultPath: 'diff-output.patch',
+            filters: [
+                { name: 'Patch Files', extensions: ['patch', 'diff'] },
+                { name: 'Text Files', extensions: ['txt'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        });
+
+        if (result.canceled) return { canceled: true };
+
+        const savePath = result.filePath;
+        rememberPath(allowedWritePaths, event.sender.id, savePath);
+        fs.writeFileSync(savePath, diffContent, 'utf8');
+
+        return { canceled: false, filePath: savePath };
+    });
+
+    // ============================================
+    // UTF-8 Checker Handlers
+    // ============================================
+
+    // Select file for UTF-8 validation
+    ipcMain.handle('utf8:selectFile', async (event) => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openFile'],
+            filters: [
+                { name: 'Text Files', extensions: ['txt', 'csv', 'json', 'xml', 'html', 'css', 'js', 'ts', 'md', 'log', 'yml', 'yaml'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        });
+
+        if (result.canceled) return { canceled: true };
+
+        const filePath = result.filePaths[0];
+        rememberPath(allowedReadPaths, event.sender.id, filePath);
+
+        const stats = fs.statSync(filePath);
+        return {
+            canceled: false,
+            filePath,
+            fileName: path.basename(filePath),
+            fileSize: stats.size
+        };
+    });
+
+    // Validate file for UTF-8 encoding
+    ipcMain.handle('utf8:validate', async (event, filePath) => {
+        if (!isAllowedPath(allowedReadPaths, event.sender.id, filePath)) {
+            throw new Error('Access denied: File was not selected via dialog');
+        }
+
+        const { UTF8Checker } = require('../../shared/utf8Checker');
+        return await UTF8Checker.validateFile(filePath);
+    });
+
+    // Fix UTF-8 encoding issues and save
+    ipcMain.handle('utf8:fix', async (event, { filePath, mode }) => {
+        if (!isAllowedPath(allowedReadPaths, event.sender.id, filePath)) {
+            throw new Error('Access denied: File was not selected via dialog');
+        }
+
+        const { UTF8Checker } = require('../../shared/utf8Checker');
+        const fixResult = await UTF8Checker.fixFile(filePath, mode);
+
+        // Ask user where to save
+        const originalName = path.basename(filePath);
+        const ext = path.extname(originalName);
+        const baseName = path.basename(originalName, ext);
+
+        const saveResult = await dialog.showSaveDialog(mainWindow, {
+            title: 'Save Fixed File',
+            defaultPath: `${baseName}_fixed${ext}`,
+            filters: [
+                { name: 'Same Type', extensions: [ext.slice(1) || 'txt'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        });
+
+        if (saveResult.canceled) return { canceled: true };
+
+        const savePath = saveResult.filePath;
+        rememberPath(allowedWritePaths, event.sender.id, savePath);
+        fs.writeFileSync(savePath, fixResult.fixedBuffer);
+
+        return {
+            canceled: false,
+            filePath: savePath,
+            fixedCount: fixResult.fixedCount,
+            originalSize: fixResult.originalSize,
+            newSize: fixResult.newSize
+        };
+    });
 }
 
 // Helper to sanitize and summarize HAR data for LLM Context

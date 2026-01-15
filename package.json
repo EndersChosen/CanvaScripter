@@ -71,6 +71,7 @@
     "axios": "^1.7.0",
     "bootstrap": "^5.3.0",
     "bootstrap-icons": "^1.13.1",
+    "diff": "^8.0.3",
     "dotenv": "^17.2.2",
     "electron-squirrel-startup": "^1.0.0",
     "electron-store": "^8.1.0",

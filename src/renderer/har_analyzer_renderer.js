@@ -125,13 +125,13 @@ function showHARAnalyzerUI() {
             const result = await window.ipcRenderer.invoke('har:selectFile');
             if (result.canceled) return;
 
-            showLoadingState();
+            showHarLoadingState();
 
             const analysis = await window.ipcRenderer.invoke('har:analyze', result.filePath);
-            displayAnalysisResults(analysis);
+            displayHarAnalysisResults(analysis);
 
         } catch (error) {
-            showError('Failed to analyze HAR file: ' + error.message);
+            showHarError('Failed to analyze HAR file: ' + error.message);
         }
     });
 
@@ -238,7 +238,7 @@ function showHARAnalyzerUI() {
             const model = document.getElementById('ai-model-select').value;
             const prompt = document.getElementById('ai-prompt-input').value;
 
-            showAiLoadingState();
+            showHarAiLoadingState();
 
             // Invoke AI analysis (Implementation needed in main process)
             const analysis = await window.ipcRenderer.invoke('har:analyzeAi', {
@@ -247,15 +247,15 @@ function showHARAnalyzerUI() {
                 prompt: prompt
             });
 
-            displayAiResults(analysis);
+            displayHarAiResults(analysis);
 
         } catch (error) {
-            showAiError('Failed to run AI analysis: ' + error.message);
+            showHarAiError('Failed to run AI analysis: ' + error.message);
         }
     });
 }
 
-function showLoadingState() {
+function showHarLoadingState() {
     const resultsDiv = document.getElementById('har-results');
     resultsDiv.innerHTML = `
         <div class="text-center p-5">
@@ -267,7 +267,7 @@ function showLoadingState() {
     `;
 }
 
-function showAiLoadingState() {
+function showHarAiLoadingState() {
     const resultsDiv = document.getElementById('har-ai-results');
     resultsDiv.innerHTML = `
         <div class="text-center p-5">
@@ -279,7 +279,7 @@ function showAiLoadingState() {
     `;
 }
 
-function displayAiResults(analysis) {
+function displayHarAiResults(analysis) {
     const resultsDiv = document.getElementById('har-ai-results');
     // Simple display for now, assuming analysis returns a markdown string or object with content
     const content = typeof analysis === 'string' ? analysis : (analysis.content || JSON.stringify(analysis, null, 2));
@@ -296,7 +296,7 @@ function displayAiResults(analysis) {
     `;
 }
 
-function showAiError(message) {
+function showHarAiError(message) {
     const resultsDiv = document.getElementById('har-ai-results');
     resultsDiv.innerHTML = `
         <div class="alert alert-danger" role="alert">
@@ -305,7 +305,7 @@ function showAiError(message) {
     `;
 }
 
-function displayAnalysisResults(analysis) {
+function displayHarAnalysisResults(analysis) {
     const resultsDiv = document.getElementById('har-results');
 
     const html = `
@@ -942,7 +942,7 @@ function renderDiagnosis(analysis) {
         `;
 }
 
-function showError(message) {
+function showHarError(message) {
     const resultsDiv = document.getElementById('har-results');
     resultsDiv.innerHTML = `
         < div class="alert alert-danger" role = "alert" >

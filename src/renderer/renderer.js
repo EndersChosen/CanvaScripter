@@ -331,6 +331,10 @@ function routeEndpointRequest(e, category) {
                 harAnalyzerTemplate(e);
             } else if (buttonId === 'analyze-qti' && typeof qtiAnalyzerTemplate === 'function') {
                 qtiAnalyzerTemplate(e);
+            } else if (buttonId === 'diff-checker' && typeof diffCheckerTemplate === 'function') {
+                diffCheckerTemplate(e);
+            } else if (buttonId === 'utf8-checker' && typeof utf8CheckerTemplate === 'function') {
+                utf8CheckerTemplate(e);
             }
             break;
         case 'ai-assistant':
