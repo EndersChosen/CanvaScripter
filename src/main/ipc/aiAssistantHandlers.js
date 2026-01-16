@@ -8,6 +8,86 @@ const { getDecryptedKey } = require('./settingsHandlers');
 const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 
+/**
+ * Generate unique announcement titles using AI
+ * @param {number} count - Number of titles to generate
+ * @param {string} message - The announcement message/body for context
+ * @param {string} titleBase - Base theme or context for title generation
+ * @returns {Promise<string[]>} Array of unique titles
+ */
+async function generateAnnouncementTitles(count, message, titleBase) {
+    try {
+        // Try Anthropic first, fallback to OpenAI
+        let apiKey = getDecryptedKey('anthropic');
+        let provider = 'anthropic';
+
+        if (!apiKey) {
+            apiKey = getDecryptedKey('openai');
+            provider = 'openai';
+        }
+
+        if (!apiKey) {
+            throw new Error('No AI API key available for title generation');
+        }
+
+        const prompt = `Generate ${count} unique, creative, and professional announcement titles.
+
+Context:
+- Base theme/topic: "${titleBase}"
+- Announcement message: "${message}"
+
+Requirements:
+- Each title should be distinct and varied
+- Titles should be 3-8 words long
+- Make them engaging and relevant to the context
+- If message provides context, use it for inspiration
+- Avoid generic numbered titles like "Announcement 1", "Announcement 2"
+- Return ONLY a JSON array of strings, nothing else
+
+Example output format:
+["Important Class Update", "Upcoming Schedule Changes", "Assignment Deadline Reminder", ...]`;
+
+        let responseText = '';
+
+        if (provider === 'openai') {
+            const openai = new OpenAI({ apiKey });
+            const completion = await openai.chat.completions.create({
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant that generates creative announcement titles. Respond only with a JSON array of strings.' },
+                    { role: 'user', content: prompt }
+                ],
+                model: 'gpt-4o',
+                response_format: { type: "json_object" }
+            });
+            responseText = completion.choices[0].message.content;
+            // OpenAI might wrap in an object, extract the array
+            const parsed = JSON.parse(responseText);
+            return Array.isArray(parsed) ? parsed : (parsed.titles || Object.values(parsed)[0]);
+        } else {
+            const anthropic = new Anthropic({ apiKey });
+            const msg = await anthropic.messages.create({
+                model: 'claude-haiku-4-5-20251001',
+                max_tokens: 1024,
+                messages: [{
+                    role: "user",
+                    content: prompt
+                }]
+            });
+            responseText = msg.content[0].text;
+            // Strip markdown if present
+            let cleanedText = responseText.trim();
+            if (cleanedText.startsWith('```')) {
+                cleanedText = cleanedText.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
+            }
+            return JSON.parse(cleanedText);
+        }
+    } catch (error) {
+        console.error('Error generating announcement titles:', error);
+        // Fallback to simple numbered titles with base
+        return Array.from({ length: count }, (_, i) => `${titleBase} ${i + 1}`);
+    }
+}
+
 // Map of supported operations to their handlers and required parameters
 const OPERATION_MAP = {
     // ==================== Assignment Operations ====================
@@ -269,6 +349,7 @@ const OPERATION_MAP = {
         handler: 'axios:createAnnouncements',
         description: 'Create announcements in a course',
         requiredParams: ['domain', 'token', 'courseId', 'number', 'title'],
+        optionalParams: ['message', 'delayed_post_at', 'lock_at'],
         needsFetch: false
     },
     'get-announcements': {
@@ -279,9 +360,27 @@ const OPERATION_MAP = {
     },
     'delete-announcements': {
         handler: 'axios:deleteAnnouncementsGraphQL',
-        description: 'Delete announcements from a course',
+        description: 'Delete specific announcements from a course (requires announcement IDs)',
         requiredParams: ['domain', 'token', 'courseId', 'announcements'],
         needsFetch: false
+    },
+    'delete-all-announcements': {
+        fetchHandler: 'axios:getAnnouncements',
+        deleteHandler: 'axios:deleteAnnouncementsGraphQL',
+        description: 'Delete all announcements from a course',
+        requiredParams: ['domain', 'token', 'courseId'],
+        filters: {},
+        needsFetch: true
+    },
+    'delete-announcements-by-title': {
+        fetchHandler: 'axios:getAnnouncements',
+        deleteHandler: 'axios:deleteAnnouncementsGraphQL',
+        description: 'Delete announcements matching a specific title',
+        requiredParams: ['domain', 'token', 'courseId', 'titleFilter'],
+        filters: {
+            byTitle: true
+        },
+        needsFetch: true
     },
 
     // ==================== Page Operations ====================
@@ -424,6 +523,43 @@ const OPERATION_MAP = {
         needsFetch: false
     },
 
+    // ==================== Information Query Operations ====================
+    'get-announcements-info': {
+        handler: 'axios:getAnnouncements',
+        description: 'Get information about announcements in a course (count, list, etc.)',
+        requiredParams: ['domain', 'token', 'courseId'],
+        needsFetch: false,
+        isQuery: true
+    },
+    'get-assignments-info': {
+        handler: 'axios:getAllAssignmentsForCombined',
+        description: 'Get information about assignments in a course (count, list, etc.)',
+        requiredParams: ['domain', 'token', 'courseId'],
+        needsFetch: false,
+        isQuery: true
+    },
+    'get-modules-info': {
+        handler: 'axios:getModules',
+        description: 'Get information about modules in a course (count, list, etc.)',
+        requiredParams: ['domain', 'token', 'courseId'],
+        needsFetch: false,
+        isQuery: true
+    },
+    'get-assignment-groups-info': {
+        handler: 'axios:getAssignmentGroups',
+        description: 'Get information about assignment groups in a course (count, list, etc.)',
+        requiredParams: ['domain', 'token', 'courseId'],
+        needsFetch: false,
+        isQuery: true
+    },
+    'get-course-info': {
+        handler: 'axios:getCourseInfo',
+        description: 'Get detailed information about a course',
+        requiredParams: ['domain', 'token', 'courseId'],
+        needsFetch: false,
+        isQuery: true
+    },
+
     // ==================== Notification Operations ====================
     'update-notifications': {
         handler: 'axios:updateNotifications',
@@ -458,10 +594,69 @@ Extract:
 4. importId: Import/migration ID if the user specifies "from import X" or "migration ID X"
 5. filters: Any conditions (unpublished, no_submissions, by_subject, etc.)
 6. For CREATE operations, also extract:
-   - number: How many items to create
+   - number: How many items to create (default 1 if not specified)
    - name: Base name/prefix for items
    - points: Point value (default 0)
    - submissionTypes: Array like ["online_upload"], ["online_text_entry"], etc.
+   - publish: true/false (default false)
+7. For INFORMATION/QUERY operations (get-*-info), extract:
+   - queryType: What information the user wants (e.g., "count", "list", "details")
+   - Set operation to the appropriate get-*-info operation
+   - These operations fetch data and return it to the user without modifying anything
+8. summary: Human-readable description of what will be done
+9. warnings: Any potential issues or confirmations needed
+
+=== INFORMATION QUERY PARSING ===
+When users ask questions about course content, use the appropriate get-*-info operation:
+
+Query patterns to recognize:
+- "How many [items] in/are in [course]" -> get-[items]-info with queryType: "count"
+- "How many [filter] [items]" -> get-[items]-info with queryType: "count" and appropriate filters
+- "List [items] in [course]" -> get-[items]-info with queryType: "list"
+- "List [filter] [items]" -> get-[items]-info with queryType: "list" and appropriate filters
+- "Show me [items] from [course]" -> get-[items]-info with queryType: "list"
+- "What [items] are in [course]" -> get-[items]-info with queryType: "list"
+- "Get information about [course]" -> get-course-info with queryType: "details"
+
+Supported info operations:
+- get-announcements-info: For questions about announcements
+- get-assignments-info: For questions about assignments (supports filters: unpublished, published, no submissions, etc.)
+- get-modules-info: For questions about modules
+- get-assignment-groups-info: For questions about assignment groups (supports filters: empty)
+- get-course-info: For general course information
+
+IMPORTANT: Extract filter conditions for info queries:
+For assignment queries, detect these filter keywords:
+- "unpublished" -> add filters: { unpublished: true }
+- "published" -> add filters: { published: true }
+- "no submissions" or "without submissions" -> add filters: { noSubmissions: true }
+- "no due date" or "without due date" -> add filters: { noDueDate: true }
+- "not in modules" -> add filters: { notInModules: true }
+
+For assignment group queries, detect:
+- "empty" or "with no assignments" -> add filters: { empty: true }
+
+For announcement queries, detect:
+- "titled [X]" or "named [X]" -> add titleFilter parameter
+
+Examples:
+- "How many announcements are in https://school.com/courses/123?"
+  -> operation: "get-announcements-info", queryType: "count"
+- "How many unpublished assignments are in course 456"
+  -> operation: "get-assignments-info", queryType: "count", filters: { unpublished: true }
+- "List all published assignments in course 456"
+  -> operation: "get-assignments-info", queryType: "list", filters: { published: true }
+- "Show me assignments with no submissions from course 789"
+  -> operation: "get-assignments-info", queryType: "list", filters: { noSubmissions: true }
+- "How many assignment groups are in course 123?"
+  -> operation: "get-assignment-groups-info", queryType: "count"
+- "How many empty assignment groups are in course 123?"
+  -> operation: "get-assignment-groups-info", queryType: "count", filters: { empty: true }
+- "List assignment groups in course 456"
+  -> operation: "get-assignment-groups-info", queryType: "list"
+- "How many announcements titled 'Test' are in course 123?"
+  -> operation: "get-announcements-info", queryType: "count", titleFilter: "Test"
+
    - publish: true/false (default false)
 7. summary: Human-readable description of what will be done
 8. warnings: Any potential issues or confirmations needed
@@ -472,6 +667,90 @@ Common submission types:
 - "online_url" = website URL
 - "on_paper" = on paper
 - "external_tool" = external tool
+
+=== ANNOUNCEMENT CREATION PARSING ===
+For create-announcements operation, extract these parameters:
+- title: The announcement title/name. Look for phrases like:
+  * "titled X", "called X", "named X", 'announcement "X"', "title: X"
+  * If only body is provided without title, use a generic title like "Announcement"
+  * For MULTIPLE announcements (number > 1):
+    - If user wants varied/random/unique titles: set generateTitles to true
+    - AI will generate unique titles inspired by the message content
+    - If user specifies a base title like "Week Update", use that as titleBase
+- generateTitles: Set to true when:
+  * User asks for "different titles", "random titles", "unique titles", "varied titles"
+  * Creating multiple announcements (number > 1) without a specific repeated title pattern
+  * User wants creative/diverse announcement names
+- titleBase: Optional base/theme for title generation (e.g., "Weekly Update", "Class Reminder")
+  * Extracted from phrases like "based on X", "themed around X", "about X"
+  * Used as inspiration when generateTitles is true
+- message: The announcement body/content. Look for phrases like:
+  * "with message X", "saying X", "with body X", "body: X", "message: X"
+  * "with the message", "letting students know", "explaining X"
+  * Content in quotes after the title is usually the message
+- delayed_post_at: When to publish the announcement (ISO 8601 format). Look for:
+  * "delay posting until", "delay until", "schedule for", "post on"
+  * "set to appear on", "should go live on", "scheduled for"
+  * Convert dates to ISO format (e.g., "March 1, 2024" -> "2024-03-01T00:00:00Z")
+- lock_at: When to lock the announcement (ISO 8601 format). Look for:
+  * "lock on", "lock it on", "lock after", "lock date"
+  * "locked on", "locks on"
+  * Convert dates to ISO format
+
+Date format examples to recognize:
+- "March 15, 2024" or "March 15th, 2024" -> "2024-03-15T00:00:00Z"
+- "03/15/2024" or "3/15/2024" -> "2024-03-15T00:00:00Z"
+- "Jan 25, 2024" -> "2024-01-25T00:00:00Z"
+- "February 20th" (assume current year if not specified)
+
+Announcement prompt examples:
+- "Create announcement 'Midterm Exam' for https://school.com/courses/123 with message 'Exam on March 15th'"
+  -> title: "Midterm Exam", message: "Exam on March 15th", number: 1
+- "Add announcement to course 123 titled 'Lab Safety' saying 'Review protocols before lab'"
+  -> title: "Lab Safety", message: "Review protocols before lab", number: 1
+- "Post 'Office Hours Update' to course 456, delay until March 1, lock on March 15"
+  -> title: "Office Hours Update", delayed_post_at: ISO date, lock_at: ISO date
+- "Create 5 announcements named 'Weekly Update' in course 789"
+  -> title: "Weekly Update", number: 5
+- "Create 11 announcements with different titles about exam prep"
+  -> number: 11, generateTitles: true, titleBase: "exam prep"
+- "Make 10 unique announcements saying 'Class cancelled today'"
+  -> number: 10, generateTitles: true, message: "Class cancelled today"
+
+=== ANNOUNCEMENT DELETION PARSING ===
+For announcement deletion operations, extract these parameters:
+- titleFilter: The title/name to match for delete-announcements-by-title. Look for:
+  * "delete announcements titled X", "delete announcements named X"
+  * "remove announcements called X", "delete announcement 'X'"
+  * "delete all announcements with title X"
+  * Case-insensitive partial matching (e.g., "test" matches "Test Announcement")
+
+Deletion operation selection:
+1. delete-all-announcements: Use when user wants to delete ALL announcements
+   * "delete all announcements", "remove all announcements"
+   * "clear all announcements", "delete every announcement"
+   * No title filter specified
+
+2. delete-announcements-by-title: Use when user specifies a title/name to match
+   * "delete announcements titled X", "delete announcements named X"
+   * "remove announcements called X", "delete announcement 'X'"
+   * "delete announcements with title X"
+   * Set titleFilter parameter to the extracted title
+
+3. delete-announcements: Use when user provides specific announcement IDs
+   * "delete announcement ID 12345", "remove announcements 123, 456"
+   * This is rare - most users will use title-based or all deletion
+   * Set announcements parameter to array of IDs
+
+Announcement deletion examples:
+- "Delete all announcements from https://school.com/courses/123"
+  -> operation: "delete-all-announcements", no titleFilter
+- "Remove announcements titled 'Test' from course 456"
+  -> operation: "delete-announcements-by-title", titleFilter: "Test"
+- "Delete announcements named 'Weekly Update' in course 789"
+  -> operation: "delete-announcements-by-title", titleFilter: "Weekly Update"
+- "Clear all announcements from my course 999"
+  -> operation: "delete-all-announcements", no titleFilter
 
 IMPORTANT: For import-related assignments:
 - If user asks to delete "imported assignments" or "assignments from an/the import" WITHOUT specifying an import ID:
@@ -497,14 +776,27 @@ Respond ONLY with valid JSON in this exact format:
     "importId": "12345",
     "number": 10,
     "name": "Assignment Name",
+    "title": "Announcement Title",
+    "generateTitles": true,
+    "titleBase": "optional theme/base for title generation",
+    "message": "Announcement body content",
+    "delayed_post_at": "2024-03-01T00:00:00Z",
+    "lock_at": "2024-03-15T00:00:00Z",
     "points": 10,
     "submissionTypes": ["online_upload"],
-    "publish": false
+    "publish": false,
+    "queryType": "count or list or details (for info operations)",
+    "filters": { "unpublished": true, "noSubmissions": true },
+    "titleFilter": "optional title filter for announcements"
   },
   "summary": "Clear description of the action",
   "warnings": ["Warning 1", "Warning 2"],
   "confidence": 0.0-1.0
 }
+
+Note: For announcements, use "title" (not "name") and include "message", "delayed_post_at", "lock_at" as needed.
+Set generateTitles to true when creating multiple announcements with varied/unique titles.
+For information queries (get-*-info operations), include queryType parameter and filters object when applicable.
 
 If the request is unclear or unsupported, set confidence to 0 and explain in summary.`;
 
@@ -512,19 +804,32 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
 
             if (provider === 'openai') {
                 const openai = new OpenAI({ apiKey });
+                // Map model identifier to actual API model name
+                const modelMap = {
+                    'gpt-5-nano': 'gpt-5-nano',
+                    'gpt-5.2': 'gpt-5.2',
+                    'gpt-4o': 'gpt-4o'
+                };
+                const apiModel = modelMap[model] || 'gpt-4o';
                 const completion = await openai.chat.completions.create({
                     messages: [
                         { role: 'system', content: systemPrompt },
                         { role: 'user', content: prompt }
                     ],
-                    model: 'gpt-4o',
+                    model: apiModel,
                     response_format: { type: "json_object" }
                 });
                 responseText = completion.choices[0].message.content;
             } else {
                 const anthropic = new Anthropic({ apiKey });
+                // Map model identifier to actual API model name
+                const modelMap = {
+                    'claude-sonnet-4.5': 'claude-sonnet-4-5-20250929',
+                    'claude-haiku-4.5': 'claude-haiku-4-5-20251001'
+                };
+                const apiModel = modelMap[model] || 'claude-sonnet-4-5-20250929';
                 const msg = await anthropic.messages.create({
-                    model: 'claude-sonnet-4-5-20250929',
+                    model: apiModel,
                     max_tokens: 2048,
                     messages: [{
                         role: "user",
@@ -636,7 +941,13 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
             };
 
             // Prepare fetch parameters
-            const fetchParams = {
+            // Special handling for assignment groups which use 'course' instead of 'course_id'
+            const fetchParams = operation.includes('assignment-group') ? {
+                domain: fullParams.domain,
+                token: fullParams.token,
+                course: fullParams.courseId || fullParams.course_id,
+                filters: opInfo.filters
+            } : {
                 domain: fullParams.domain,
                 token: fullParams.token,
                 course_id: fullParams.courseId || fullParams.course_id,
@@ -652,7 +963,8 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     (fetchResult.content ? 'content' :
                         (fetchResult.conversations ? 'conversations' :
                             (fetchResult.modules ? 'modules' :
-                                (Array.isArray(fetchResult) ? 'array' : null)))));
+                                (fetchResult.announcements ? 'announcements' :
+                                    (Array.isArray(fetchResult) ? 'array' : null))))));
 
             let items;
             if (dataKey === 'array') {
@@ -779,6 +1091,14 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                         }
                     }
                 }
+                // Filter announcements by title (case-insensitive partial match)
+                if (filters.byTitle && fullParams.titleFilter) {
+                    const titleLower = fullParams.titleFilter.toLowerCase();
+                    items = items.filter(a => {
+                        const itemTitle = (a.title || a.name || '').toLowerCase();
+                        return itemTitle.includes(titleLower);
+                    });
+                }
             }
 
             return {
@@ -815,6 +1135,168 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
 
             let result;
 
+            // Check if this is an information query operation
+            if (opInfo.isQuery) {
+                console.log('AI Assistant: Processing information query:', operation);
+
+                const handler = ipcMain._invokeHandlers?.get(opInfo.handler);
+                if (!handler) {
+                    throw new Error(`Query handler ${opInfo.handler} not found.`);
+                }
+
+                const mockEvent = {
+                    sender: event.sender,
+                    senderFrame: event.senderFrame,
+                    reply: event.reply
+                };
+
+                // Prepare query parameters
+                const queryParams = {
+                    domain: fullParams.domain,
+                    token: fullParams.token,
+                    course_id: fullParams.courseId || fullParams.course_id
+                };
+
+                console.log('AI Assistant: Fetching data with params:', queryParams);
+                const fetchResult = await handler(mockEvent, queryParams);
+
+                // Determine the data structure
+                let items, dataType;
+                if (fetchResult.announcements) {
+                    items = fetchResult.announcements;
+                    dataType = 'announcements';
+                } else if (fetchResult.assignments) {
+                    items = fetchResult.assignments;
+                    dataType = 'assignments';
+                } else if (fetchResult.modules) {
+                    items = fetchResult.modules;
+                    dataType = 'modules';
+                } else if (fetchResult.groups) {
+                    items = fetchResult.groups;
+                    dataType = 'assignment groups';
+                } else if (fetchResult.discussions) {
+                    items = fetchResult.discussions;
+                    dataType = 'discussions';
+                } else if (Array.isArray(fetchResult)) {
+                    items = fetchResult;
+                    dataType = 'items';
+                } else {
+                    // For get-course-info or other single object responses
+                    return {
+                        success: true,
+                        result: {
+                            queryType: fullParams.queryType || 'details',
+                            data: fetchResult,
+                            summary: `Retrieved course information`
+                        }
+                    };
+                }
+
+                const queryType = fullParams.queryType || 'count';
+
+                // Apply filters if provided
+                if (fullParams.filters && items.length > 0) {
+                    const filters = fullParams.filters;
+                    console.log('AI Assistant: Applying filters to query results:', filters);
+
+                    if (filters.unpublished) {
+                        items = items.filter(a => !a.published);
+                    }
+                    if (filters.published) {
+                        items = items.filter(a => a.published);
+                    }
+                    if (filters.noSubmissions) {
+                        items = items.filter(a => !a.hasSubmittedSubmissions);
+                    }
+                    if (filters.noDueDate) {
+                        items = items.filter(a => !a.dueAt);
+                    }
+                    if (filters.notInModules) {
+                        items = items.filter(a => {
+                            const inCore = Array.isArray(a.modules) && a.modules.length > 0;
+                            const inQuiz = Array.isArray(a.quiz?.modules) && a.quiz.modules.length > 0;
+                            const inDisc = Array.isArray(a.discussion?.modules) && a.discussion.modules.length > 0;
+                            return !(inCore || inQuiz || inDisc);
+                        });
+                    }
+                    if (filters.beforeDate && fullParams.beforeDate) {
+                        const cutoff = new Date(fullParams.beforeDate);
+                        cutoff.setHours(23, 59, 59, 999);
+                        items = items.filter(a => {
+                            if (!a.dueAt) return false;
+                            const localDueDate = new Date(a.dueAt);
+                            return localDueDate < cutoff;
+                        });
+                    }
+                    if (filters.includeGraded === false) {
+                        items = items.filter(a => !a.gradedSubmissionsExist);
+                    }
+                    // Filter empty assignment groups
+                    if (filters.empty && dataType === 'assignment groups') {
+                        items = items.filter(group => {
+                            // Check for assignments array or assignmentsConnection.nodes
+                            const hasNoAssignments = (Array.isArray(group.assignments) && group.assignments.length === 0) ||
+                                (group.assignmentsConnection?.nodes && Array.isArray(group.assignmentsConnection.nodes) && group.assignmentsConnection.nodes.length === 0);
+                            return hasNoAssignments;
+                        });
+                    }
+                }
+
+                // Apply titleFilter for announcements
+                if (fullParams.titleFilter && items.length > 0) {
+                    const titleLower = fullParams.titleFilter.toLowerCase();
+                    items = items.filter(a => {
+                        const itemTitle = (a.title || a.name || '').toLowerCase();
+                        return itemTitle.includes(titleLower);
+                    });
+                }
+
+                console.log(`AI Assistant: After filtering query results: ${items.length} items`);
+
+                if (queryType === 'count') {
+                    return {
+                        success: true,
+                        result: {
+                            queryType: 'count',
+                            count: items.length,
+                            dataType: dataType,
+                            summary: `Found ${items.length} ${dataType} in the course`
+                        }
+                    };
+                } else if (queryType === 'list') {
+                    // Return a summary list with key info
+                    const summary = items.slice(0, 20).map(item => ({
+                        id: item.id || item._id,
+                        name: item.title || item.name,
+                        published: item.published,
+                        ...(item.dueAt && { dueAt: item.dueAt })
+                    }));
+
+                    return {
+                        success: true,
+                        result: {
+                            queryType: 'list',
+                            count: items.length,
+                            dataType: dataType,
+                            items: summary,
+                            summary: `Found ${items.length} ${dataType}. Showing first ${summary.length}.`
+                        }
+                    };
+                } else {
+                    // Return full details
+                    return {
+                        success: true,
+                        result: {
+                            queryType: 'details',
+                            count: items.length,
+                            dataType: dataType,
+                            items: items,
+                            summary: `Retrieved ${items.length} ${dataType} with full details`
+                        }
+                    };
+                }
+            }
+
             // Check if this operation needs to fetch items first (like assignments)
             if (opInfo.needsFetch) {
                 // Step 1: Fetch the items with filters
@@ -830,7 +1312,13 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 };
 
                 // Prepare fetch parameters - map courseId to course_id
-                const fetchParams = {
+                // Special handling for assignment groups which use 'course' instead of 'course_id'
+                const fetchParams = operation.includes('assignment-group') ? {
+                    domain: fullParams.domain,
+                    token: fullParams.token,
+                    course: fullParams.courseId || fullParams.course_id,
+                    filters: opInfo.filters
+                } : {
                     domain: fullParams.domain,
                     token: fullParams.token,
                     course_id: fullParams.courseId || fullParams.course_id,
@@ -840,13 +1328,14 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 console.log('AI Assistant: Fetching items with params:', fetchParams);
                 const fetchResult = await fetchHandler(mockEvent, fetchParams);
 
-                // Determine the data key - could be 'assignments', 'groups', 'content', 'conversations', 'modules', etc.
+                // Determine the data key - could be 'assignments', 'groups', 'content', 'conversations', 'modules', 'announcements', etc.
                 const dataKey = fetchResult.assignments ? 'assignments' :
                     (fetchResult.groups ? 'groups' :
                         (fetchResult.content ? 'content' :
                             (fetchResult.conversations ? 'conversations' :
                                 (fetchResult.modules ? 'modules' :
-                                    (Array.isArray(fetchResult) ? 'array' : null)))));
+                                    (fetchResult.announcements ? 'announcements' :
+                                        (Array.isArray(fetchResult) ? 'array' : null))))));
 
                 let items;
                 if (dataKey === 'array') {
@@ -897,6 +1386,14 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     }
                     if (filters.includeGraded === false) {
                         items = items.filter(a => !a.gradedSubmissionsExist);
+                    }
+                    // Filter announcements by title (case-insensitive partial match)
+                    if (filters.byTitle && fullParams.titleFilter) {
+                        const titleLower = fullParams.titleFilter.toLowerCase();
+                        items = items.filter(a => {
+                            const itemTitle = (a.title || a.name || '').toLowerCase();
+                            return itemTitle.includes(titleLower);
+                        });
                     }
 
                     console.log(`AI Assistant: After filtering: ${items.length} items`);
@@ -953,6 +1450,15 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                         number: normalizedItems.length,
                         module_ids: normalizedItems
                     };
+                } else if (operation.includes('announcements')) {
+                    // Announcements format (uses discussions array since announcements are discussion topics)
+                    deleteParams = {
+                        domain: fullParams.domain,
+                        token: fullParams.token,
+                        course_id: fullParams.courseId || fullParams.course_id,
+                        discussions: normalizedItems,
+                        operationId: `ai-assistant-${Date.now()}`
+                    };
                 } else {
                     // Default assignments format
                     deleteParams = {
@@ -997,21 +1503,75 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     // Use 'course' for assignment group operations, 'course_id' for others
                     const courseParam = operation.includes('assignment-group') ? 'course' : 'course_id';
 
-                    handlerParams = {
-                        domain: fullParams.domain,
-                        token: fullParams.token,
-                        [courseParam]: fullParams.courseId || fullParams.course_id,
-                        number: fullParams.number || 1,
-                        name: fullParams.name || fullParams.prefix || 'Assignment Group',
-                        points: fullParams.points || 0,
-                        submissionTypes: fullParams.submissionTypes || ['online_upload'],
-                        publish: fullParams.publish !== undefined ? fullParams.publish : false,
-                        grade_type: fullParams.grade_type || 'points',
-                        peer_reviews: fullParams.peer_reviews || false,
-                        peer_review_count: fullParams.peer_review_count || 0,
-                        anonymous: fullParams.anonymous || false,
-                        operationId: `ai-assistant-${Date.now()}`
-                    };
+                    // Handle announcement-specific parameters
+                    if (operation === 'create-announcements') {
+                        // Check if we need to generate unique titles
+                        if (fullParams.generateTitles && fullParams.number > 1) {
+                            try {
+                                // Generate unique titles using AI
+                                const titlesList = await generateAnnouncementTitles(
+                                    fullParams.number,
+                                    fullParams.message || '',
+                                    fullParams.titleBase || fullParams.title || 'Announcement'
+                                );
+
+                                handlerParams = {
+                                    domain: fullParams.domain,
+                                    token: fullParams.token,
+                                    course_id: fullParams.courseId || fullParams.course_id,
+                                    number: fullParams.number || 1,
+                                    titles: titlesList, // Array of unique titles
+                                    message: fullParams.message || '',
+                                    delayed_post_at: fullParams.delayed_post_at || null,
+                                    lock_at: fullParams.lock_at || null,
+                                    operationId: `ai-assistant-${Date.now()}`
+                                };
+                            } catch (error) {
+                                console.error('Failed to generate titles, falling back to numbered titles:', error);
+                                // Fallback to default behavior
+                                handlerParams = {
+                                    domain: fullParams.domain,
+                                    token: fullParams.token,
+                                    course_id: fullParams.courseId || fullParams.course_id,
+                                    number: fullParams.number || 1,
+                                    title: fullParams.title || fullParams.name || 'Announcement',
+                                    message: fullParams.message || '',
+                                    delayed_post_at: fullParams.delayed_post_at || null,
+                                    lock_at: fullParams.lock_at || null,
+                                    operationId: `ai-assistant-${Date.now()}`
+                                };
+                            }
+                        } else {
+                            handlerParams = {
+                                domain: fullParams.domain,
+                                token: fullParams.token,
+                                course_id: fullParams.courseId || fullParams.course_id,
+                                number: fullParams.number || 1,
+                                title: fullParams.title || fullParams.name || 'Announcement',
+                                message: fullParams.message || '',
+                                delayed_post_at: fullParams.delayed_post_at || null,
+                                lock_at: fullParams.lock_at || null,
+                                operationId: `ai-assistant-${Date.now()}`
+                            };
+                        }
+                    } else {
+                        // Default create operation parameters (assignments, etc.)
+                        handlerParams = {
+                            domain: fullParams.domain,
+                            token: fullParams.token,
+                            [courseParam]: fullParams.courseId || fullParams.course_id,
+                            number: fullParams.number || 1,
+                            name: fullParams.name || fullParams.prefix || 'Assignment Group',
+                            points: fullParams.points || 0,
+                            submissionTypes: fullParams.submissionTypes || ['online_upload'],
+                            publish: fullParams.publish !== undefined ? fullParams.publish : false,
+                            grade_type: fullParams.grade_type || 'points',
+                            peer_reviews: fullParams.peer_reviews || false,
+                            peer_review_count: fullParams.peer_review_count || 0,
+                            anonymous: fullParams.anonymous || false,
+                            operationId: `ai-assistant-${Date.now()}`
+                        };
+                    }
                 }
 
                 result = await handler(mockEvent, handlerParams);

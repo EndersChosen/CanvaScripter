@@ -100,11 +100,16 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
 
         let requests = [];
         for (let i = 1; i <= data.number; i++) {
+            // Use provided titles array if available, otherwise append number to title
+            const announcementTitle = data.titles && Array.isArray(data.titles) && data.titles[i - 1]
+                ? data.titles[i - 1]
+                : `${data.title} ${i}`;
+
             const requestData = {
                 domain: data.domain,
                 token: data.token,
                 course_id: data.course_id,
-                title: `${data.title} ${i}`,
+                title: announcementTitle,
                 message: data.message || '',
                 published: true,  // Announcements are always published
                 is_announcement: true,

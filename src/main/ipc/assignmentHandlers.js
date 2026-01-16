@@ -376,6 +376,20 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
     });
 
     /**
+     * Get all assignment groups for a course
+     */
+    ipcMain.handle('axios:getAssignmentGroups', async (event, data) => {
+        console.log('assignmentHandlers.js > getAssignmentGroups');
+
+        try {
+            const groups = await assignmentGroups.getAssignmentGroups(data.domain, data.course_id, data.token);
+            return { groups };
+        } catch (error) {
+            throw error.message;
+        }
+    });
+
+    /**
      * Get assignment group by ID
      */
     ipcMain.handle('axios:getAssignmentGroupById', async (event, data) => {

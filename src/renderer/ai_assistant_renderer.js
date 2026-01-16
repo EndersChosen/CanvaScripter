@@ -41,8 +41,10 @@ function showAIAssistantUI() {
                     <div class="mb-3">
                         <label for="ai-assistant-model" class="form-label">AI Model</label>
                         <select class="form-select" id="ai-assistant-model">
+                            <option value="claude-haiku-4.5" selected>Claude Haiku 4.5</option>
                             <option value="claude-sonnet-4.5">Claude Sonnet 4.5</option>
-                            <option value="gpt-4o">GPT-4o</option>
+                            <option value="gpt-5-nano">GPT 5-nano</option>
+                            <option value="gpt-5.2">GPT 5.2</option>
                         </select>
                     </div>
 
@@ -77,6 +79,21 @@ function showAIAssistantUI() {
                                     <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Create 5 discussion topics named 'Week Discussion' in https://myschool.instructure.com/courses/6986">
                                         <strong>Create Discussions:</strong> Create multiple discussion topics
                                     </a>
+                                    <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Create an announcement titled 'Midterm Exam Schedule' for https://myschool.instructure.com/courses/6986 with message 'The midterm will be held on March 15th in room 204. Please arrive 10 minutes early.'">
+                                        <strong>Create Announcement:</strong> Create announcement with title and message
+                                    </a>
+                                    <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Add announcement 'Office Hours Update' to https://myschool.instructure.com/courses/6986 saying 'My office hours are now Tuesdays 2-4pm instead of Wednesdays.' Delay posting until January 15, 2025 and lock on January 30, 2025.">
+                                        <strong>Scheduled Announcement:</strong> Create announcement with delay and lock dates
+                                    </a>
+                                    <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Delete all announcements from https://myschool.instructure.com/courses/6986">
+                                        <strong>Delete All Announcements:</strong> Delete all announcements from a course
+                                    </a>
+                                    <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Delete announcements titled 'Test Announcement' from https://myschool.instructure.com/courses/6986">
+                                        <strong>Delete Announcements by Title:</strong> Delete announcements matching a specific title
+                                    </a>
+                                    <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Remove announcements named 'Weekly Update' from https://myschool.instructure.com/courses/6986">
+                                        <strong>Delete Named Announcements:</strong> Remove announcements with specific name
+                                    </a>
                                     <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Delete all modules from https://myschool.instructure.com/courses/6986">
                                         <strong>Delete Modules:</strong> Delete all modules from a course
                                     </a>
@@ -88,6 +105,21 @@ function showAIAssistantUI() {
                                     </a>
                                     <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Get course information for https://myschool.instructure.com/courses/6986">
                                         <strong>Get Info:</strong> Retrieve course information
+                                    </a>
+                                    <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="How many announcements are in https://myschool.instructure.com/courses/6986">
+                                        <strong>Count Announcements:</strong> Get announcement count
+                                    </a>
+                                    <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="List all assignments in https://myschool.instructure.com/courses/6986">
+                                        <strong>List Assignments:</strong> Get list of assignments
+                                    </a>
+                                    <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="How many unpublished assignments are in https://myschool.instructure.com/courses/6986">
+                                        <strong>Count Unpublished:</strong> Count unpublished assignments
+                                    </a>
+                                    <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="How many assignment groups are in https://myschool.instructure.com/courses/6986">
+                                        <strong>Count Assignment Groups:</strong> Get assignment group count
+                                    </a>
+                                    <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Show me the modules from https://myschool.instructure.com/courses/6986">
+                                        <strong>Show Modules:</strong> Display course modules
                                     </a>
                                 </div>
                                 <small class="text-muted mt-2">Replace 'myschool.instructure.com' and course ID with your actual values</small>
@@ -637,22 +669,62 @@ async function executeOperation(parsed, token) {
 
         if (queryFeedbackBtn) {
             queryFeedbackBtn.addEventListener('click', async () => {
-                const feedback = prompt('Describe what\'s wrong with these results:');
-                if (feedback && feedback.trim()) {
-                    try {
-                        await window.ipcRenderer.invoke('ai-assistant:sendSlackFeedback', {
-                            type: 'query-results',
-                            prompt: document.getElementById('ai-assistant-prompt').value.trim(),
-                            operation: parsed.operation,
-                            itemCount: fetchResult.itemCount,
-                            items: fetchResult.items,
-                            feedback: feedback.trim()
-                        });
-                        alert('Feedback sent! Thank you for helping improve the AI Assistant.');
-                    } catch (error) {
-                        alert(`Failed to send feedback: ${error.message}`);
-                    }
+                // Create feedback modal
+                const modalId = 'query-feedback-modal';
+                let modal = document.getElementById(modalId);
+                if (!modal) {
+                    modal = document.createElement('div');
+                    modal.id = modalId;
+                    modal.className = 'modal fade';
+                    modal.innerHTML = `
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Report Issue with Query Results</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <label for="query-feedback-text" class="form-label">Describe what's wrong with these results:</label>
+                                    <textarea id="query-feedback-text" class="form-control" rows="4" placeholder="e.g., The results are incorrect or unexpected..."></textarea>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="button" class="btn btn-primary" id="query-feedback-submit">Send Feedback</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
                 }
+
+                const bsModal = new bootstrap.Modal(modal);
+                bsModal.show();
+
+                // Setup submit listener
+                const submitBtn = document.getElementById('query-feedback-submit');
+                const textarea = document.getElementById('query-feedback-text');
+                textarea.value = ''; // Clear previous text
+
+                submitBtn.onclick = async () => {
+                    const feedback = textarea.value.trim();
+                    if (feedback) {
+                        try {
+                            await window.ipcRenderer.invoke('ai-assistant:sendSlackFeedback', {
+                                type: 'query-results',
+                                prompt: document.getElementById('ai-assistant-prompt').value.trim(),
+                                operation: parsed.operation,
+                                itemCount: fetchResult.itemCount,
+                                items: fetchResult.items,
+                                feedback: feedback
+                            });
+
+                            bsModal.hide();
+                            alert('Feedback sent! Thank you for helping improve the AI Assistant.');
+                        } catch (error) {
+                            alert(`Failed to send feedback: ${error.message}`);
+                        }
+                    }
+                };
             });
         }
 
@@ -727,7 +799,35 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
 
         // Handle different result formats
         const res = result.result;
-        if (res.fetchedCount !== undefined || res.deletedCount !== undefined) {
+        if (res.queryType) {
+            // Information query results
+            resultHtml += '<div class="mb-2">';
+            if (res.queryType === 'count') {
+                resultHtml += `<p class="mb-1"><strong>Count:</strong> ${res.count} ${res.dataType}</p>`;
+                resultHtml += `<p class="mb-0 text-muted">${res.summary}</p>`;
+            } else if (res.queryType === 'list' && res.items) {
+                resultHtml += `<p class="mb-2"><strong>Found ${res.count} ${res.dataType}:</strong></p>`;
+                resultHtml += '<ul class="mb-2">';
+                res.items.forEach(item => {
+                    resultHtml += `<li><strong>${item.name}</strong>`;
+                    if (item.published !== undefined) {
+                        resultHtml += ` - ${item.published ? '<span class="badge bg-success">Published</span>' : '<span class="badge bg-secondary">Unpublished</span>'}`;
+                    }
+                    if (item.dueAt) {
+                        resultHtml += ` - Due: ${new Date(item.dueAt).toLocaleDateString()}`;
+                    }
+                    resultHtml += `</li>`;
+                });
+                resultHtml += '</ul>';
+                if (res.count > res.items.length) {
+                    resultHtml += `<p class="text-muted"><em>...and ${res.count - res.items.length} more</em></p>`;
+                }
+            } else if (res.queryType === 'details') {
+                resultHtml += `<p class="mb-2">${res.summary}</p>`;
+                resultHtml += `<pre class="bg-light p-3 rounded mt-2" style="max-height: 400px; overflow-y: auto;"><code>${JSON.stringify(res.data || res.items, null, 2)}</code></pre>`;
+            }
+            resultHtml += '</div>';
+        } else if (res.fetchedCount !== undefined || res.deletedCount !== undefined) {
             // Two-step operation results (delete operations)
             resultHtml += '<div class="mb-2">';
             if (res.fetchedCount !== undefined) {
