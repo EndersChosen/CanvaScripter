@@ -55,7 +55,7 @@ function showAISettingsUI() {
                                 <i class="bi bi-trash"></i> Remove
                             </button>
                         </div>
-                        <div class="form-text">Used for GPT-5.2 model in HAR and QTI analyzers</div>
+                        <div class="form-text">Used by HAR Analyzer, QTI Analyzer, and the AI Assistant (announcement generator, bulk helpers)</div>
                     </div>
 
                     <div id="openai-key-input" class="mb-3 d-none">
@@ -104,7 +104,7 @@ function showAISettingsUI() {
                                 <i class="bi bi-trash"></i> Remove
                             </button>
                         </div>
-                        <div class="form-text">Used for Claude Sonnet 4.5 model in HAR and QTI analyzers</div>
+                        <div class="form-text">Used by HAR Analyzer, QTI Analyzer, and the AI Assistant when Anthropic is available</div>
                     </div>
 
                     <div id="anthropic-key-input" class="mb-3 d-none">
@@ -137,11 +137,12 @@ function showAISettingsUI() {
                         <i class="bi bi-info-circle"></i> About AI Integrations
                     </h6>
                     <p class="card-text small mb-2">
-                        AI features are available in the <strong>Analyzers</strong> section:
+                        These keys power AI workflows throughout CanvaScripter:
                     </p>
                     <ul class="small mb-0">
-                        <li><strong>HAR Analyzer:</strong> Get intelligent insights about HTTP requests and authentication flows</li>
-                        <li><strong>QTI Analyzer:</strong> Analyze assessment compatibility and get Canvas migration recommendations</li>
+                        <li><strong>HAR Analyzer:</strong> Generate guided troubleshooting notes for HTTP and authentication issues</li>
+                        <li><strong>QTI Analyzer:</strong> Review assessments for Canvas compatibility and improvement ideas</li>
+                        <li><strong>AI Assistant:</strong> Drive natural-language automations, including announcement title generation</li>
                     </ul>
                 </div>
             </div>
