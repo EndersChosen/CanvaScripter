@@ -8,12 +8,28 @@ body {
     padding-top: 110px;
 }
 
+body.modal-dialog-body {
+    padding-top: 0;
+    margin: 0;
+}
+
 /* Increase top padding when header stacks to two lines */
+.modal-shell {
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    margin: 0;
+}
+
+.modal-shell #endpoint-content {
+    padding-left: 0;
+    padding-right: 0;
+}
+
 @media (max-width: 991px) {
     body {
         padding-top: 130px;
     }
-    
+
     #main-row {
         height: calc(100vh - 130px);
     }
@@ -24,7 +40,7 @@ body {
     body {
         padding-top: 140px;
     }
-    
+
     #main-row {
         height: calc(100vh - 140px);
     }
@@ -76,7 +92,8 @@ header #sidebar-toggle {
     display: flex !important;
     width: 100%;
     margin: 0;
-    height: calc(100vh - 110px); /* Match body padding-top minus some buffer */
+    height: calc(100vh - 110px);
+    /* Match body padding-top minus some buffer */
 }
 
 .scrollable {

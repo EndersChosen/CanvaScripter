@@ -81,6 +81,7 @@ function logDebug(message, data = {}) {
 
 // Application state
 let mainWindow;
+let aiSettingsWindow = null;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -110,10 +111,61 @@ function createWindow() {
     });
 
     mainWindow.on('closed', () => {
+        if (aiSettingsWindow && !aiSettingsWindow.isDestroyed()) {
+            aiSettingsWindow.close();
+        }
+        aiSettingsWindow = null;
         mainWindow = null;
     });
 
     createMenu();
+}
+
+function openAISettingsWindow() {
+    if (!mainWindow) return;
+
+    if (aiSettingsWindow && !aiSettingsWindow.isDestroyed()) {
+        if (aiSettingsWindow.isMinimized()) aiSettingsWindow.restore();
+        aiSettingsWindow.focus();
+        return;
+    }
+
+    aiSettingsWindow = new BrowserWindow({
+        width: 720,
+        height: 760,
+        parent: mainWindow,
+        modal: true,
+        title: 'AI Integrations',
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        autoHideMenuBar: true,
+        show: false,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true
+        }
+    });
+
+    aiSettingsWindow.on('closed', () => {
+        aiSettingsWindow = null;
+    });
+
+    aiSettingsWindow.loadFile(path.join(__dirname, '../renderer/ai_settings_window.html'))
+        .then(() => {
+            if (aiSettingsWindow && !aiSettingsWindow.isDestroyed()) {
+                aiSettingsWindow.show();
+            }
+        })
+        .catch((error) => {
+            logDebug('Failed to open AI settings window', { error: error.message });
+            if (aiSettingsWindow && !aiSettingsWindow.isDestroyed()) {
+                aiSettingsWindow.close();
+            }
+            aiSettingsWindow = null;
+        });
 }
 
 function createMenu() {
@@ -124,9 +176,7 @@ function createMenu() {
                 {
                     label: 'AI Integrations...',
                     accelerator: 'CmdOrCtrl+,',
-                    click: () => {
-                        mainWindow.webContents.send('open-ai-settings');
-                    }
+                    click: () => openAISettingsWindow()
                 },
                 { type: 'separator' },
                 {

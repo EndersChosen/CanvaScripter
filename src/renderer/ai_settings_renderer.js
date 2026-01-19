@@ -18,7 +18,7 @@ function showAISettingsUI() {
     if (!settingsContainer) {
         settingsContainer = document.createElement('div');
         settingsContainer.id = 'ai-settings-container';
-        settingsContainer.className = 'p-4';
+        settingsContainer.className = 'px-3 py-2';
         endpointContent.appendChild(settingsContainer);
     }
 
