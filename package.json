@@ -54,13 +54,13 @@
   "author": "Caleb Kruger",
   "license": "MIT",
   "devDependencies": {
-    "@electron-forge/cli": "^7.9.0",
+    "@electron-forge/cli": "^7.6.1",
     "@electron-forge/maker-squirrel": "^7.9.0",
     "@electron-forge/maker-zip": "^7.9.0",
     "@electron-forge/plugin-auto-unpack-natives": "^7.9.0",
     "chokidar": "^4.0.3",
     "electron": "^38.2.0",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^23.0.6"
   },
   "optionalDependencies": {
     "dmg-license": "^1.0.11"
