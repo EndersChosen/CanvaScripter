@@ -1,0 +1,87 @@
+{
+  "name": "canvascripter",
+  "version": "1.0.1",
+  "description": "Provides a UI for some common Canvas support Scripts.",
+  "main": "src/main/main.js",
+  "engines": {
+    "node": ">=20 <=22"
+  },
+  "scripts": {
+    "start": "electron .",
+    "start:forge": "electron-forge start",
+    "test": "node tests/test-runner.js",
+    "test:unit": "node tests/unit.test.js",
+    "test:integration": "echo 'Run window.runTests() in the developer console of the running app'",
+    "test:security": "npm audit --audit-level=moderate",
+    "test:all": "npm run test:unit && npm run test:security",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "build": "electron-builder",
+    "audit": "npm audit --audit-level=moderate",
+    "audit:prod": "npm audit --omit=dev --audit-level=moderate"
+  },
+  "build": {
+    "appId": "com.canvatools.canvascripter",
+    "asar": true,
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!dist.zip",
+      "!out/**",
+      "!**/*.har",
+      "!**/*.csv",
+      "!**/*.map"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.icns"
+    }
+  },
+  "author": "Caleb Kruger",
+  "license": "MIT",
+  "devDependencies": {
+    "@electron-forge/cli": "^7.6.1",
+    "@electron-forge/maker-squirrel": "^7.9.0",
+    "@electron-forge/maker-zip": "^7.9.0",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.9.0",
+    "chokidar": "^4.0.3",
+    "electron": "^38.2.0",
+    "electron-builder": "^23.0.6"
+  },
+  "optionalDependencies": {
+    "dmg-license": "^1.0.11"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "archiver": "^7.0.1",
+    "axios": "^1.7.0",
+    "bootstrap": "^5.3.0",
+    "bootstrap-icons": "^1.13.1",
+    "diff": "^8.0.3",
+    "dotenv": "^17.2.2",
+    "electron-squirrel-startup": "^1.0.0",
+    "electron-store": "^8.1.0",
+    "fast-xml-parser": "^4.5.3",
+    "jszip": "^3.10.1",
+    "openai": "^4.77.3",
+    "xlsx": "^0.18.5"
+  },
+  "overrides": {
+    "form-data": "^4.0.4",
+    "tmp": "^0.2.4"
+  }
+}

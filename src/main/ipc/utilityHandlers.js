@@ -1,0 +1,122 @@
+/**
+ * IPC Handlers for utility operations: HAR analysis, CSV/Excel parsing, file uploads
+ * @module ipc/utilityHandlers
+ */
+
+const { dialog } = require('electron');
+const fs = require('fs');
+const path = require('path');
+const XLSX = require('xlsx');
+const { analyzeHAR } = require('../../shared/harAnalyzer');
+const { parseEmailsFromCSVContent, parseEmailsFromExcelFile } = require('../../shared/csvExporter');
+const { analyzeEmailPatternFromFile } = require('../../shared/email_pattern_analyzer');
+const { rememberPath, isAllowedPath } = require('../security/ipcSecurity');
+
+/**
+ * Register all utility-related IPC handlers
+ * @param {Electron.IpcMain} ipcMain - The Electron IPC main instance
+ * @param {Function} logDebug - Debug logging function
+ */
+function registerUtilityHandlers(ipcMain, logDebug) {
+    // Note: har:selectFile, har:analyze, parseEmailsFromCSV, and parseEmailsFromExcel 
+    // are registered in fileHandlers.js
+
+    // Email Pattern Analysis
+    ipcMain.handle('analyzeEmailPattern', async (event, filePath, emailColumnIndex = 4) => {
+        const rendererId = event.sender.id;
+        if (!isAllowedPath(rendererId, filePath, 'read')) {
+            const error = `[analyzeEmailPattern] Access denied: path not in allowlist: ${filePath}`;
+            logDebug(error, { rendererId });
+            throw new Error(error);
+        }
+        try {
+            const analysis = analyzeEmailPatternFromFile(filePath, emailColumnIndex);
+            return analysis;
+        } catch (error) {
+            console.error('[analyzeEmailPattern] Error:', error);
+            throw error;
+        }
+    });
+
+    // File Upload: Analyze Email File
+    ipcMain.handle('fileUpload:analyzeEmailFile', async (event) => {
+        const rendererId = event.sender.id;
+        const result = await dialog.showOpenDialog({
+            title: 'Select CSV or Excel File',
+            properties: ['openFile'],
+            filters: [
+                { name: 'CSV Files', extensions: ['csv'] },
+                { name: 'Excel Files', extensions: ['xlsx', 'xls'] }
+            ]
+        });
+
+        if (result.canceled || result.filePaths.length === 0) {
+            return { canceled: true };
+        }
+
+        const filePath = result.filePaths[0];
+        rememberPath(rendererId, filePath, 'read');
+        const ext = path.extname(filePath).toLowerCase();
+
+        try {
+            let emails = [];
+            if (ext === '.csv') {
+                const content = fs.readFileSync(filePath, 'utf8');
+                emails = parseEmailsFromCSVContent(content);
+            } else if (ext === '.xlsx' || ext === '.xls') {
+                emails = parseEmailsFromExcelFile(filePath);
+            }
+            return { canceled: false, filePath, emails };
+        } catch (error) {
+            console.error('[fileUpload:analyzeEmailFile] Error:', error);
+            throw error;
+        }
+    });
+
+    // File Upload: Get User IDs from File
+    ipcMain.handle('fileUpload:getUserIdsFromFile', async () => {
+        const result = await dialog.showOpenDialog({
+            title: 'Select File with User IDs',
+            properties: ['openFile'],
+            filters: [
+                { name: 'CSV Files', extensions: ['csv'] },
+                { name: 'Text Files', extensions: ['txt'] }
+            ]
+        });
+
+        if (result.canceled || result.filePaths.length === 0) {
+            return null;
+        }
+
+        const filePath = result.filePaths[0];
+        const content = fs.readFileSync(filePath, 'utf8');
+        const userIds = content.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+        return userIds;
+    });
+
+    // Note: fileUpload:pickCsvOrZip, fileUpload:readFile, and fileUpload:readFileBuffer
+    // are registered in fileHandlers.js
+
+    // File Upload: Write Errors File
+    ipcMain.handle('fileUpload:writeErrorsFile', async (event, payload) => {
+        const rendererId = event.sender.id;
+        const { filePath, content } = payload;
+        const dir = path.dirname(filePath);
+
+        const dirResult = await dialog.showOpenDialog({
+            title: 'Select Save Location',
+            properties: ['openDirectory']
+        });
+
+        if (dirResult.canceled || dirResult.filePaths.length === 0) {
+            return { canceled: true };
+        }
+
+        const savePath = path.join(dirResult.filePaths[0], path.basename(filePath));
+        rememberPath(rendererId, savePath, 'write');
+        fs.writeFileSync(savePath, content, 'utf8');
+        return { canceled: false, filePath: savePath };
+    });
+}
+
+module.exports = { registerUtilityHandlers };

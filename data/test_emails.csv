@@ -1,0 +1,4 @@
+id,username,email_address,status,created_date
+1,jdoe,john.doe@example.com,active,2025-01-01
+2,jsmith,jane.smith@example.com,active,2025-01-02
+3,bwilson,bob.wilson@example.com,inactive,2025-01-03

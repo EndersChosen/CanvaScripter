@@ -1,0 +1,309 @@
+/* Make token input responsive */
+#token {
+    width: 100%;
+    max-width: 100%;
+}
+
+body {
+    padding-top: 110px;
+}
+
+/* Increase top padding when header stacks to two lines */
+@media (max-width: 991px) {
+    body {
+        padding-top: 130px;
+    }
+    
+    #main-row {
+        height: calc(100vh - 130px);
+    }
+}
+
+/* Further adjust for very small screens */
+@media (max-width: 575px) {
+    body {
+        padding-top: 140px;
+    }
+    
+    #main-row {
+        height: calc(100vh - 140px);
+    }
+}
+
+.fixed-top {
+    background-color: white;
+}
+
+/* Prevent header content from overlapping when space is tight (e.g., DevTools docked) */
+header .row>.col,
+header .row>.col-auto {
+    min-width: 0;
+}
+
+header .input-group,
+header .form-floating {
+    width: 100%;
+    min-width: 0;
+}
+
+/* Sidebar toggle inside input group: compact spacing */
+header #sidebar-toggle {
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    margin-right: 0.5rem;
+}
+
+/* Reduce margins on small screens to minimize header height */
+@media (max-width: 767px) {
+
+    header .input-group,
+    header .form-floating {
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    header .container-fluid {
+        margin-bottom: 0.5rem !important;
+    }
+}
+
+#main-row {
+    --sidebar-width: 300px;
+    /* default width in pixels */
+    --sidebar-min-width: 0px;
+    --sidebar-max-width: 600px;
+    position: relative;
+    display: flex !important;
+    width: 100%;
+    margin: 0;
+    height: calc(100vh - 110px); /* Match body padding-top minus some buffer */
+}
+
+.scrollable {
+    height: 100%;
+    overflow: auto;
+}
+
+/* Sidebar resizable behavior */
+#sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-min-width);
+    max-width: var(--sidebar-max-width);
+    flex: 0 0 var(--sidebar-width);
+    transition: width 0.25s ease, min-width 0.25s ease;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+    padding-left: 15px;
+    padding-right: 15px;
+    height: 100%;
+}
+
+#endpoint-content {
+    flex: 1;
+    min-width: 0;
+    transition: opacity 0.25s ease;
+    padding-left: 15px;
+    padding-right: 15px;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Resize handle */
+.resize-handle {
+    width: 5px;
+    background-color: #dee2e6;
+    cursor: col-resize;
+    position: relative;
+    z-index: 10;
+    transition: background-color 0.2s ease;
+    flex: 0 0 5px;
+}
+
+.resize-handle:hover {
+    background-color: #6c757d;
+}
+
+.resize-handle:active {
+    background-color: #495057;
+}
+
+/* Collapsed state */
+#main-row.sidebar-collapsed #sidebar {
+    display: none !important;
+}
+
+#main-row.sidebar-collapsed #resize-handle {
+    display: none !important;
+}
+
+/* TEST: Temporarily force hide sidebar - remove this after testing */
+/* #sidebar { display: none !important; } */
+
+/* Alternative collapsed state using width (fallback) */
+.sidebar-collapsed #sidebar {
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    overflow: hidden !important;
+    flex: 0 0 0 !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+}
+
+.sidebar-collapsed #resize-handle {
+    width: 0 !important;
+    background-color: transparent !important;
+    cursor: default !important;
+    flex: 0 0 0 !important;
+}
+
+/* Re-enable scrolling only when expanded */
+#main-row:not(.sidebar-collapsed) #sidebar {
+    overflow: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    #sidebar,
+    #endpoint-content {
+        transition: none;
+    }
+}
+
+.custom-border-bottom {
+    border-bottom-width: 3px;
+    border-bottom-style: solid;
+}
+
+.hidden {
+    visibility: hidden;
+    opacity: 0;
+    height: 0;
+}
+
+.visible {
+    visibility: visible;
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 0.5s linear;
+}
+
+.custom-select-width {
+    width: 25%;
+}
+
+.error {
+    color: red;
+}
+
+/* Hide number input arrows for Chrome, Safari, Edge, Opera */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Hide number input arrows for Firefox */
+input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+/* Keep the endpoint search fixed at the top of the sidebar */
+#sidebar #endpoint-search-wrap {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: #ffffff;
+    /* Ensure spacing remains when sticky */
+    padding-top: 0.25rem;
+}
+
+/* Keep the https:// prefix from forcing overflow */
+header .input-group-text {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Allow the floating label container to flex properly */
+header .input-group .form-floating {
+    flex: 1 1 auto;
+}
+
+/* Minimalist and subtle scrollbar styles */
+/* For Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+    transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: rgba(0, 0, 0, 0.35);
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* For Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+/* Optional: Make scrollbars even more subtle in light areas */
+.card-body ::-webkit-scrollbar-thumb,
+.table-responsive ::-webkit-scrollbar-thumb,
+#sidebar ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.card-body ::-webkit-scrollbar-thumb:hover,
+.table-responsive ::-webkit-scrollbar-thumb:hover,
+#sidebar ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+/* Prevent table headers and cell data from wrapping */
+.table thead th,
+.table tbody td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Add alternating column colors with better contrast - white and light gray */
+.table tbody td:nth-child(odd) {
+    background-color: #ffffff;
+}
+
+.table tbody td:nth-child(even) {
+    background-color: #f0f0f0;
+}
+
+/* Add subtle row variation for grid effect */
+.table-striped tbody tr:nth-of-type(even) td {
+    filter: brightness(0.97);
+}

@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-01-05T20:56:25.468Z",
+  "summary": {
+    "totalPassed": 77,
+    "totalFailed": 0,
+    "totalErrors": []
+  },
+  "details": {
+    "unit": {
+      "passed": 59,
+      "failed": 0,
+      "errors": []
+    },
+    "integration": {
+      "passed": 18,
+      "failed": 0,
+      "errors": []
+    },
+    "app": null
+  }
+}

@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+    <title>CanvaScripter</title>
+    <script>
+        // Global context menu handler for sandbox mode
+        console.log('Context menu script loaded');
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded fired');
+            console.log('window.contextMenu:', window.contextMenu);
+            document.addEventListener('contextmenu', (event) => {
+                console.log('Context menu event fired at', event.x, event.y);
+                event.preventDefault();
+                if (window.contextMenu) {
+                    console.log('Calling window.contextMenu.show()');
+                    window.contextMenu.show(event.x, event.y);
+                } else {
+                    console.error('window.contextMenu is not defined!');
+                }
+            });
+        });
+    </script>
+    <link rel="stylesheet" href="bootstrap.min.css">
+    <link rel="stylesheet" href="bootstrap-icons.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script src="bootstrap.min.js" defer></script>
+    <script src="progress-utils.js" defer></script>
+    <script src="jszip.min.js" defer></script>
+    <script src="./renderer.js" defer></script>
+    <script src="./assignments_renderer.js" defer></script>
+    <script src="./assignment_group_renderer.js" defer></script>
+    <script src="./user_renderer.js" defer></script>
+    <script src="./conversations_renderer.js" defer></script>
+    <script src="./commchannels_renderer.js" defer></script>
+    <script src="./courses_renderer.js" defer></script>
+    <script src="./quizzes_renderer.js" defer></script>
+    <script src="./modules_renderer.js" defer></script>
+    <script src="./sis_imports_renderer.js" defer></script>
+    <script src="./imports_renderer.js" defer></script>
+    <script src="./discussions_renderer.js" defer></script>
+    <script src="./announcements_renderer.js" defer></script>
+    <script src="./pages_renderer.js" defer></script>
+    <script src="./sections_renderer.js" defer></script>
+    <script src="./ui-examples.js" defer></script>
+    <script src="./har_analyzer_renderer.js" defer></script>
+    <script src="./qti_analyzer_renderer.js" defer></script>
+    <script src="./diff_checker_renderer.js" defer></script>
+    <script src="./utf8_checker_renderer.js" defer></script>
+    <script src="./ai_settings_renderer.js" defer></script>
+    <script src="./ai_assistant_renderer.js" defer></script>
+    <script src="./integration-test.js" defer></script>
+</head>
+
+<body>
+    <header class="fixed-top">
+        <div class="container-fluid custom-border-bottom mb-3">
+            <div class="row justify-content-start g-2">
+                <div class="col-12 col-md-4 col-lg-4">
+                    <div class="input-group flex-nowrap mt-2 mb-3">
+                        <button id="sidebar-toggle" class="btn" type="button" aria-pressed="false" title="Hide menu"
+                            aria-label="Toggle menu">
+                            <i class="bi bi-chevron-double-left"></i>
+                        </button>
+                        <span class="input-group-text">https://</span>
+                        <div class="form-floating flex-grow-1">
+                            <input type="text" class="form-control" placeholder="doman" id="domain" value="" />
+                            <label for="domain">Canvas Domain</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-8 col-lg-8">
+                    <div class="form-floating mt-2 mb-3">
+                        <input type=" text" class="form-control" placeholder="Token" id="token" value="">
+                        <label for="token">Token</label>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </header>
+    <div class="container-fluid">
+        <div id="main-row">
+            <div id="sidebar" class="scrollable">
+                <!-- Search box for filtering request titles -->
+                <div id="endpoint-search-wrap" class="mb-2 mt-1 px-1">
+                    <input id="endpoint-search" type="text" class="form-control form-control-sm"
+                        placeholder="Search requests..." aria-label="Search requests">
+                </div>
+                <div class="accordion" id="endpoints">
+                    <!-- <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#courses" aria-expanded="false" aria-controls="courses">
+                                Courses
+                            </button>
+                        </h2>
+                        <div id="courses" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="course-endpoints" class="list-group">
+                                    <button id="create-courses"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Course
+                                    </button>
+                                    <button id="delete-courses"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Delete Course
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div> -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#assignments" aria-expanded="false" aria-controls="assignments">
+                                Assignments
+                            </button>
+                        </h2>
+                        <div id="assignments" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="assignment-endpoints" class="list-group">
+                                    <button id="create-assignments"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Assignments
+                                    </button>
+                                    <button id="delete-assignments-combined"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Delete Assignments
+                                    </button>
+                                    <button id="delete-nosubmission-assignments"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0"
+                                        hidden>
+                                        Delete assignments without
+                                        submissions
+                                    </button>
+                                    <button id="delete-no-due-date-assignments"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0"
+                                        hidden>
+                                        Delete assignments without a due date
+                                    </button>
+                                    <button id="delete-unpublished-assignments"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0"
+                                        hidden>
+                                        Delete Unpublished Assignments
+                                    </button>
+                                    <button id="delete-nonmodule-assignments"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0"
+                                        hidden>
+                                        Delete Assignments not in Modules
+                                    </button>
+                                    <button id="delete-assignments-from-import"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0"
+                                        hidden>
+                                        Delete Assignments Created From Import
+                                    </button>
+                                    <button id="delete-old-assignments"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0"
+                                        hidden>
+                                        Delete old (passed a certain due date) Assignments
+                                    </button>
+                                    <button id="keep-assignments-in-group"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0"
+                                        hidden>
+                                        Only Keep Assignments In Specific Assignment Group
+                                    </button>
+                                    <button id="move-assignments"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Move assignments to a single group
+                                    </button>
+                                    <button id="delete-assignments-from-group"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0"
+                                        hidden>
+                                        Delete Assignments From a Single Group
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#assignment_groups" aria-expanded="false"
+                                aria-controls="assignment_groups">
+                                Assignment Groups
+                            </button>
+                        </h2>
+                        <div id="assignment_groups" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="assignment-group-endpoints" class="list-group">
+                                    <button id="create-assignment-groups"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Assignment Groups
+                                    </button>
+                                    <button id="delete-empty-assignment-groups"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Delete empty Assignment Groups
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#users" aria-expanded="false" aria-controls="users">
+                                Users
+                            </button>
+                        </h2>
+                        <div id="users" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="user-endpoints" class="list-group">
+                                    <buton id="page-view"
+                                        class="list-group-item list-group-item-action list-group-item-action border-start-0 border-end-0">
+                                        Get users Page Views
+                                    </buton>
+                                    <buton id="user-notifications"
+                                        class="list-group-item list-group-item-action list-group-item-action border-start-0 border-end-0">
+                                        Notifications
+                                    </buton>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#conversations" aria-expanded="false" aria-controls="conversations">
+                                Conversations
+                            </button>
+                        </h2>
+                        <div id="conversations" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="conversation-endpoints" class="list-group">
+                                    <button id="delete-conversations-subject"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Delete conversations with specific
+                                        subject
+                                    </button>
+                                    <!-- <button id="download-conversations-csv"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0 disabled">
+                                        Download Conversations - <em>disabled</em>
+                                    </button> -->
+                                    <button id="get-deleted-conversations"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Get Deleted Conversations
+                                    </button>
+                                    <button id="restore-deleted-conversations"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Restore Deleted Conversations
+                                    </button>
+                                    <!-- <button id="gc-between-users"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Get Conversations between two users
+                                    </button> -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#commchannel" aria-expanded="false" aria-controls="conversations">
+                                Comm Channels
+                            </button>
+                        </h2>
+                        <div id="commchannel" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="commchannel-endpoints" class="list-group">
+                                    <button id="check-commchannel"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Check Bounce and Suppression list
+                                    </button>
+                                    <button id="reset-commchannel"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Reset Communication Channels
+                                    </button>
+                                    <button id="unconfirm-commchannels"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Unconfirmed emails
+                                    </button>
+                                    <!-- <button id="gc-between-users"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Get Conversations between two users
+                                    </button> -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#courses" aria-expanded="false" aria-controls="courses">
+                                Courses
+                            </button>
+                        </h2>
+                        <div id="courses" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="course-endpoints" class="list-group">
+                                    <!-- <button id="restore-content"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Restore Content
+                                    </button> -->
+                                    <button id="reset-courses"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Reset Courses
+                                    </button>
+                                    <button id="create-support-course"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Support Courses
+                                    </button>
+                                    <button id="create-associated-courses"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Associated Courses
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#quizzes" aria-expanded="false" aria-controls="quizzes">
+                                Quizzes
+                            </button>
+                        </h2>
+                        <div id="quizzes" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="quiz-endpoints" class="list-group">
+                                    <button id="create-classic-quiz"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Classic Quiz
+                                    </button>
+                                    <button id="delete-classic-quizzes"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Delete All Classic Quizzes
+                                    </button>
+                                    <button id="get-respondus-quizzes"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Get Respondus Quizzes
+                                    </button>
+                                    <button id="create-new-quiz"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create New Quiz
+                                    </button>
+                                    <button id="add-nq-questions"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Add questions to New Quiz
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#modules" aria-expanded="false" aria-controls="modules">
+                                Modules
+                            </button>
+                        </h2>
+                        <div id="modules" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="module-endpoints" class="list-group">
+                                    <button id="delete-modules"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Delete Module
+                                    </button>
+                                    <button id="create-modules"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Module
+                                    </button>
+                                    <button id="relock-modules"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Re-lock Modules
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#discussions" aria-expanded="false" aria-controls="discussions">
+                                Discussions
+                            </button>
+                        </h2>
+                        <div id="discussions" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="discussion-endpoints" class="list-group">
+                                    <button id="create-discussions"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Discussions
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#announcements" aria-expanded="false" aria-controls="announcements">
+                                Announcements
+                            </button>
+                        </h2>
+                        <div id="announcements" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="announcement-endpoints" class="list-group">
+                                    <button id="create-announcements"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Announcements
+                                    </button>
+                                    <button id="delete-announcements"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Delete Announcements
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#pages" aria-expanded="false" aria-controls="pages">
+                                Pages
+                            </button>
+                        </h2>
+                        <div id="pages" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="pages-endpoints" class="list-group">
+                                    <button id="create-pages"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Pages
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#sections" aria-expanded="false" aria-controls="sections">
+                                Sections
+                            </button>
+                        </h2>
+                        <div id="sections" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="sections-endpoints" class="list-group">
+                                    <button id="create-sections"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Sections
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#sis-imports" aria-expanded="false" aria-controls="sis-imports">
+                                SIS File Generator
+                            </button>
+                        </h2>
+                        <div id="sis-imports" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="sis-import-endpoints" class="list-group">
+                                    <button id="create-single-sis-file"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Single SIS File
+                                    </button>
+                                    <button id="create-bulk-sis-files"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Create Bulk SIS Import Package
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#imports" aria-expanded="false" aria-controls="imports">
+                                Imports
+                            </button>
+                        </h2>
+                        <div id="imports" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="imports-endpoints" class="list-group">
+                                    <button id="delete-imported-content"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Delete Imported Content
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#ai-assistant" aria-expanded="false" aria-controls="ai-assistant">
+                                AI Assistant
+                            </button>
+                        </h2>
+                        <div id="ai-assistant" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="ai-assistant-endpoints" class="list-group">
+                                    <button id="ai-assistant-open"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Natural Language Commands
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#analyzers" aria-expanded="false" aria-controls="analyzers">
+                                Analyzers
+                            </button>
+                        </h2>
+                        <div id="analyzers" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div id="analyzers-endpoints" class="list-group">
+                                    <button id="upload-har"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Analyze HAR File
+                                    </button>
+                                    <button id="analyze-qti"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Analyze QTI Assessment
+                                    </button>
+                                    <button id="diff-checker"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        Diff Checker
+                                    </button>
+                                    <button id="utf8-checker"
+                                        class="list-group-item list-group-item-action border-start-0 border-end-0">
+                                        UTF-8 Checker
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="resize-handle" class="resize-handle"></div>
+            <div id="endpoint-content" class="border-start">
+
+            </div>
+        </div>
+    </div>
+
+    </div>
+    </div>
+    </div> <!-- end of row -->
+    </div>
+</body>
+
+</html>
