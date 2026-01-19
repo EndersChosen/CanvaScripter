@@ -258,7 +258,7 @@ ${JSON.stringify(summary, null, 2)}`;
     // Excel parsing handlers
     ipcMain.handle('parseEmailsFromExcel', async (event, { filePath, fileBuffer }) => {
         try {
-            const emails = parsers.parseEmailsFromExcel(fileBuffer);
+            const emails = await parsers.parseEmailsFromExcel({ buffer: fileBuffer, filePath });
             return {
                 success: true,
                 emails,

@@ -6,9 +6,8 @@
 const { dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const XLSX = require('xlsx');
 const { analyzeHAR } = require('../../shared/harAnalyzer');
-const { parseEmailsFromCSVContent, parseEmailsFromExcelFile } = require('../../shared/csvExporter');
+const { parseEmailsFromCSVContent, parseEmailsFromExcelFile } = require('../../shared/emailParsers');
 const { analyzeEmailPatternFromFile } = require('../../shared/email_pattern_analyzer');
 const { rememberPath, isAllowedPath } = require('../security/ipcSecurity');
 
@@ -64,7 +63,7 @@ function registerUtilityHandlers(ipcMain, logDebug) {
                 const content = fs.readFileSync(filePath, 'utf8');
                 emails = parseEmailsFromCSVContent(content);
             } else if (ext === '.xlsx' || ext === '.xls') {
-                emails = parseEmailsFromExcelFile(filePath);
+                emails = await parseEmailsFromExcelFile(filePath);
             }
             return { canceled: false, filePath, emails };
         } catch (error) {

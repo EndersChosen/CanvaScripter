@@ -77,11 +77,11 @@ function parseEmailsFromCSV(csvContent) {
 
 // Test with sample CSV content (based on your my_bounce.csv)
 const testCsv = `User ID,Name,Communication channel ID,Type,Path,Date of most recent bounce,Bounce reason
-17390,Emerson Rexrode,17357,email,118280@augusta.k12.va.us,,
-17528,Mylo Nunez,17440,email,115340@augusta.k12.va.us,,
-18923,Ca'Shawn Johnson,17822,email,111569@augusta.k12.va.us,,
-19719,Jaziyah Campbell,17976,email,118572@augusta.k12.va.us,,
-20931,Erin snell,18991,email,els1995@live.com,,`;
+17390,Fred Example,17357,email,user001@example.edu,,
+17528,Casey Placeholder,17440,email,user002@example.edu,,
+18923,Alex Sample,17822,email,user003@example.edu,,
+19719,Riley Demo,17976,email,user004@example.edu,,
+20931,Jordan Test,18991,email,user005@example.edu,,`;
 
 try {
     const result = parseEmailsFromCSV(testCsv);

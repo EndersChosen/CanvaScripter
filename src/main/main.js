@@ -14,6 +14,7 @@ const {
 } = require('electron');
 
 const csvExporter = require('../shared/csvExporter');
+const { parseEmailsFromCSV, parseEmailsFromExcel } = require('../shared/emailParsers');
 const { HARAnalyzer } = require('../shared/harAnalyzer');
 const { analyzeHAR } = require('../shared/harAnalyzer');
 const os = require('os');
@@ -53,56 +54,6 @@ const getBatchConfig = (overrides = {}) => {
     const timeDelay = overrides.timeDelay || Math.max(0, Number(process.env.TIME_DELAY) || 2000);
     return { batchSize, timeDelay, ...overrides };
 };
-
-// === Local helpers (CSV + text normalization) ===
-function parseCSVRow(row) {
-    const result = [];
-    let current = '';
-    let inQuotes = false;
-    for (let i = 0; i < row.length; i++) {
-        const char = row[i];
-        if (char === '"') {
-            if (inQuotes && row[i + 1] === '"') {
-                current += '"';
-                i++;
-            } else {
-                inQuotes = !inQuotes;
-            }
-        } else if (char === ',' && !inQuotes) {
-            result.push(current.trim());
-            current = '';
-        } else {
-            current += char;
-        }
-    }
-    result.push(current.trim());
-    return result;
-}
-
-function parseEmailsFromCSV(csvContent) {
-    const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
-    if (lines.length === 0) return [];
-    const headers = parseCSVRow(lines[0]).map(h => h.toLowerCase());
-    const pathIdx = headers.indexOf('path');
-    const typeIdx = headers.indexOf('type');
-    const emails = [];
-    for (let i = 1; i < lines.length; i++) {
-        const row = parseCSVRow(lines[i]);
-        if (pathIdx !== -1 && row[pathIdx]?.includes('@')) {
-            emails.push(row[pathIdx].trim());
-        } else if (typeIdx !== -1 && row[typeIdx]?.includes('@')) {
-            emails.push(row[typeIdx].trim());
-        } else {
-            for (const cell of row) {
-                if (cell?.includes('@')) {
-                    emails.push(cell.trim());
-                    break;
-                }
-            }
-        }
-    }
-    return Array.from(new Set(emails));
-}
 
 // Debug logging functions
 function setDebugLogging(enabled) {
@@ -279,7 +230,7 @@ app.whenReady().then(() => {
             allowedWritePaths,
             allowedDirPaths
         },
-        parsers: { parseEmailsFromCSV },
+        parsers: { parseEmailsFromCSV, parseEmailsFromExcel },
         harAnalyzer: { HARAnalyzer, analyzeHAR }
     });
 

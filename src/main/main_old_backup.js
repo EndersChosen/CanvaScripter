@@ -15,6 +15,7 @@ const {
 //const axios = require('axios');
 const convos = require('../shared/canvas-api/conversations');
 const csvExporter = require('../shared/csvExporter');
+const { parseEmailsFromExcel: parseEmailsFromExcelShared } = require('../shared/emailParsers');
 const assignmentGroups = require('../shared/canvas-api/assignment_groups');
 const assignments = require('../shared/canvas-api/assignments');
 const { getPageViews, createUsers, enrollUser, addUsers, getCommChannels, updateNotifications, searchUsers } = require('../shared/canvas-api/users');
@@ -181,101 +182,11 @@ function parseEmailsFromCSV(csvContent) {
     return Array.from(new Set(emails));
 }
 
-function parseEmailsFromExcel(fileBuffer) {
+async function parseEmailsFromExcel(fileBuffer) {
     try {
-        // Try to import xlsx library
-        let XLSX;
-        try {
-            XLSX = require('xlsx');
-        } catch (error) {
-            throw new Error('Excel parsing requires the "xlsx" library. Please install it with: npm install xlsx');
-        }
-
-        // Parse the Excel file from buffer
-        const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-        
-        // Get the first worksheet
-        const sheetName = workbook.SheetNames[0];
-        if (!sheetName) {
-            throw new Error('No worksheets found in Excel file');
-        }
-        
-        const worksheet = workbook.Sheets[sheetName];
-        
-        // Convert worksheet to JSON
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
-        if (jsonData.length === 0) {
-            return [];
-        }
-
-        const emails = [];
-        const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
-
-        // Check if first row contains headers
-        const firstRow = jsonData[0];
-        let pathColumnIndex = -1;
-        let startRowIndex = 0;
-
-        // Look for the "Path" column (Canvas bounce report format)
-        if (Array.isArray(firstRow)) {
-            for (let i = 0; i < firstRow.length; i++) {
-                const cellValue = String(firstRow[i] || '').toLowerCase().trim();
-                if (['path', 'email', 'email_address', 'communication_channel_path'].includes(cellValue)) {
-                    pathColumnIndex = i;
-                    startRowIndex = 1; // Skip header row
-                    break;
-                }
-            }
-        }
-
-        // If we found a path column, extract emails from that column
-        if (pathColumnIndex >= 0) {
-            for (let i = startRowIndex; i < jsonData.length; i++) {
-                const row = jsonData[i];
-                if (Array.isArray(row) && row[pathColumnIndex]) {
-                    const cellValue = String(row[pathColumnIndex]).trim();
-                    if (cellValue.includes('@')) {
-                        const emailMatch = cellValue.match(emailRegex);
-                        if (emailMatch) {
-                            emails.push(emailMatch[1]);
-                        }
-                    }
-                }
-            }
-        } else {
-            // Fallback: search all cells for email addresses
-            for (let i = 0; i < jsonData.length; i++) {
-                const row = jsonData[i];
-                if (!Array.isArray(row)) continue;
-                
-                // Skip potential header row
-                if (i === 0 && row.some(cell => 
-                    String(cell || '').toLowerCase().includes('user id') || 
-                    String(cell || '').toLowerCase().includes('path')
-                )) {
-                    continue;
-                }
-
-                for (let j = 0; j < row.length; j++) {
-                    const cellValue = String(row[j] || '').trim();
-                    if (cellValue.includes('@')) {
-                        const emailMatch = cellValue.match(emailRegex);
-                        if (emailMatch) {
-                            emails.push(emailMatch[1]);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Remove duplicates and return
-        return Array.from(new Set(emails));
-        
+        const emails = await parseEmailsFromExcelShared({ buffer: fileBuffer });
+        return emails;
     } catch (error) {
-        if (error.message.includes('xlsx')) {
-            throw error; // Re-throw library installation error
-        }
         throw new Error(`Failed to parse Excel file: ${error.message}`);
     }
 }
@@ -1201,9 +1112,9 @@ function registerSisIpcHandlers() {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
             const users = await searchUsers(searchTerm, ['email']);
-            
+
             console.log('Raw Canvas users data:', JSON.stringify(users, null, 2));
-            
+
             // Helper function to normalize quotes (convert curly/smart quotes to straight quotes)
             function normalizeQuotes(text) {
                 if (!text) return text;
@@ -1212,13 +1123,13 @@ function registerSisIpcHandlers() {
                     .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')  // curly double quotes
                     .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'"); // curly single quotes
             }
-            
+
             // Helper function to split name while respecting quoted sections
             function splitNameWithQuotes(fullName) {
                 // First normalize any curly quotes to straight quotes
                 const name = normalizeQuotes((fullName || '').trim());
                 if (!name) return { firstName: '', lastName: '' };
-                
+
                 // Find all quoted sections
                 const quotedSections = [];
                 const quoteRegex = /"[^"]*"/g;
@@ -1230,7 +1141,7 @@ function registerSisIpcHandlers() {
                         text: match[0]
                     });
                 }
-                
+
                 // If no quotes, use simple split
                 if (quotedSections.length === 0) {
                     const parts = name.split(/\s+/);
@@ -1239,7 +1150,7 @@ function registerSisIpcHandlers() {
                         lastName: parts.slice(1).join(' ') || ''
                     };
                 }
-                
+
                 // Replace quoted sections with placeholders to split safely
                 let safeName = name;
                 const placeholders = [];
@@ -1248,10 +1159,10 @@ function registerSisIpcHandlers() {
                     placeholders.push({ placeholder, text: section.text });
                     safeName = safeName.substring(0, section.start) + placeholder + safeName.substring(section.end);
                 });
-                
+
                 // Split on whitespace
                 const parts = safeName.split(/\s+/);
-                
+
                 // Restore quoted sections
                 const restoredParts = parts.map(part => {
                     const placeholderMatch = placeholders.find(p => part.includes(p.placeholder));
@@ -1260,17 +1171,17 @@ function registerSisIpcHandlers() {
                     }
                     return part;
                 });
-                
+
                 return {
                     firstName: restoredParts[0] || '',
                     lastName: restoredParts.slice(1).join(' ') || ''
                 };
             }
-            
+
             // Transform Canvas user data to SIS CSV format
             const sisUsers = users.map(user => {
                 const { firstName, lastName } = splitNameWithQuotes(user.name);
-                
+
                 return {
                     user_id: user.sis_user_id || '',
                     login_id: user.login_id || '',
@@ -1283,9 +1194,9 @@ function registerSisIpcHandlers() {
                     status: 'active'
                 };
             });
-            
+
             console.log('Transformed SIS users data:', JSON.stringify(sisUsers, null, 2));
-            
+
             return { success: true, data: sisUsers };
         } catch (error) {
             console.error('Error searching users:', error);
@@ -1303,7 +1214,7 @@ function registerSisIpcHandlers() {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
             const accounts = await searchAccounts(searchTerm);
-            
+
             // Transform Canvas account data to SIS CSV format
             const sisAccounts = accounts.map(account => ({
                 account_id: account.sis_account_id || '',
@@ -1311,7 +1222,7 @@ function registerSisIpcHandlers() {
                 name: account.name || '',
                 status: 'active'
             }));
-            
+
             return { success: true, data: sisAccounts };
         } catch (error) {
             console.error('Error searching accounts:', error);
@@ -1329,7 +1240,7 @@ function registerSisIpcHandlers() {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
             const terms = await searchTerms(searchTerm);
-            
+
             // Transform Canvas term data to SIS CSV format
             const sisTerms = terms.map(term => ({
                 term_id: term.sis_term_id || '',
@@ -1338,7 +1249,7 @@ function registerSisIpcHandlers() {
                 start_date: term.start_at || '',
                 end_date: term.end_at || ''
             }));
-            
+
             return { success: true, data: sisTerms };
         } catch (error) {
             console.error('Error searching terms:', error);
@@ -1761,7 +1672,7 @@ app.whenReady().then(() => {
         console.log('Received operation ID:', data.operationId);
 
         const operationId = data.operationId || null;
-        
+
         // Initialize cancellation flag for this operation
         if (operationId) {
             console.log('Initializing cancellation flag for:', operationId);
@@ -1822,7 +1733,7 @@ app.whenReady().then(() => {
 
         // Cancellation check function for batchHandler
         const isCancelled = operationId ? () => operationCancelFlags.get(operationId) === true : null;
-        
+
         const batchConfig = getBatchConfig();
         const batchResponse = await batchHandler(requests, {
             ...batchConfig,
@@ -1832,7 +1743,7 @@ app.whenReady().then(() => {
 
         // Check if operation was cancelled
         const wasCancelled = operationId && operationCancelFlags.get(operationId) === true;
-        
+
         // Clean up cancellation flag
         if (operationId) {
             operationCancelFlags.delete(operationId);
@@ -1858,7 +1769,7 @@ app.whenReady().then(() => {
         console.log('Received operation ID:', data.operationId);
 
         const operationId = data.operationId || null;
-        
+
         // Initialize cancellation flag for this operation
         if (operationId) {
             console.log('Initializing cancellation flag for:', operationId);
@@ -1902,17 +1813,17 @@ app.whenReady().then(() => {
 
         // Cancellation check function for batchHandler
         const isCancelled = operationId ? () => operationCancelFlags.get(operationId) === true : null;
-        
+
         const batchResponse = await batchHandler(requests, getBatchConfig({ isCancelled, operationId }));
-        
+
         // Check if operation was cancelled
         const wasCancelled = operationId && operationCancelFlags.get(operationId) === true;
-        
+
         // Clean up cancellation flag
         if (operationId) {
             operationCancelFlags.delete(operationId);
         }
-        
+
         console.log(`Finished deleting assignments. ${wasCancelled ? '(Cancelled)' : ''}`);
         return { ...batchResponse, cancelled: wasCancelled };
     });
@@ -1959,7 +1870,7 @@ app.whenReady().then(() => {
                     if (deleteEmptyAssignmentGroupsCancelFlags.get(senderId)) {
                         throw new Error('Request cancelled');
                     }
-                    
+
                     try {
                         const response = await assignmentGroups.deleteEmptyAssignmentGroup(requestData);
                         return response;
@@ -2045,7 +1956,7 @@ app.whenReady().then(() => {
     ipcMain.handle('axios:createAnnouncements', async (event, data) => {
         const operationId = `create-announcements-${Date.now()}`;
         console.log(`[${operationId}] Starting - ${data.number} announcements requested`);
-        
+
         let completedRequests = 0;
         let totalRequests = data.number;
         const processedIds = new Set(); // Track which requests have been processed for progress
@@ -2096,7 +2007,7 @@ app.whenReady().then(() => {
         const senderId = event.sender.id;
         const createAnnouncementsCancelFlags = new Map();
         const isCancelled = () => createAnnouncementsCancelFlags.get(senderId) === true;
-        
+
         console.log(`[${operationId}] Calling batchHandler...`);
         const batchResponse = await batchHandler(requests, getBatchConfig({ isCancelled, operationId }));
 
@@ -2341,7 +2252,7 @@ app.whenReady().then(() => {
     ipcMain.handle('axios:getAnnouncements', async (event, data) => {
         console.log('main.js > axios:getAnnouncements');
         const { domain, token, course_id } = data;
-        
+
         let allAnnouncements = [];
         let hasNextPage = true;
         let after = null;
@@ -2350,7 +2261,7 @@ app.whenReady().then(() => {
         try {
             while (hasNextPage) {
                 pageCount++;
-                
+
                 // Send progress update to renderer
                 mainWindow?.webContents.send('update-progress', {
                     mode: 'indeterminate',
@@ -2371,9 +2282,9 @@ app.whenReady().then(() => {
             }
 
             console.log(`Fetched ${allAnnouncements.length} announcements across ${pageCount} page(s)`);
-            return { 
-                announcements: allAnnouncements, 
-                count: allAnnouncements.length 
+            return {
+                announcements: allAnnouncements,
+                count: allAnnouncements.length
             };
         } catch (error) {
             console.error('Error getting announcements:', error);
@@ -2386,12 +2297,12 @@ app.whenReady().then(() => {
         console.log('main.js > axios:deleteAnnouncementsGraphQL');
         const items = Array.isArray(data.discussions) ? data.discussions : [];
         const operationId = data.operationId || null;
-        
+
         // Initialize cancellation flag for this operation
         if (operationId) {
             operationCancelFlags.set(operationId, false);
         }
-        
+
         let completed = 0;
         const total = items.length || 1;
         const update = () => {
@@ -2400,10 +2311,10 @@ app.whenReady().then(() => {
                 mode: 'determinate', label: 'Deleting announcements', processed: completed, total, value: completed / total
             });
         };
-        
+
         // Cancellation check function for batchHandler
         const isCancelled = operationId ? () => operationCancelFlags.get(operationId) === true : null;
-        
+
         const requests = items.map((discussion, idx) => ({
             id: idx + 1,
             request: async () => {
@@ -2417,7 +2328,7 @@ app.whenReady().then(() => {
                 } finally { update(); }
             }
         }));
-        
+
         const batchConfig = getBatchConfig();
         const res = await batchHandler(requests, {
             ...batchConfig,
@@ -2427,12 +2338,12 @@ app.whenReady().then(() => {
 
         // Check if operation was cancelled
         const wasCancelled = operationId && operationCancelFlags.get(operationId) === true;
-        
+
         // Clean up cancellation flag
         if (operationId) {
             operationCancelFlags.delete(operationId);
         }
-        
+
         console.log(`Finished deleting announcements. ${wasCancelled ? '(Cancelled)' : ''}`);
         return { ...res, cancelled: wasCancelled };
     });
@@ -2442,7 +2353,7 @@ app.whenReady().then(() => {
         console.log(`main.js > axios:cancelOperation - ${operationId}`);
         console.log('Operation exists in map:', operationCancelFlags.has(operationId));
         console.log('Current cancel flags:', Array.from(operationCancelFlags.entries()));
-        
+
         if (operationId && operationCancelFlags.has(operationId)) {
             console.log('Setting cancellation flag to true for:', operationId);
             operationCancelFlags.set(operationId, true);
@@ -2739,7 +2650,7 @@ app.whenReady().then(() => {
             if (createAssignmentGroupsCancelFlags.get(senderId)) {
                 throw new Error('Request cancelled');
             }
-            
+
             try {
                 const response = await assignmentGroups.createAssignmentGroups(requestData);
                 return response;
@@ -3588,20 +3499,20 @@ app.whenReady().then(() => {
 
         try {
             const response = await checkUnconfirmedEmails(data); //returns a data stream
-            
+
             // Collect the CSV data from the stream
             const chunks = [];
-            
+
             return new Promise((resolve, reject) => {
                 response.on('data', (chunk) => {
                     chunks.push(chunk);
                 });
-                
+
                 response.on('end', () => {
                     const csvData = Buffer.concat(chunks).toString('utf-8');
                     resolve({ success: true, data: csvData });
                 });
-                
+
                 response.on('error', (error) => {
                     reject(error);
                 });
@@ -3648,10 +3559,10 @@ app.whenReady().then(() => {
         progressUpdateDeterminate(0, totalRequests);
 
         const batchResponse = await batchHandler(requests, getBatchConfig());
-        
+
         // Clear progress when done
         progressDone();
-        
+
         let confirmedCount = 0;
         batchResponse.successful.forEach((success) => {
             // success.value contains the confirmEmail response: { confirmed: boolean, status: string }
@@ -3809,11 +3720,11 @@ app.whenReady().then(() => {
                 not_found: []
             }
         };
-        
+
         // Reset progress for AWS stage
         let awsProcessed = 0;
         const awsTotal = emails.length;
-        
+
         for (let i = 0; i < emails.length; i += chunksize) {
             awsProcessed = i;
             mainWindow.webContents.send('update-progress', {
@@ -3840,7 +3751,7 @@ app.whenReady().then(() => {
                     awsResetResponse.data.not_found.push(...awsRes.data.not_found);
                     awsResetResponse.data.removed.push(...awsRes.data.removed);
                 }
-                
+
                 // // Track specific emails that were not found or not removed (regardless of status)
                 // if (awsRes.data && awsRes.data.not_found) {
                 //     awsResetResponse.notFoundEmails.push(...awsRes.data.not_found);
@@ -3854,7 +3765,7 @@ app.whenReady().then(() => {
                 continue;
             }
         }
-        
+
         // Send final AWS progress update showing completion
         mainWindow.webContents.send('update-progress', {
             mode: 'determinate',
@@ -4095,27 +4006,27 @@ app.whenReady().then(() => {
             }
 
             const batchResponse = await batchHandler(requests, getBatchConfig());
-            
+
             // batchHandler returns { successful: [], failed: [] }
             // Convert to simple array of results
             const results = [];
-            
+
             if (batchResponse.successful) {
                 batchResponse.successful.forEach(item => {
                     results.push(item.value);
                 });
             }
-            
+
             if (batchResponse.failed) {
                 batchResponse.failed.forEach(item => {
-                    results.push({ 
-                        success: false, 
-                        quiz_id: item.id, 
-                        error: item.reason 
+                    results.push({
+                        success: false,
+                        quiz_id: item.id,
+                        error: item.reason
                     });
                 });
             }
-            
+
             return results;
         } catch (error) {
             throw error.message;
@@ -4497,7 +4408,7 @@ app.whenReady().then(() => {
             const ext = path.extname(filePath).toLowerCase();
 
             let emails = [];
-            
+
             if (ext === '.csv') {
                 // Use the existing parseEmailsFromCSV function
                 emails = parseEmailsFromCSV(fileContent);
@@ -4570,10 +4481,10 @@ app.whenReady().then(() => {
         progressUpdateDeterminate(0, totalRequests);
 
         const batchResponse = await batchHandler(requests, getBatchConfig());
-        
+
         // Clear progress when done
         progressDone();
-        
+
         let confirmedCount = 0;
         batchResponse.successful.forEach((success) => {
             // success.value contains the confirmEmail response: { confirmed: boolean, status: string }
@@ -4636,7 +4547,7 @@ app.whenReady().then(() => {
         try {
             const { fileName, data, showSaveDialog } = payload || {};
             if (!data) throw new Error('Data is required for CSV export');
-            
+
             // If showSaveDialog is true, prompt user for file location
             let filePath = fileName;
             if (showSaveDialog) {
@@ -4647,7 +4558,7 @@ app.whenReady().then(() => {
                 }
                 filePath = userSelectedPath;
             }
-            
+
             await csvExporter.exportToCSV(data, filePath);
             return { success: true, filePath };
         } catch (err) {
@@ -4858,7 +4769,7 @@ app.whenReady().then(() => {
     // Parse emails from Excel content (used by renderer for immediate parsing)
     ipcMain.handle('parseEmailsFromExcel', async (event, { filePath, fileBuffer }) => {
         try {
-            const emails = parseEmailsFromExcel(fileBuffer);
+            const emails = await parseEmailsFromExcel(fileBuffer);
             return {
                 success: true,
                 emails,
@@ -4925,165 +4836,165 @@ app.whenReady().then(() => {
     // });
 
     // Example: unknown total flow (fixes undefined completedRequests/totalRequests bug)
-ipcMain.handle('axios:resetCommChannelsByPattern', async (event, data) => {
-    console.log('inside axios:resetCommChannelsByPattern');
-    
-    const senderId = event.sender.id;
-    resetPatternCancelFlags.set(senderId, false);
-    const isCancelled = () => resetPatternCancelFlags.get(senderId) === true;
+    ipcMain.handle('axios:resetCommChannelsByPattern', async (event, data) => {
+        console.log('inside axios:resetCommChannelsByPattern');
 
-    // Normalize pattern once
-    const normalizedPattern = String(data.pattern || '').trim();
-    const base = { ...data, pattern: normalizedPattern };
+        const senderId = event.sender.id;
+        resetPatternCancelFlags.set(senderId, false);
+        const isCancelled = () => resetPatternCancelFlags.get(senderId) === true;
 
-    try {
-        let allResults = []; // Array to return to renderer (compatible with old format)
-        let totalProcessed = 0;
-        let iterationCount = 0;
-        const maxIterations = 100; // Safety limit to prevent infinite loops
-        
-        // Loop until no more emails are found on the bounce list
-        while (iterationCount < maxIterations) {
-            iterationCount++;
-            
-            const batchLabel = iterationCount === 1 ? 'Checking bounce list...' : `Checking bounce list again (found ${totalProcessed} so far)...`;
-            progressStartIndeterminate(batchLabel);
+        // Normalize pattern once
+        const normalizedPattern = String(data.pattern || '').trim();
+        const base = { ...data, pattern: normalizedPattern };
 
-            // 1) Get bounced emails from Canvas
-            const bouncedRows = await getBouncedData(base);
+        try {
+            let allResults = []; // Array to return to renderer (compatible with old format)
+            let totalProcessed = 0;
+            let iterationCount = 0;
+            const maxIterations = 100; // Safety limit to prevent infinite loops
 
-            if (isCancelled()) {
-                progressDone();
-                resetPatternCancelFlags.delete(senderId);
-                return allResults; // Return array for renderer compatibility
-            }
+            // Loop until no more emails are found on the bounce list
+            while (iterationCount < maxIterations) {
+                iterationCount++;
 
-            // 2) Build a unique set of emails from this batch
-            const targets = new Set();
-            if (Array.isArray(bouncedRows)) {
-                for (const row of bouncedRows) {
-                    const em = Array.isArray(row) ? row[4] : null;
-                    if (em) targets.add(String(em).trim());
+                const batchLabel = iterationCount === 1 ? 'Checking bounce list...' : `Checking bounce list again (found ${totalProcessed} so far)...`;
+                progressStartIndeterminate(batchLabel);
+
+                // 1) Get bounced emails from Canvas
+                const bouncedRows = await getBouncedData(base);
+
+                if (isCancelled()) {
+                    progressDone();
+                    resetPatternCancelFlags.delete(senderId);
+                    return allResults; // Return array for renderer compatibility
                 }
-            }
 
-            const emails = Array.from(targets);
-            
-            // If no emails found, we're done
-            if (emails.length === 0) {
-                console.log(`No more emails found on bounce list after ${iterationCount} pass(es)`);
-                progressDone();
-                resetPatternCancelFlags.delete(senderId);
-                return allResults; // Return array (may be empty on first iteration)
-            }
+                // 2) Build a unique set of emails from this batch
+                const targets = new Set();
+                if (Array.isArray(bouncedRows)) {
+                    for (const row of bouncedRows) {
+                        const em = Array.isArray(row) ? row[4] : null;
+                        if (em) targets.add(String(em).trim());
+                    }
+                }
 
-            console.log(`Found ${emails.length} emails in pass ${iterationCount}`);
+                const emails = Array.from(targets);
 
-            // 3) Reset bounce list in bulk for this batch
-            let bounceResetResult = [];
-            try {
-                const bounceLabel = iterationCount === 1 
-                    ? `Clearing ${emails.length} email(s) from bounce list...` 
-                    : `Clearing ${emails.length} more email(s) from bounce list...`;
-                progressStartIndeterminate(bounceLabel);
-                bounceResetResult = await patternBounceReset(base, isCancelled);
-                console.log(`Bounce reset completed for pass ${iterationCount}:`, bounceResetResult?.length || 0);
-            } catch (error) {
-                console.error(`Error resetting bounce in pass ${iterationCount}:`, error);
-            }
+                // If no emails found, we're done
+                if (emails.length === 0) {
+                    console.log(`No more emails found on bounce list after ${iterationCount} pass(es)`);
+                    progressDone();
+                    resetPatternCancelFlags.delete(senderId);
+                    return allResults; // Return array (may be empty on first iteration)
+                }
 
-            if (isCancelled()) {
-                progressDone();
-                resetPatternCancelFlags.delete(senderId);
-                return allResults;
-            }
+                console.log(`Found ${emails.length} emails in pass ${iterationCount}`);
 
-            // 4) Reset AWS suppression list for each email in this batch with progress tracking
-            let awsProcessed = 0;
-            const awsTotal = emails.length;
-            
-            // Initialize progress bar
-            progressUpdateDeterminate(0, awsTotal);
-            
-            const updateAwsProgress = (email) => {
-                awsProcessed++;
-                const percentage = awsTotal > 0 ? awsProcessed / awsTotal : 0;
-                mainWindow.webContents.send('update-progress', {
-                    mode: 'determinate',
-                    label: `Resetting ${email} from AWS suppression (${awsProcessed}/${awsTotal})`,
-                    processed: awsProcessed,
-                    total: awsTotal,
-                    value: percentage
-                });
-                // Also update taskbar progress
-                try { mainWindow.setProgressBar(percentage, { mode: 'normal' }); } catch { }
-            };
-            
-            const request = async (requestData) => {
+                // 3) Reset bounce list in bulk for this batch
+                let bounceResetResult = [];
                 try {
-                    const res = await awsReset(requestData);
-                    return res;
+                    const bounceLabel = iterationCount === 1
+                        ? `Clearing ${emails.length} email(s) from bounce list...`
+                        : `Clearing ${emails.length} more email(s) from bounce list...`;
+                    progressStartIndeterminate(bounceLabel);
+                    bounceResetResult = await patternBounceReset(base, isCancelled);
+                    console.log(`Bounce reset completed for pass ${iterationCount}:`, bounceResetResult?.length || 0);
                 } catch (error) {
-                    throw error;
-                } finally {
-                    updateAwsProgress(requestData.email);
+                    console.error(`Error resetting bounce in pass ${iterationCount}:`, error);
                 }
-            };
 
-            let requests = [];
-            for (let i = 0; i < emails.length; i++) {
-                const requestData = {
-                    region: data.region,
-                    token: data.token,
-                    email: emails[i]
+                if (isCancelled()) {
+                    progressDone();
+                    resetPatternCancelFlags.delete(senderId);
+                    return allResults;
+                }
+
+                // 4) Reset AWS suppression list for each email in this batch with progress tracking
+                let awsProcessed = 0;
+                const awsTotal = emails.length;
+
+                // Initialize progress bar
+                progressUpdateDeterminate(0, awsTotal);
+
+                const updateAwsProgress = (email) => {
+                    awsProcessed++;
+                    const percentage = awsTotal > 0 ? awsProcessed / awsTotal : 0;
+                    mainWindow.webContents.send('update-progress', {
+                        mode: 'determinate',
+                        label: `Resetting ${email} from AWS suppression (${awsProcessed}/${awsTotal})`,
+                        processed: awsProcessed,
+                        total: awsTotal,
+                        value: percentage
+                    });
+                    // Also update taskbar progress
+                    try { mainWindow.setProgressBar(percentage, { mode: 'normal' }); } catch { }
                 };
-                requests.push({ id: totalProcessed + i + 1, request: () => request(requestData), email: emails[i] });
+
+                const request = async (requestData) => {
+                    try {
+                        const res = await awsReset(requestData);
+                        return res;
+                    } catch (error) {
+                        throw error;
+                    } finally {
+                        updateAwsProgress(requestData.email);
+                    }
+                };
+
+                let requests = [];
+                for (let i = 0; i < emails.length; i++) {
+                    const requestData = {
+                        region: data.region,
+                        token: data.token,
+                        email: emails[i]
+                    };
+                    requests.push({ id: totalProcessed + i + 1, request: () => request(requestData), email: emails[i] });
+                }
+
+                const batchResponse = await batchHandler(requests, getBatchConfig());
+
+                // Convert batch results to renderer-compatible format
+                // Renderer expects array of objects with { bounce: {reset: N}, suppression: {reset: N}, email }
+                for (let i = 0; i < emails.length; i++) {
+                    const email = emails[i];
+
+                    // Find if this email had a successful AWS reset
+                    const awsResult = batchResponse.successful?.find(s =>
+                        requests.find(r => r.id === s.id)?.email === email
+                    );
+
+                    allResults.push({
+                        email: email,
+                        bounce: { reset: 1 }, // Assume bounce was reset (came from patternBounceReset)
+                        suppression: awsResult?.value || { reset: 0 }
+                    });
+                }
+
+                totalProcessed += emails.length;
+                console.log(`Pass ${iterationCount} complete: processed ${emails.length} emails (total: ${totalProcessed})`);
+
+                if (isCancelled()) {
+                    progressDone();
+                    resetPatternCancelFlags.delete(senderId);
+                    return allResults;
+                }
+
+                // Small delay before next iteration to allow Canvas to update
+                await waitFunc(process.env.TIME_DELAY || 1000);
             }
 
-            const batchResponse = await batchHandler(requests, getBatchConfig());
+            // If we hit max iterations, return what we have
+            console.warn(`Reached maximum passes (${maxIterations}). Stopping.`);
+            progressDone();
+            resetPatternCancelFlags.delete(senderId);
+            return allResults;
 
-            // Convert batch results to renderer-compatible format
-            // Renderer expects array of objects with { bounce: {reset: N}, suppression: {reset: N}, email }
-            for (let i = 0; i < emails.length; i++) {
-                const email = emails[i];
-                
-                // Find if this email had a successful AWS reset
-                const awsResult = batchResponse.successful?.find(s => 
-                    requests.find(r => r.id === s.id)?.email === email
-                );
-                
-                allResults.push({
-                    email: email,
-                    bounce: { reset: 1 }, // Assume bounce was reset (came from patternBounceReset)
-                    suppression: awsResult?.value || { reset: 0 }
-                });
-            }
-
-            totalProcessed += emails.length;
-            console.log(`Pass ${iterationCount} complete: processed ${emails.length} emails (total: ${totalProcessed})`);
-
-            if (isCancelled()) {
-                progressDone();
-                resetPatternCancelFlags.delete(senderId);
-                return allResults;
-            }
-
-            // Small delay before next iteration to allow Canvas to update
-            await waitFunc(process.env.TIME_DELAY || 1000);
+        } catch (err) {
+            progressDone();
+            resetPatternCancelFlags.delete(senderId);
+            throw err.message || err;
         }
-
-        // If we hit max iterations, return what we have
-        console.warn(`Reached maximum passes (${maxIterations}). Stopping.`);
-        progressDone();
-        resetPatternCancelFlags.delete(senderId);
-        return allResults;
-
-    } catch (err) {
-        progressDone();
-        resetPatternCancelFlags.delete(senderId);
-        throw err.message || err;
-    }
-});
+    });
 
     // Cancel reset of communication channels by pattern
     ipcMain.handle('axios:cancelResetCommChannelsByPattern', async (event) => {
