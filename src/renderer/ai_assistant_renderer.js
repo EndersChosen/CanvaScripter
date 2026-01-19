@@ -608,6 +608,9 @@ async function executeOperation(parsed, token) {
                 (parsed.operation.includes('conversation') ? 'conversations' :
                     (parsed.operation.includes('group') ? 'groups' : 'items')));
 
+        // Check if this is a relock-modules operation - show checkboxes
+        const isRelockModules = parsed.operation === 'relock-modules';
+
         let confirmHtml = `
             <div class="card border-warning mb-3">
                 <div class="card-header bg-warning text-dark">
@@ -618,17 +621,42 @@ async function executeOperation(parsed, token) {
         `;
 
         if (fetchResult.items && fetchResult.items.length > 0) {
-            confirmHtml += `
-                <p class="mb-2">Preview of items (showing first ${fetchResult.items.length}):</p>
-                <ul class="mb-3">
-                    ${fetchResult.items.map(item => `<li>${item.name}</li>`).join('')}
-                    ${fetchResult.itemCount > 5 ? `<li><em>...and ${fetchResult.itemCount - 5} more</em></li>` : ''}
-                </ul>
-            `;
+            if (isRelockModules) {
+                // Show checkboxes for module selection
+                confirmHtml += `
+                    <p class="mb-2"><strong>Select modules to relock:</strong></p>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="ai-select-all-modules" checked>
+                        <label class="form-check-label fw-bold" for="ai-select-all-modules">
+                            Select All
+                        </label>
+                    </div>
+                    <div class="border rounded p-2 mb-3" style="max-height: 300px; overflow-y: auto;">
+                        ${fetchResult.items.map((item, idx) => `
+                            <div class="form-check">
+                                <input class="form-check-input ai-module-checkbox" type="checkbox" value="${item.id}" id="ai-module-${idx}" checked data-name="${item.name}">
+                                <label class="form-check-label" for="ai-module-${idx}">
+                                    ${item.name}
+                                </label>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <p class="mb-3"><small class="text-muted"><span id="ai-selected-count">${fetchResult.itemCount}</span> of ${fetchResult.itemCount} modules selected</small></p>
+                `;
+            } else {
+                // Show regular list preview for other operations
+                confirmHtml += `
+                    <p class="mb-2">Preview of items (showing first ${fetchResult.items.length}):</p>
+                    <ul class="mb-3">
+                        ${fetchResult.items.map(item => `<li>${item.name}</li>`).join('')}
+                        ${fetchResult.itemCount > 5 ? `<li><em>...and ${fetchResult.itemCount - 5} more</em></li>` : ''}
+                    </ul>
+                `;
+            }
         }
 
         confirmHtml += `
-                    <p class="mb-3 text-danger"><strong>Are you sure you want to ${parsed.operation.includes('delete') ? 'delete' : 'process'} ${fetchResult.itemCount > 1 ? 'these' : 'this'} ${fetchResult.itemCount} ${itemType}?</strong></p>
+                    <p class="mb-3 text-danger"><strong>Are you sure you want to ${parsed.operation.includes('delete') ? 'delete' : 'process'} ${isRelockModules ? 'the selected' : (fetchResult.itemCount > 1 ? 'these' : 'this')} ${isRelockModules ? '' : fetchResult.itemCount} ${itemType}?</strong></p>
                     <div class="d-flex gap-2">
                         <button id="ai-confirm-execute" class="btn btn-danger">
                             <i class="bi bi-check-circle"></i> Yes, Proceed
@@ -646,6 +674,40 @@ async function executeOperation(parsed, token) {
 
         resultsSection.innerHTML = confirmHtml;
 
+        // Setup select-all checkbox for module operations
+        if (isRelockModules) {
+            const selectAllCheckbox = document.getElementById('ai-select-all-modules');
+            const moduleCheckboxes = document.querySelectorAll('.ai-module-checkbox');
+            const selectedCountSpan = document.getElementById('ai-selected-count');
+
+            const updateSelectedCount = () => {
+                const checkedCount = document.querySelectorAll('.ai-module-checkbox:checked').length;
+                selectedCountSpan.textContent = checkedCount;
+            };
+
+            if (selectAllCheckbox) {
+                selectAllCheckbox.addEventListener('change', (e) => {
+                    moduleCheckboxes.forEach(checkbox => {
+                        checkbox.checked = e.target.checked;
+                    });
+                    updateSelectedCount();
+                });
+            }
+
+            moduleCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', () => {
+                    updateSelectedCount();
+                    // Update select-all state
+                    const allChecked = Array.from(moduleCheckboxes).every(cb => cb.checked);
+                    const noneChecked = Array.from(moduleCheckboxes).every(cb => !cb.checked);
+                    if (selectAllCheckbox) {
+                        selectAllCheckbox.checked = allChecked;
+                        selectAllCheckbox.indeterminate = !allChecked && !noneChecked;
+                    }
+                });
+            });
+        }
+
         // Setup confirmation listeners
         const confirmBtn = document.getElementById('ai-confirm-execute');
         const cancelBtn = document.getElementById('ai-confirm-cancel');
@@ -653,6 +715,24 @@ async function executeOperation(parsed, token) {
 
         if (confirmBtn) {
             confirmBtn.addEventListener('click', async () => {
+                // For relock-modules, filter to only selected modules
+                if (isRelockModules) {
+                    const selectedCheckboxes = document.querySelectorAll('.ai-module-checkbox:checked');
+                    if (selectedCheckboxes.length === 0) {
+                        alert('Please select at least one module to relock.');
+                        return;
+                    }
+
+                    // Get selected module IDs and names
+                    const selectedModules = Array.from(selectedCheckboxes).map(cb => ({
+                        id: cb.value,
+                        name: cb.dataset.name
+                    }));
+
+                    // Update parsed parameters with selected modules only
+                    parsed.selectedModules = selectedModules;
+                }
+
                 await performOperation(parsed, token, resultsSection, previewSection, true);
             });
         }
@@ -776,9 +856,17 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
     });
 
     try {
+        // Prepare parameters - for relock-modules with selection, override module list
+        let executionParams = { ...parsed.parameters };
+
+        if (parsed.selectedModules && parsed.selectedModules.length > 0) {
+            // User has specifically selected modules, use only those
+            executionParams.selectedModules = parsed.selectedModules;
+        }
+
         const result = await window.ipcRenderer.invoke('ai-assistant:executeOperation', {
             operation: parsed.operation,
-            parameters: parsed.parameters,
+            parameters: executionParams,
             token: token,
             confirmed: confirmed
         });
@@ -828,13 +916,16 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
             }
             resultHtml += '</div>';
         } else if (res.fetchedCount !== undefined || res.deletedCount !== undefined) {
-            // Two-step operation results (delete operations)
+            // Two-step operation results (delete/relock operations)
+            const isRelock = parsed.operation === 'relock-modules';
+            const actionVerb = isRelock ? 'Re-locked' : 'Deleted';
+
             resultHtml += '<div class="mb-2">';
             if (res.fetchedCount !== undefined) {
                 resultHtml += `<p class="mb-1"><strong>Items Found:</strong> ${res.fetchedCount}</p>`;
             }
             if (res.deletedCount !== undefined) {
-                resultHtml += `<p class="mb-1"><strong>Successfully Deleted:</strong> ${res.deletedCount}</p>`;
+                resultHtml += `<p class="mb-1"><strong>Successfully ${actionVerb}:</strong> ${res.deletedCount}</p>`;
             }
             if (res.failedCount !== undefined && res.failedCount > 0) {
                 resultHtml += `<p class="mb-1 text-warning"><strong>Failed:</strong> ${res.failedCount}</p>`;

@@ -860,7 +860,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
                 domain: data.domain,
                 token: data.token,
                 course_id: data.course_id,
-                module_id: data.module_ids[i]
+                module_id: data.module_ids[i].id || data.module_ids[i]
             };
             requests.push({ id: i + 1, request: () => request(requestData) });
         }

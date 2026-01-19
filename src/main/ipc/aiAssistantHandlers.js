@@ -288,10 +288,11 @@ const OPERATION_MAP = {
         needsFetch: false
     },
     'relock-modules': {
-        handler: 'axios:relockModules',
+        fetchHandler: 'axios:getModules',
+        deleteHandler: 'axios:relockModules',
         description: 'Relock modules in a course',
-        requiredParams: ['domain', 'token', 'courseId', 'modules'],
-        needsFetch: false
+        requiredParams: ['domain', 'token', 'courseId'],
+        needsFetch: true
     },
 
     // ==================== Quiz Operations ====================
@@ -1101,14 +1102,22 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 }
             }
 
+            // For relock-modules, return all items so user can see full list with checkboxes
+            // For other operations, only return first 5 as preview
+            const itemsToReturn = operation === 'relock-modules' ? items : items.slice(0, 5);
+
             return {
                 success: true,
                 needsConfirmation: true,
                 itemCount: items.length,
-                items: items.slice(0, 5).map(item => ({ // Return first 5 items as preview
-                    name: item.name || item.title || item.subject || 'Unnamed',
-                    id: item._id || item.id
-                })),
+                items: itemsToReturn.map(item => {
+                    // Handle GraphQL edge structure for modules
+                    const actualItem = item.node || item;
+                    return {
+                        name: actualItem.name || actualItem.title || actualItem.subject || 'Unnamed',
+                        id: actualItem._id || actualItem.id
+                    };
+                }),
                 operation: operation,
                 filters: opInfo.filters
             };
@@ -1443,12 +1452,34 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     };
                 } else if (operation.includes('modules')) {
                     // Modules format
+                    // If user selected specific modules via checkboxes, use those instead of all fetched items
+                    let modulesToProcess = normalizedItems;
+                    if (fullParams.selectedModules && fullParams.selectedModules.length > 0) {
+                        // User has specifically selected modules from the UI
+                        // Need to get the full module data that matches the selected IDs
+                        const selectedIds = new Set(fullParams.selectedModules.map(m => String(m.id)));
+                        modulesToProcess = normalizedItems.filter(item => {
+                            const itemId = String((item.node && item.node._id) || item._id || item.id);
+                            return selectedIds.has(itemId);
+                        });
+                        console.log(`AI Assistant: User selected ${fullParams.selectedModules.length} modules, filtered to ${modulesToProcess.length} items`);
+                    }
+
+                    // Extract proper module IDs from GraphQL structure
+                    const moduleIds = modulesToProcess.map(item => {
+                        // Handle GraphQL edge structure
+                        if (item.node) {
+                            return { id: item.node._id, name: item.node.name };
+                        }
+                        return { id: item._id || item.id, name: item.name };
+                    });
+
                     deleteParams = {
                         domain: fullParams.domain,
                         token: fullParams.token,
                         course_id: fullParams.courseId || fullParams.course_id,
-                        number: normalizedItems.length,
-                        module_ids: normalizedItems
+                        number: moduleIds.length,
+                        module_ids: moduleIds
                     };
                 } else if (operation.includes('announcements')) {
                     // Announcements format (uses discussions array since announcements are discussion topics)
