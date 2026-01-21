@@ -88,6 +88,63 @@ Example output format:
     }
 }
 
+async function getAssignmentGroupsList(fullParams, event) {
+    const handler = ipcMain._invokeHandlers?.get('axios:getAssignmentGroups');
+    if (!handler) {
+        throw new Error('Assignment group lookup handler not found');
+    }
+
+    const mockEvent = {
+        sender: event.sender,
+        senderFrame: event.senderFrame,
+        reply: event.reply
+    };
+
+    const groups = await handler(mockEvent, {
+        domain: normalizeDomain(fullParams.domain),
+        token: fullParams.token,
+        course_id: fullParams.courseId || fullParams.course_id
+    });
+
+    if (!Array.isArray(groups)) {
+        throw new Error('Failed to load assignment groups. Check the Canvas domain and API token.');
+    }
+
+    return groups;
+}
+
+function findAssignmentGroupIdByName(groups, groupName) {
+    if (!Array.isArray(groups) || !groupName) return null;
+
+    const exact = groups.find(g => g?.name === groupName);
+    if (exact) {
+        return exact.id || exact._id;
+    }
+
+    const lower = groupName.toLowerCase();
+    const caseInsensitive = groups.filter(g => (g?.name || '').toLowerCase() === lower);
+    if (caseInsensitive.length === 1) {
+        return caseInsensitive[0].id || caseInsensitive[0]._id;
+    }
+
+    return null;
+}
+
+async function resolveAssignmentGroupId(fullParams, event) {
+    if (fullParams.assignmentGroupId || fullParams.groupId || fullParams.group_id) {
+        return { id: fullParams.assignmentGroupId || fullParams.groupId || fullParams.group_id, groups: [] };
+    }
+
+    const groupName = fullParams.groupName || fullParams.assignmentGroupName;
+    if (!groupName) {
+        return { id: null, groups: [] };
+    }
+
+    const groups = await getAssignmentGroupsList(fullParams, event);
+    const groupId = findAssignmentGroupIdByName(groups, groupName);
+    return { id: groupId, groups };
+}
+
 function extractSubjectFromPrompt(promptText) {
     if (!promptText) return null;
 
@@ -96,6 +153,43 @@ function extractSubjectFromPrompt(promptText) {
 
     const singleQuoteMatch = promptText.match(/subject\s*'([\s\S]*?)'/i);
     if (singleQuoteMatch) return singleQuoteMatch[1];
+
+    return null;
+}
+
+function extractCourseIdFromPrompt(promptText) {
+    if (!promptText) return null;
+    const match = promptText.match(/\/courses\/(\d+)/i);
+    return match ? match[1] : null;
+}
+
+function extractDomainFromPrompt(promptText) {
+    if (!promptText) return null;
+    const match = promptText.match(/https?:\/\/([^/\s]+)/i);
+    return match ? match[1] : null;
+}
+
+function normalizeDomain(domain) {
+    if (!domain) return domain;
+    const trimmed = String(domain).trim();
+    if (!trimmed) return trimmed;
+    try {
+        if (/^https?:\/\//i.test(trimmed)) {
+            return new URL(trimmed).hostname;
+        }
+    } catch {
+        // fall through to basic normalization
+    }
+    return trimmed.replace(/^https?:\/\//i, '').split('/')[0];
+}
+
+function extractAssignmentGroupNameFromPrompt(promptText) {
+    if (!promptText) return null;
+    const quoted = promptText.match(/assignment group\s+(?:named|called|titled|with name|with the name|in)\s*["“”']([\s\S]*?)["“”']/i);
+    if (quoted) return quoted[1];
+
+    const inQuoted = promptText.match(/in\s+the\s*["“”']([\s\S]*?)["“”']\s+assignment group/i);
+    if (inQuoted) return inQuoted[1];
 
     return null;
 }
@@ -218,6 +312,17 @@ const OPERATION_MAP = {
         description: 'Delete an assignment group and all its assignments',
         requiredParams: ['domain', 'token', 'courseId', 'groupId'],
         needsFetch: false
+    },
+    'delete-assignments-in-assignment-group': {
+        fetchHandler: 'axios:getAllAssignmentsForCombined',
+        deleteHandler: 'axios:deleteAssignments',
+        description: 'Delete assignments in a specific assignment group',
+        requiredParams: ['domain', 'token', 'courseId'],
+        filters: {
+            assignmentGroupId: true,
+            includeGraded: false
+        },
+        needsFetch: true
     },
 
     // ==================== Conversation Operations ====================
@@ -653,6 +758,10 @@ For assignment queries, detect these filter keywords:
 For assignment group queries, detect:
 - "empty" or "with no assignments" -> add filters: { empty: true }
 
+For deleting assignments in a specific assignment group by name:
+- Extract groupName (exact name inside quotes if provided)
+- Use delete-assignments-in-assignment-group operation
+
 For announcement queries, detect:
 - "titled [X]" or "named [X]" -> add titleFilter parameter
 
@@ -679,6 +788,10 @@ Conversation examples:
     -> operation: "delete-conversations", userId: "123", subject: "Test Message"
 - "Find conversations from user 456 with subject 'Hello'"
     -> operation: "get-conversations", userId: "456", subject: "Hello"
+
+Assignment group example:
+- "Delete all assignments in the 'Assignments #2' assignment group from https://school.com/courses/123"
+    -> operation: "delete-assignments-in-assignment-group", groupName: "Assignments #2"
 
    - publish: true/false (default false)
 7. summary: Human-readable description of what will be done
@@ -797,6 +910,7 @@ Respond ONLY with valid JSON in this exact format:
     "domain": "extracted-domain",
     "courseId": "extracted-id",
         "userId": "canvas-user-id",
+        "groupName": "assignment group name",
     "importId": "12345",
     "number": 10,
     "name": "Assignment Name",
@@ -884,6 +998,32 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 }
             }
 
+            if (parsed?.parameters) {
+                const normalizedDomain = normalizeDomain(parsed.parameters.domain || extractDomainFromPrompt(prompt));
+                if (normalizedDomain) {
+                    parsed.parameters.domain = normalizedDomain;
+                }
+
+                if (!parsed.parameters.courseId) {
+                    const courseId = extractCourseIdFromPrompt(prompt);
+                    if (courseId) {
+                        parsed.parameters.courseId = courseId;
+                    }
+                }
+
+                if ((parsed.operation === 'delete-assignments-in-assignment-group' || parsed.operation === 'delete-assignment-group-with-assignments')
+                    && !parsed.parameters.groupName
+                    && !parsed.parameters.assignmentGroupName
+                    && !parsed.parameters.assignmentGroupId
+                    && !parsed.parameters.groupId
+                    && !parsed.parameters.group_id) {
+                    const groupName = extractAssignmentGroupNameFromPrompt(prompt);
+                    if (groupName) {
+                        parsed.parameters.groupName = groupName;
+                    }
+                }
+            }
+
             // Validate operation exists
             if (parsed.operation && !OPERATION_MAP[parsed.operation]) {
                 return {
@@ -925,6 +1065,9 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 if (param === 'userId') {
                     return !(parameters.userId || parameters.user_id);
                 }
+                if (param === 'groupId') {
+                    return !(parameters.groupId || parameters.group_id || parameters.assignmentGroupId || parameters.groupName || parameters.assignmentGroupName);
+                }
                 return !parameters[param];
             });
             if (missingParams.length > 0) {
@@ -932,6 +1075,16 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     success: false,
                     error: `Missing required parameters: ${missingParams.join(', ')}`
                 };
+            }
+
+            if (operation === 'delete-assignments-in-assignment-group') {
+                const hasGroup = parameters.groupName || parameters.assignmentGroupName || parameters.assignmentGroupId || parameters.groupId || parameters.group_id;
+                if (!hasGroup) {
+                    return {
+                        success: false,
+                        error: 'Missing assignment group name or ID.'
+                    };
+                }
             }
 
             return {
@@ -965,6 +1118,22 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
             }
 
             const fullParams = { ...parameters, token };
+
+            if (operation === 'delete-assignments-in-assignment-group') {
+                const { id: resolvedGroupId, groups } = await resolveAssignmentGroupId(fullParams, event);
+                if (!resolvedGroupId) {
+                    return {
+                        success: true,
+                        needsGroupChoice: true,
+                        groupName: fullParams.groupName || fullParams.assignmentGroupName || '',
+                        groups: (groups || []).map(g => ({
+                            id: g.id || g._id,
+                            name: g.name
+                        }))
+                    };
+                }
+                fullParams.assignmentGroupId = resolvedGroupId;
+            }
 
             // Step 1: Fetch the items with filters
             const fetchHandler = ipcMain._invokeHandlers?.get(opInfo.fetchHandler);
@@ -1051,6 +1220,18 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 }
                 if (filters.includeGraded === false) {
                     items = items.filter(a => !a.gradedSubmissionsExist);
+                }
+                if (filters.assignmentGroupId && fullParams.assignmentGroupId) {
+                    const groupId = String(fullParams.assignmentGroupId).trim();
+                    items = items.filter(a => {
+                        const assignmentGroupId = String(
+                            a.assignmentGroup?._id ||
+                            a.assignmentGroupId ||
+                            a.assignment_group_id ||
+                            ''
+                        ).trim();
+                        return assignmentGroupId === groupId;
+                    });
                 }
                 if (filters.fromImport && fullParams.importId) {
                     // Fetch assignments from the specific import
@@ -1284,6 +1465,18 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     if (filters.includeGraded === false) {
                         items = items.filter(a => !a.gradedSubmissionsExist);
                     }
+                    if (filters.assignmentGroupId && fullParams.assignmentGroupId) {
+                        const groupId = String(fullParams.assignmentGroupId).trim();
+                        items = items.filter(a => {
+                            const assignmentGroupId = String(
+                                a.assignmentGroup?._id ||
+                                a.assignmentGroupId ||
+                                a.assignment_group_id ||
+                                ''
+                            ).trim();
+                            return assignmentGroupId === groupId;
+                        });
+                    }
                     // Filter empty assignment groups
                     if (filters.empty && dataType === 'assignment groups') {
                         items = items.filter(group => {
@@ -1352,6 +1545,14 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
 
             // Check if this operation needs to fetch items first (like assignments)
             if (opInfo.needsFetch) {
+                if (operation === 'delete-assignments-in-assignment-group') {
+                    const { id: resolvedGroupId, groups } = await resolveAssignmentGroupId(fullParams, event);
+                    if (!resolvedGroupId) {
+                        const suggestionText = (groups || []).map(g => g?.name).filter(Boolean).slice(0, 10).join(', ');
+                        throw new Error(`Assignment group not found. Available groups (first 10): ${suggestionText || 'none'}`);
+                    }
+                    fullParams.assignmentGroupId = resolvedGroupId;
+                }
                 // Step 1: Fetch the items with filters
                 const fetchHandler = ipcMain._invokeHandlers?.get(opInfo.fetchHandler);
                 if (!fetchHandler) {
@@ -1445,6 +1646,18 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     }
                     if (filters.includeGraded === false) {
                         items = items.filter(a => !a.gradedSubmissionsExist);
+                    }
+                    if (filters.assignmentGroupId && fullParams.assignmentGroupId) {
+                        const groupId = String(fullParams.assignmentGroupId).trim();
+                        items = items.filter(a => {
+                            const assignmentGroupId = String(
+                                a.assignmentGroup?._id ||
+                                a.assignmentGroupId ||
+                                a.assignment_group_id ||
+                                ''
+                            ).trim();
+                            return assignmentGroupId === groupId;
+                        });
                     }
                     // Filter announcements by title (case-insensitive partial match)
                     if (filters.byTitle && fullParams.titleFilter) {
@@ -1582,6 +1795,15 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 let handlerParams = { ...fullParams };
                 if (operation.includes('conversation')) {
                     handlerParams.user_id = handlerParams.user_id || handlerParams.userId;
+                }
+                if (operation === 'delete-assignment-group-with-assignments') {
+                    const { id: resolvedGroupId, groups } = await resolveAssignmentGroupId(handlerParams, event);
+                    if (!resolvedGroupId) {
+                        const suggestionText = (groups || []).map(g => g?.name).filter(Boolean).slice(0, 10).join(', ');
+                        throw new Error(`Assignment group not found. Available groups (first 10): ${suggestionText || 'none'}`);
+                    }
+                    handlerParams.group_id = resolvedGroupId;
+                    handlerParams.course_id = handlerParams.courseId || handlerParams.course_id;
                 }
                 if (operation.includes('create')) {
                     // Use 'course' for assignment group operations, 'course_id' for others

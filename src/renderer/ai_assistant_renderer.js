@@ -604,6 +604,63 @@ async function executeOperation(parsed, token) {
             throw new Error(fetchResult.error || 'Failed to fetch items');
         }
 
+        if (fetchResult.needsGroupChoice) {
+            const groups = Array.isArray(fetchResult.groups) ? fetchResult.groups : [];
+            const groupName = fetchResult.groupName || '';
+
+            resultsSection.innerHTML = `
+                <div class="card border-info mb-3">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="bi bi-collection"></i> Select Assignment Group</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2">No exact match found for <strong>${groupName || 'the requested group'}</strong>. Please select the correct assignment group:</p>
+                        <select id="ai-assignment-group-select" class="form-select mb-3">
+                            ${groups.map(g => `<option value="${g.id}">${g.name} (ID: ${g.id})</option>`).join('')}
+                        </select>
+                        <div class="d-flex gap-2">
+                            <button id="ai-group-select-continue" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> Continue
+                            </button>
+                            <button id="ai-group-select-cancel" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const continueBtn = document.getElementById('ai-group-select-continue');
+            const cancelBtn = document.getElementById('ai-group-select-cancel');
+            const selectEl = document.getElementById('ai-assignment-group-select');
+
+            if (continueBtn) {
+                continueBtn.addEventListener('click', async () => {
+                    const selectedId = selectEl?.value;
+                    if (!selectedId) {
+                        alert('Please select an assignment group.');
+                        return;
+                    }
+                    parsed.parameters.assignmentGroupId = selectedId;
+                    parsed.parameters.groupId = selectedId;
+                    parsed.parameters.group_id = selectedId;
+                    await executeOperation(parsed, token);
+                });
+            }
+
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    resultsSection.innerHTML = `
+                        <div class="alert alert-secondary">
+                            <p class="mb-0">Operation cancelled.</p>
+                        </div>
+                    `;
+                });
+            }
+
+            return;
+        }
+
         // If no confirmation needed, proceed directly
         if (!fetchResult.needsConfirmation) {
             return await performOperation(parsed, token, resultsSection, previewSection);

@@ -72,47 +72,32 @@ async function createAssignmentGroups(data) {
 }
 
 async function getAssignmentGroups(domain, course, token) {
-
-
-
-    let url = `https://${domain}/api/v1/courses/${course}/assignment_groups?include[]=assignments&per_page=100`;
-    let assignmentGroups = [];
-    let nextPage = url;
-
-    //console.log(nextPage);
-    while (nextPage) {
-        try {
-            const response = await axios.get(nextPage, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            if (response.headers.get('link')) {
-                nextPage = pagination.getNextPage(response.headers.get('link'));
-                console.log(nextPage);
-            } else {
-                nextPage = false;
-                console.log('No more assignment groups');
-            }
-
-            for (let group of response.data) {
-                assignmentGroups.push(group);
-            }
-
-        } catch (error) {
-            if (error.response) {
-                console.log(error.response.status);
-                console.log(error.response.headers);
-            } else if (error.request) {
-                console.log(error.request);
-            } else {
-                console.log('A different error', error.message);
-            }
-            return false;
+    const axiosConfig = {
+        method: 'get',
+        url: `https://${domain}/api/v1/courses/${course}/assignment_groups`,
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
+        params: {
+            'include[]': 'assignments',
+            per_page: 100
         }
-    }
+    };
 
-    return assignmentGroups;
+    try {
+        const assignmentGroups = await pagination.getAllPages(axiosConfig);
+        return assignmentGroups;
+    } catch (error) {
+        if (error.response) {
+            console.log(error.response.status);
+            console.log(error.response.headers);
+        } else if (error.request) {
+            console.log(error.request);
+        } else {
+            console.log('A different error', error.message);
+        }
+        throw error;
+    }
 }
 
 async function getEmptyAssignmentGroups(data) {
