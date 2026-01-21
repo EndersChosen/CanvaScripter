@@ -88,6 +88,18 @@ Example output format:
     }
 }
 
+function extractSubjectFromPrompt(promptText) {
+    if (!promptText) return null;
+
+    const doubleQuoteMatch = promptText.match(/subject\s*["“”]([\s\S]*?)["“”]/i);
+    if (doubleQuoteMatch) return doubleQuoteMatch[1];
+
+    const singleQuoteMatch = promptText.match(/subject\s*'([\s\S]*?)'/i);
+    if (singleQuoteMatch) return singleQuoteMatch[1];
+
+    return null;
+}
+
 // Map of supported operations to their handlers and required parameters
 const OPERATION_MAP = {
     // ==================== Assignment Operations ====================
@@ -211,15 +223,15 @@ const OPERATION_MAP = {
     // ==================== Conversation Operations ====================
     'get-conversations': {
         handler: 'axios:getConvos',
-        description: 'Get conversations by subject',
-        requiredParams: ['domain', 'token', 'subject'],
+        description: 'Get conversations by subject for a specific user',
+        requiredParams: ['domain', 'token', 'userId', 'subject'],
         needsFetch: false
     },
     'delete-conversations': {
         fetchHandler: 'axios:getConvos',
         deleteHandler: 'axios:deleteConvos',
-        description: 'Delete conversations with specific subject',
-        requiredParams: ['domain', 'token', 'subject'],
+        description: 'Delete conversations with specific subject for a user',
+        requiredParams: ['domain', 'token', 'userId', 'subject'],
         needsFetch: true
     },
     'get-deleted-conversations': {
@@ -607,6 +619,10 @@ Extract:
 8. summary: Human-readable description of what will be done
 9. warnings: Any potential issues or confirmations needed
 
+For conversation operations:
+- Extract userId: Canvas user ID for the sender (e.g., "user 123")
+- Extract subject: exact subject text to match
+
 === INFORMATION QUERY PARSING ===
 When users ask questions about course content, use the appropriate get-*-info operation:
 
@@ -657,6 +673,12 @@ Examples:
   -> operation: "get-assignment-groups-info", queryType: "list"
 - "How many announcements titled 'Test' are in course 123?"
   -> operation: "get-announcements-info", queryType: "count", titleFilter: "Test"
+
+Conversation examples:
+- "Delete all messages sent by user 123 with subject 'Test Message'"
+    -> operation: "delete-conversations", userId: "123", subject: "Test Message"
+- "Find conversations from user 456 with subject 'Hello'"
+    -> operation: "get-conversations", userId: "456", subject: "Hello"
 
    - publish: true/false (default false)
 7. summary: Human-readable description of what will be done
@@ -774,6 +796,7 @@ Respond ONLY with valid JSON in this exact format:
   "parameters": {
     "domain": "extracted-domain",
     "courseId": "extracted-id",
+        "userId": "canvas-user-id",
     "importId": "12345",
     "number": 10,
     "name": "Assignment Name",
@@ -852,6 +875,15 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
             // Parse and validate the response
             const parsed = JSON.parse(cleanedText);
 
+            // Preserve exact subject (including whitespace) for conversation operations
+            if (parsed?.operation && parsed.operation.includes('conversation')) {
+                const exactSubject = extractSubjectFromPrompt(prompt);
+                if (exactSubject !== null) {
+                    parsed.parameters = parsed.parameters || {};
+                    parsed.parameters.subject = exactSubject;
+                }
+            }
+
             // Validate operation exists
             if (parsed.operation && !OPERATION_MAP[parsed.operation]) {
                 return {
@@ -889,7 +921,12 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
             }
 
             // Validate required parameters
-            const missingParams = opInfo.requiredParams.filter(param => !parameters[param]);
+            const missingParams = opInfo.requiredParams.filter(param => {
+                if (param === 'userId') {
+                    return !(parameters.userId || parameters.user_id);
+                }
+                return !parameters[param];
+            });
             if (missingParams.length > 0) {
                 return {
                     success: false,
@@ -942,8 +979,14 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
             };
 
             // Prepare fetch parameters
-            // Special handling for assignment groups which use 'course' instead of 'course_id'
-            const fetchParams = operation.includes('assignment-group') ? {
+            // Special handling for conversations and assignment groups
+            const isConversationOp = operation.includes('conversation');
+            const fetchParams = isConversationOp ? {
+                domain: fullParams.domain,
+                token: fullParams.token,
+                user_id: fullParams.userId || fullParams.user_id,
+                subject: fullParams.subject
+            } : (operation.includes('assignment-group') ? {
                 domain: fullParams.domain,
                 token: fullParams.token,
                 course: fullParams.courseId || fullParams.course_id,
@@ -953,7 +996,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 token: fullParams.token,
                 course_id: fullParams.courseId || fullParams.course_id,
                 filters: opInfo.filters
-            };
+            });
 
             console.log('AI Assistant: Fetching items for confirmation:', fetchParams);
             const fetchResult = await fetchHandler(mockEvent, fetchParams);
@@ -1110,6 +1153,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 success: true,
                 needsConfirmation: true,
                 itemCount: items.length,
+                itemsRaw: items,
                 items: itemsToReturn.map(item => {
                     // Handle GraphQL edge structure for modules
                     const actualItem = item.node || item;
@@ -1321,8 +1365,14 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 };
 
                 // Prepare fetch parameters - map courseId to course_id
-                // Special handling for assignment groups which use 'course' instead of 'course_id'
-                const fetchParams = operation.includes('assignment-group') ? {
+                // Special handling for conversations and assignment groups
+                const isConversationOp = operation.includes('conversation');
+                const fetchParams = isConversationOp ? {
+                    domain: fullParams.domain,
+                    token: fullParams.token,
+                    user_id: fullParams.userId || fullParams.user_id,
+                    subject: fullParams.subject
+                } : (operation.includes('assignment-group') ? {
                     domain: fullParams.domain,
                     token: fullParams.token,
                     course: fullParams.courseId || fullParams.course_id,
@@ -1332,7 +1382,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     token: fullParams.token,
                     course_id: fullParams.courseId || fullParams.course_id,
                     filters: opInfo.filters
-                };
+                });
 
                 console.log('AI Assistant: Fetching items with params:', fetchParams);
                 const fetchResult = await fetchHandler(mockEvent, fetchParams);
@@ -1448,7 +1498,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                         domain: fullParams.domain,
                         token: fullParams.token,
                         subject: fullParams.subject,
-                        conversations: normalizedItems
+                        messages: normalizedItems
                     };
                 } else if (operation.includes('modules')) {
                     // Modules format
@@ -1530,6 +1580,9 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
 
                 // Map parameters for create operations
                 let handlerParams = { ...fullParams };
+                if (operation.includes('conversation')) {
+                    handlerParams.user_id = handlerParams.user_id || handlerParams.userId;
+                }
                 if (operation.includes('create')) {
                     // Use 'course' for assignment group operations, 'course_id' for others
                     const courseParam = operation.includes('assignment-group') ? 'course' : 'course_id';

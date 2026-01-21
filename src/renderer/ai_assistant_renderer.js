@@ -73,8 +73,8 @@ function showAIAssistantUI() {
                                     <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Delete all empty assignment groups from https://myschool.instructure.com/courses/6986">
                                         <strong>Delete Empty Groups:</strong> Delete empty assignment groups
                                     </a>
-                                    <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Delete all conversations with subject 'Test Message' from https://myschool.instructure.com">
-                                        <strong>Delete Conversations:</strong> Delete conversations by subject
+                                    <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Delete all messages sent by user 123 with subject 'Test Message' from https://myschool.instructure.com">
+                                        <strong>Delete Conversations:</strong> Delete conversations by subject and user
                                     </a>
                                     <a href="#" class="list-group-item list-group-item-action sample-prompt" data-prompt="Create 5 discussion topics named 'Week Discussion' in https://myschool.instructure.com/courses/6986">
                                         <strong>Create Discussions:</strong> Create multiple discussion topics
@@ -249,6 +249,24 @@ function setupAIAssistantListeners() {
             }
         }
     });
+}
+
+function showAIAssistantToast(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 420px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 3000);
 }
 
 function showOperationPreview(parsed, token) {
@@ -610,6 +628,7 @@ async function executeOperation(parsed, token) {
 
         // Check if this is a relock-modules operation - show checkboxes
         const isRelockModules = parsed.operation === 'relock-modules';
+        const isConversations = parsed.operation.includes('conversation');
 
         let confirmHtml = `
             <div class="card border-warning mb-3">
@@ -652,6 +671,15 @@ async function executeOperation(parsed, token) {
                         ${fetchResult.itemCount > 5 ? `<li><em>...and ${fetchResult.itemCount - 5} more</em></li>` : ''}
                     </ul>
                 `;
+                if (isConversations) {
+                    confirmHtml += `
+                        <div class="mb-3">
+                            <button id="ai-export-convos" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-download"></i> Export Found to CSV
+                            </button>
+                        </div>
+                    `;
+                }
             }
         }
 
@@ -673,6 +701,57 @@ async function executeOperation(parsed, token) {
         `;
 
         resultsSection.innerHTML = confirmHtml;
+
+        // Setup export for conversations
+        const exportBtn = document.getElementById('ai-export-convos');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', async () => {
+                const items = fetchResult.itemsRaw || fetchResult.items || [];
+                if (!items.length) {
+                    showAIAssistantToast('No conversations to export.', 'warning');
+                    return;
+                }
+
+                const escapeCsv = (value) => {
+                    const str = value === null || value === undefined ? '' : String(value);
+                    if (/[",\n]/.test(str)) {
+                        return `"${str.replace(/"/g, '""')}"`;
+                    }
+                    return str;
+                };
+
+                const header = ['message_id', 'subject', 'user_ids'];
+                const rows = items.map(item => {
+                    const messageId = item.id || item._id || '';
+                    const subject = item.subject || item.title || '';
+                    const userIds = Array.isArray(item.users) ? item.users.join('|') : '';
+                    return [messageId, subject, userIds].map(escapeCsv).join(',');
+                });
+                const csv = [header.join(','), ...rows].join('\n');
+
+                if (!window.electronAPI?.showSaveDialog || !window.electronAPI?.writeFile) {
+                    showAIAssistantToast('CSV export is not available in this environment.', 'danger');
+                    return;
+                }
+
+                const fileName = `conversations_${Date.now()}.csv`;
+                try {
+                    const saveResult = await window.electronAPI.showSaveDialog({
+                        defaultPath: fileName,
+                        filters: [{ name: 'CSV Files', extensions: ['csv'] }]
+                    });
+
+                    if (!saveResult || !saveResult.filePath) {
+                        return;
+                    }
+
+                    await window.electronAPI.writeFile(saveResult.filePath, csv);
+                    showAIAssistantToast(`CSV exported successfully.`, 'success');
+                } catch (error) {
+                    showAIAssistantToast(`CSV export failed: ${error.message}`, 'danger');
+                }
+            });
+        }
 
         // Setup select-all checkbox for module operations
         if (isRelockModules) {
