@@ -599,6 +599,146 @@ async function executeOperation(parsed, token) {
         return;
     }
 
+    // Handle comprehensive course creation with content - show confirmation
+    if (parsed.operation === 'create-course' && parsed.parameters) {
+        const params = parsed.parameters;
+        const hasContent = params.students > 0 || params.teachers > 0 ||
+            params.assignmentGroups > 0 || params.assignments > 0 ||
+            params.discussions > 0 || params.pages > 0 ||
+            params.modules > 0 || params.sections > 0;
+
+        if (hasContent) {
+            // Build a summary of what will be created
+            const summaryItems = [];
+            summaryItems.push(`<li><strong>Course:</strong> "${params.courseName || 'New Course'}"</li>`);
+
+            if (params.students > 0 || params.teachers > 0) {
+                const userParts = [];
+                if (params.students > 0) userParts.push(`${params.students} student(s)`);
+                if (params.teachers > 0) userParts.push(`${params.teachers} teacher(s)`);
+                summaryItems.push(`<li><strong>Users:</strong> ${userParts.join(', ')}</li>`);
+            }
+            if (params.assignmentGroups > 0) {
+                let groupText = `${params.assignmentGroups} assignment group(s)`;
+                if (params.assignmentsPerGroup > 0) {
+                    groupText += ` with ${params.assignmentsPerGroup} assignment(s) each`;
+                }
+                summaryItems.push(`<li><strong>Assignment Groups:</strong> ${groupText}</li>`);
+            }
+            if (params.assignments > 0) {
+                summaryItems.push(`<li><strong>Standalone Assignments:</strong> ${params.assignments}</li>`);
+            }
+            if (params.discussions > 0) {
+                summaryItems.push(`<li><strong>Discussions:</strong> ${params.discussions}</li>`);
+            }
+            if (params.pages > 0) {
+                summaryItems.push(`<li><strong>Pages:</strong> ${params.pages}</li>`);
+            }
+            if (params.modules > 0) {
+                summaryItems.push(`<li><strong>Modules:</strong> ${params.modules}</li>`);
+            }
+            if (params.sections > 0) {
+                summaryItems.push(`<li><strong>Sections:</strong> ${params.sections}</li>`);
+            }
+
+            resultsSection.innerHTML = `
+                <div class="card border-success mb-3">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Create Course with Content</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-3"><strong>The following will be created:</strong></p>
+                        <ul class="mb-3">
+                            ${summaryItems.join('')}
+                        </ul>
+                        ${(!params.email && (params.students > 0 || params.teachers > 0)) ? `
+                            <div class="alert alert-warning mb-3">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <strong>Email Required:</strong> To create users, please provide your email prefix.
+                                <input type="text" id="ai-course-email" class="form-control mt-2" 
+                                       placeholder="e.g., jsmith (from jsmith@instructure.com)">
+                            </div>
+                        ` : ''}
+                        <p class="text-info"><i class="bi bi-info-circle"></i> This may take a few moments depending on the amount of content.</p>
+                        <div class="d-flex gap-2">
+                            <button id="ai-course-create" class="btn btn-success">
+                                <i class="bi bi-plus-circle"></i> Create Course
+                            </button>
+                            <button id="ai-course-cancel" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('ai-course-create')?.addEventListener('click', async () => {
+                // Check if email is needed and provided
+                if ((params.students > 0 || params.teachers > 0) && !params.email) {
+                    const emailInput = document.getElementById('ai-course-email');
+                    if (emailInput && emailInput.value.trim()) {
+                        parsed.parameters.email = emailInput.value.trim();
+                    } else {
+                        alert('Please provide your email prefix to create users.');
+                        return;
+                    }
+                }
+                await performOperation(parsed, token, resultsSection, previewSection);
+            });
+
+            document.getElementById('ai-course-cancel')?.addEventListener('click', () => {
+                resultsSection.innerHTML = `
+                    <div class="alert alert-secondary">
+                        <p class="mb-0">Operation cancelled.</p>
+                    </div>
+                `;
+            });
+
+            return;
+        }
+    }
+
+    // Handle multi-step operations - show confirmation and execute directly
+    if (parsed.operation === 'multi-step' || (Array.isArray(parsed.steps) && parsed.steps.length > 0)) {
+        const steps = parsed.steps || [];
+        resultsSection.innerHTML = `
+            <div class="card border-warning mb-3">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-list-ol"></i> Multi-Step Operation</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3"><strong>This operation will execute ${steps.length} step(s):</strong></p>
+                    <ol class="mb-3">
+                        ${steps.map((step, i) => `<li>${step.operationInfo?.description || step.operation}</li>`).join('')}
+                    </ol>
+                    <p class="mb-3 text-danger"><strong>Are you sure you want to proceed?</strong></p>
+                    <div class="d-flex gap-2">
+                        <button id="ai-multistep-execute" class="btn btn-success">
+                            <i class="bi bi-play-circle"></i> Execute All Steps
+                        </button>
+                        <button id="ai-multistep-cancel" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('ai-multistep-execute')?.addEventListener('click', async () => {
+            await performOperation(parsed, token, resultsSection, previewSection);
+        });
+
+        document.getElementById('ai-multistep-cancel')?.addEventListener('click', () => {
+            resultsSection.innerHTML = `
+                <div class="alert alert-secondary">
+                    <p class="mb-0">Operation cancelled.</p>
+                </div>
+            `;
+        });
+
+        return;
+    }
+
     // Step 1: Fetch items for confirmation if needed
     resultsSection.innerHTML = `
         <div class="card mb-3">
@@ -783,7 +923,7 @@ async function executeOperation(parsed, token) {
                         <button id="ai-confirm-cancel" class="btn btn-secondary">
                             <i class="bi bi-x-circle"></i> Cancel
                         </button>
-                        <button id="ai-query-feedback" class="btn btn-outline-warning btn-sm">
+                        <button id="ai-query-feedback" class="btn btn-outline-secondary btn-sm">
                             <i class="bi bi-flag"></i> Report Issue
                         </button>
                     </div>
@@ -1173,6 +1313,25 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
                 resultHtml += `<p class="mb-1 text-warning"><strong>Failed:</strong> ${failedCount}</p>`;
             }
             resultHtml += '</div>';
+        } else if (res.course && res.course_id) {
+            // Course creation result - show course link
+            const courseUrl = `https://${parsed.parameters?.domain || 'canvas.instructure.com'}/courses/${res.course_id}`;
+            resultHtml += '<div class="mb-2">';
+            resultHtml += `<p class="mb-2"><strong>Course Created:</strong> <a href="${courseUrl}" target="_blank" class="text-decoration-none">${res.course.name || 'New Course'} <i class="bi bi-box-arrow-up-right"></i></a></p>`;
+            resultHtml += `<p class="mb-1"><strong>Course ID:</strong> ${res.course_id}</p>`;
+            if (res.message) {
+                resultHtml += `<p class="mb-1 text-muted">${res.message}</p>`;
+            }
+            // Show additional created content summary
+            if (res.users) resultHtml += `<p class="mb-1"><i class="bi bi-people"></i> Users enrolled: ${res.users}</p>`;
+            if (res.assignmentGroups?.successful?.length) resultHtml += `<p class="mb-1"><i class="bi bi-folder"></i> Assignment groups: ${res.assignmentGroups.successful.length}</p>`;
+            if (res.assignmentsInGroups) resultHtml += `<p class="mb-1"><i class="bi bi-file-earmark-text"></i> Assignments in groups: ${res.assignmentsInGroups}</p>`;
+            if (res.assignments?.successful?.length) resultHtml += `<p class="mb-1"><i class="bi bi-file-earmark-text"></i> Standalone assignments: ${res.assignments.successful.length}</p>`;
+            if (res.discussions) resultHtml += `<p class="mb-1"><i class="bi bi-chat-left-text"></i> Discussions: ${res.discussions}</p>`;
+            if (res.pages) resultHtml += `<p class="mb-1"><i class="bi bi-file-richtext"></i> Pages: ${res.pages}</p>`;
+            if (res.modules) resultHtml += `<p class="mb-1"><i class="bi bi-collection"></i> Modules: ${res.modules}</p>`;
+            if (res.sections) resultHtml += `<p class="mb-1"><i class="bi bi-diagram-3"></i> Sections: ${res.sections}</p>`;
+            resultHtml += '</div>';
         } else {
             // Generic result
             resultHtml += `
@@ -1186,7 +1345,7 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
         resultHtml += `
                     <hr>
                     <div class="d-flex gap-2">
-                        <button id="ai-result-feedback-btn" class="btn btn-sm btn-outline-warning">
+                        <button id="ai-result-feedback-btn" class="btn btn-sm btn-outline-secondary">
                             <i class="bi bi-flag"></i> Report Issue with Results
                         </button>
                     </div>

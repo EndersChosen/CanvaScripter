@@ -389,6 +389,22 @@ const OPERATION_MAP = {
         requiredParams: ['domain', 'token', 'accountId'],
         needsFetch: false
     },
+    'create-course': {
+        handler: 'axios:createBasicCourse',
+        description: 'Create a new course with optional content (users, assignment groups, assignments, discussions, pages, modules, sections)',
+        requiredParams: ['domain', 'token'],
+        optionalParams: [
+            'courseName', 'courseCode', 'publish',
+            'students', 'teachers', 'email',
+            'assignmentGroups', 'assignmentsPerGroup', 'groupPrefix',
+            'assignments', 'assignmentName',
+            'discussions', 'discussionTitle',
+            'pages', 'pageTitle',
+            'modules', 'modulePrefix',
+            'sections', 'sectionPrefix'
+        ],
+        needsFetch: false
+    },
     'create-basic-course': {
         handler: 'axios:createBasicCourse',
         description: 'Create a basic course',
@@ -743,18 +759,75 @@ Extract:
 8. summary: Human-readable description of what will be done
 9. warnings: Any potential issues or confirmations needed
 
+=== COMPREHENSIVE COURSE CREATION ===
+When user wants to create a course WITH content (users, assignments, discussions, etc.), use the single "create-course" operation with all parameters.
+
+IMPORTANT: Do NOT use multi-step for course creation with content. Use the SINGLE "create-course" operation with these parameters:
+- courseName: Name of the course (required)
+- publish: true/false (default false)
+- students: Number of students to create and enroll (requires email parameter)
+- teachers: Number of teachers to create and enroll (requires email parameter)
+- email: Your email address prefix for generating test users (e.g., "jsmith" from "jsmith@instructure.com")
+- assignmentGroups: Number of assignment groups to create
+- assignmentsPerGroup: Number of assignments per group (default 1 if assignmentGroups specified)
+- groupPrefix: Prefix for assignment group names (default "Assignment Group")
+- assignments: Number of standalone assignments (outside groups)
+- assignmentName: Name prefix for assignments
+- discussions: Number of discussions to create
+- discussionTitle: Title prefix for discussions
+- pages: Number of pages to create
+- pageTitle: Title prefix for pages
+- modules: Number of modules to create
+- modulePrefix: Prefix for module names
+- sections: Number of sections to create
+- sectionPrefix: Prefix for section names
+
+Examples:
+- "Create a course named 'Test Course' with 3 students, 5 assignment groups with 2 assignments each, and 10 modules"
+  -> operation: "create-course", parameters: { 
+       courseName: "Test Course", 
+       students: 3, 
+       email: (ask user for email if not provided),
+       assignmentGroups: 5, 
+       assignmentsPerGroup: 2, 
+       modules: 10 
+     }
+
+- "Create a course with 1 discussion, 1 page, and 3 sections"
+  -> operation: "create-course", parameters: { 
+       discussions: 1, 
+       pages: 1, 
+       sections: 3 
+     }
+
+- "Create course 'My Course' with 2 teachers, 5 students, 10 modules and 3 sections"
+  -> operation: "create-course", parameters: { 
+       courseName: "My Course", 
+       teachers: 2, 
+       students: 5, 
+       modules: 10, 
+       sections: 3 
+     }
+
 === MULTI-STEP PARSING ===
-If the user asks for multiple actions in sequence (e.g., create course, add users, create groups, create assignments), return a "steps" array:
+If the user asks for multiple actions in sequence that CANNOT be combined into create-course, return a "steps" array.
+
+IMPORTANT: For creating assignment groups WITH assignments in each group, use the SINGLE operation "create-assignment-groups" with "assignmentsPerGroup" parameter - do NOT use multi-step for this common case.
+
+Example: "Create 10 assignment groups with 2 assignments each in course 123"
+-> Single operation: { "operation": "create-assignment-groups", "parameters": { "number": 10, "assignmentsPerGroup": 2, "courseId": "123", ... } }
+
+Only use multi-step when operations are truly sequential and independent (e.g., creating a course and then doing something that requires the course ID in a separate context):
 "steps": [
-    { "operation": "create-course", "parameters": { ... } },
-    { "operation": "add-users-to-course", "parameters": { ... } },
-    { "operation": "create-assignment-groups", "parameters": { ... } },
-    { "operation": "create-assignments", "parameters": { ... } }
+    { "operation": "create-course", "parameters": { "accountId": "1", "courseName": "My Course", "courseCode": "MC101" } },
+    { "operation": "create-assignment-groups", "parameters": { "courseId": "{{steps.0.result.course.id}}", "number": 10, "assignmentsPerGroup": 2 } }
 ]
+
 Use "summary" to describe the overall workflow.
 If a later step needs data from an earlier step, you may reference template tokens like:
-- "{{steps.0.result.course_id}}"
-- "{{steps.1.result.groupIds}}"
+- "{{steps.0.result.course.id}}" - course ID from step 0
+- "{{steps.0.result.course_id}}" - alternative course ID path
+- "{{steps.1.result.groupIds}}" - array of group IDs from step 1
 You may also use "forEach" to repeat a step for a list (e.g., for each group ID):
 { "operation": "create-assignments", "forEach": "groupIds", "parameters": { "assignment_group_id": "{{item}}", ... } }
 
@@ -2162,6 +2235,409 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                                 message: `Created ${totalGroups} assignment groups with ${assignmentsPerGroup} assignment(s) each (${totalAssignments} total)`
                             }
                         };
+                    }
+                }
+
+                // Special case: create-course needs to call the Canvas API directly with proper structure
+                // and optionally create all requested content (users, groups, assignments, etc.)
+                if (operation === 'create-course' || operation === 'create-basic-course') {
+                    const { createSupportCourse } = require('../../shared/canvas-api/courses');
+                    const { createAssignmentGroups } = require('../../shared/canvas-api/assignment_groups');
+                    const { createAssignments } = require('../../shared/canvas-api/assignments');
+                    const { createDiscussion } = require('../../shared/canvas-api/discussions');
+                    const { createPage } = require('../../shared/canvas-api/pages');
+                    const { createModule } = require('../../shared/canvas-api/modules');
+                    const { createSection } = require('../../shared/canvas-api/sections');
+
+                    // Calculate total steps for progress tracking
+                    const hasUsers = (fullParams.students > 0 || fullParams.teachers > 0) && fullParams.email;
+                    const hasAssignmentGroups = fullParams.assignmentGroups > 0;
+                    const hasAssignments = fullParams.assignments > 0;
+                    const hasDiscussions = fullParams.discussions > 0;
+                    const hasPages = fullParams.pages > 0;
+                    const hasModules = fullParams.modules > 0;
+                    const hasSections = fullParams.sections > 0;
+
+                    let totalSteps = 1; // Course creation
+                    if (hasUsers) totalSteps += 2; // Create users + enroll
+                    if (hasAssignmentGroups) totalSteps += 1;
+                    if (hasAssignments) totalSteps += 1;
+                    if (hasDiscussions) totalSteps += 1;
+                    if (hasPages) totalSteps += 1;
+                    if (hasModules) totalSteps += 1;
+                    if (hasSections) totalSteps += 1;
+
+                    let currentStep = 0;
+                    const results = {};
+
+                    try {
+                        // Step 1: Create the course
+                        sendProgress(event, {
+                            mode: 'determinate',
+                            processed: currentStep,
+                            total: totalSteps,
+                            label: 'Creating course...'
+                        });
+
+                        const courseData = {
+                            domain: fullParams.domain,
+                            token: fullParams.token,
+                            course: {
+                                name: fullParams.courseName || fullParams.name || 'New Course',
+                                publish: fullParams.publish || false
+                            }
+                        };
+
+                        const course = await createSupportCourse(courseData);
+                        results.course = course;
+                        currentStep++;
+
+                        const courseId = course.id;
+                        const baseParams = {
+                            domain: fullParams.domain,
+                            token: fullParams.token,
+                            course_id: courseId
+                        };
+
+                        // Step 2: Create users and enroll them (if requested)
+                        if (hasUsers) {
+                            sendProgress(event, {
+                                mode: 'determinate',
+                                processed: currentStep,
+                                total: totalSteps,
+                                label: `Creating ${(fullParams.students || 0) + (fullParams.teachers || 0)} users...`
+                            });
+
+                            try {
+                                const { addUsers, enrollUser } = require('../../shared/canvas-api/users');
+                                const usersCreated = [];
+                                const emailPrefix = fullParams.email.includes('@')
+                                    ? fullParams.email.split('@')[0]
+                                    : fullParams.email;
+
+                                // Helper function to generate a random string for unique IDs
+                                const randomSuffix = () => Math.floor(Math.random() * 10000);
+
+                                // Create student accounts
+                                for (let i = 1; i <= (fullParams.students || 0); i++) {
+                                    const uniqueId = `student${i}_${randomSuffix()}`;
+                                    const studentData = {
+                                        domain: fullParams.domain,
+                                        token: fullParams.token,
+                                        user: {
+                                            user: {
+                                                name: `Test Student ${i}`,
+                                                skip_registration: true
+                                            },
+                                            pseudonym: {
+                                                unique_id: uniqueId,
+                                                send_confirmation: false
+                                            },
+                                            communication_channel: {
+                                                type: 'email',
+                                                address: `${emailPrefix}+${uniqueId}@instructure.com`,
+                                                skip_confirmation: true
+                                            }
+                                        }
+                                    };
+                                    try {
+                                        const userId = await addUsers(studentData);
+                                        usersCreated.push({ userId, role: 'StudentEnrollment' });
+                                    } catch (e) {
+                                        console.error(`Failed to create student ${i}:`, e);
+                                    }
+                                }
+
+                                // Create teacher accounts
+                                for (let i = 1; i <= (fullParams.teachers || 0); i++) {
+                                    const uniqueId = `teacher${i}_${randomSuffix()}`;
+                                    const teacherData = {
+                                        domain: fullParams.domain,
+                                        token: fullParams.token,
+                                        user: {
+                                            user: {
+                                                name: `Test Teacher ${i}`,
+                                                skip_registration: true
+                                            },
+                                            pseudonym: {
+                                                unique_id: uniqueId,
+                                                send_confirmation: false
+                                            },
+                                            communication_channel: {
+                                                type: 'email',
+                                                address: `${emailPrefix}+${uniqueId}@instructure.com`,
+                                                skip_confirmation: true
+                                            }
+                                        }
+                                    };
+                                    try {
+                                        const userId = await addUsers(teacherData);
+                                        usersCreated.push({ userId, role: 'TeacherEnrollment' });
+                                    } catch (e) {
+                                        console.error(`Failed to create teacher ${i}:`, e);
+                                    }
+                                }
+
+                                currentStep++;
+
+                                // Enroll users
+                                sendProgress(event, {
+                                    mode: 'determinate',
+                                    processed: currentStep,
+                                    total: totalSteps,
+                                    label: `Enrolling ${usersCreated.length} users...`
+                                });
+
+                                for (const { userId, role } of usersCreated) {
+                                    try {
+                                        await enrollUser({
+                                            domain: fullParams.domain,
+                                            token: fullParams.token,
+                                            course_id: courseId,
+                                            user_id: userId,
+                                            type: role
+                                        });
+                                    } catch (e) {
+                                        console.error(`Failed to enroll user:`, e);
+                                    }
+                                }
+
+                                results.users = usersCreated.length;
+                                currentStep++;
+                            } catch (e) {
+                                console.error('User creation/enrollment failed:', e);
+                                results.usersError = e.message || String(e);
+                            }
+                        }
+
+                        // Step 3: Create assignment groups (with optional assignments in each)
+                        if (hasAssignmentGroups) {
+                            sendProgress(event, {
+                                mode: 'determinate',
+                                processed: currentStep,
+                                total: totalSteps,
+                                label: `Creating ${fullParams.assignmentGroups} assignment groups...`
+                            });
+
+                            try {
+                                const groupData = {
+                                    domain: fullParams.domain,
+                                    token: fullParams.token,
+                                    course: courseId,
+                                    number: fullParams.assignmentGroups,
+                                    name: fullParams.groupPrefix || 'Assignment Group'
+                                };
+
+                                const groupResult = await createAssignmentGroups(groupData);
+                                results.assignmentGroups = groupResult;
+
+                                // If assignmentsPerGroup specified, create assignments in each group
+                                if (fullParams.assignmentsPerGroup > 0 && groupResult.successful) {
+                                    const assignmentsPerGroup = fullParams.assignmentsPerGroup || 1;
+                                    const assignmentName = fullParams.assignmentName || 'Assignment';
+                                    let assignmentCount = 0;
+
+                                    for (const group of groupResult.successful) {
+                                        const groupId = group.value?.id || group.value;
+                                        if (!groupId) continue;
+
+                                        const assignData = {
+                                            domain: fullParams.domain,
+                                            token: fullParams.token,
+                                            course_id: courseId,
+                                            number: assignmentsPerGroup,
+                                            name: assignmentName,
+                                            points: fullParams.points || 0,
+                                            submissionTypes: fullParams.submissionTypes || ['online_upload'],
+                                            publish: fullParams.publish || false,
+                                            assignment_group_id: groupId
+                                        };
+
+                                        try {
+                                            await createAssignments(assignData);
+                                            assignmentCount += assignmentsPerGroup;
+                                        } catch (e) {
+                                            console.error(`Failed to create assignments in group ${groupId}:`, e);
+                                        }
+                                    }
+                                    results.assignmentsInGroups = assignmentCount;
+                                }
+                            } catch (e) {
+                                console.error('Assignment group creation failed:', e);
+                                results.assignmentGroupsError = e.message || String(e);
+                            }
+                            currentStep++;
+                        }
+
+                        // Step 4: Create standalone assignments (if requested)
+                        if (hasAssignments) {
+                            sendProgress(event, {
+                                mode: 'determinate',
+                                processed: currentStep,
+                                total: totalSteps,
+                                label: `Creating ${fullParams.assignments} assignments...`
+                            });
+
+                            try {
+                                const assignData = {
+                                    ...baseParams,
+                                    number: fullParams.assignments,
+                                    name: fullParams.assignmentName || 'Assignment',
+                                    points: fullParams.points || 0,
+                                    submissionTypes: fullParams.submissionTypes || ['online_upload'],
+                                    publish: fullParams.publish || false
+                                };
+                                const assignResult = await createAssignments(assignData);
+                                results.assignments = assignResult;
+                            } catch (e) {
+                                console.error('Assignment creation failed:', e);
+                                results.assignmentsError = e.message || String(e);
+                            }
+                            currentStep++;
+                        }
+
+                        // Step 5: Create discussions
+                        if (hasDiscussions) {
+                            sendProgress(event, {
+                                mode: 'determinate',
+                                processed: currentStep,
+                                total: totalSteps,
+                                label: `Creating ${fullParams.discussions} discussions...`
+                            });
+
+                            try {
+                                const discussionsCreated = [];
+                                for (let i = 1; i <= fullParams.discussions; i++) {
+                                    const discussionData = {
+                                        ...baseParams,
+                                        title: `${fullParams.discussionTitle || 'Discussion'} ${i}`,
+                                        message: '',
+                                        published: fullParams.publish || false
+                                    };
+                                    const disc = await createDiscussion(discussionData);
+                                    discussionsCreated.push(disc);
+                                }
+                                results.discussions = discussionsCreated.length;
+                            } catch (e) {
+                                console.error('Discussion creation failed:', e);
+                                results.discussionsError = e.message || String(e);
+                            }
+                            currentStep++;
+                        }
+
+                        // Step 6: Create pages
+                        if (hasPages) {
+                            sendProgress(event, {
+                                mode: 'determinate',
+                                processed: currentStep,
+                                total: totalSteps,
+                                label: `Creating ${fullParams.pages} pages...`
+                            });
+
+                            try {
+                                const pagesCreated = [];
+                                for (let i = 1; i <= fullParams.pages; i++) {
+                                    const pageData = {
+                                        ...baseParams,
+                                        title: `${fullParams.pageTitle || 'Page'} ${i}`,
+                                        body: '',
+                                        published: fullParams.publish || false
+                                    };
+                                    const page = await createPage(pageData);
+                                    pagesCreated.push(page);
+                                }
+                                results.pages = pagesCreated.length;
+                            } catch (e) {
+                                console.error('Page creation failed:', e);
+                                results.pagesError = e.message || String(e);
+                            }
+                            currentStep++;
+                        }
+
+                        // Step 7: Create modules
+                        if (hasModules) {
+                            sendProgress(event, {
+                                mode: 'determinate',
+                                processed: currentStep,
+                                total: totalSteps,
+                                label: `Creating ${fullParams.modules} modules...`
+                            });
+
+                            try {
+                                const modulesCreated = [];
+                                for (let i = 1; i <= fullParams.modules; i++) {
+                                    const moduleData = {
+                                        ...baseParams,
+                                        module_name: `${fullParams.modulePrefix || 'Module'} ${i}`
+                                    };
+                                    const mod = await createModule(moduleData);
+                                    modulesCreated.push(mod);
+                                }
+                                results.modules = modulesCreated.length;
+                            } catch (e) {
+                                console.error('Module creation failed:', e);
+                                results.modulesError = e.message || String(e);
+                            }
+                            currentStep++;
+                        }
+
+                        // Step 8: Create sections
+                        if (hasSections) {
+                            sendProgress(event, {
+                                mode: 'determinate',
+                                processed: currentStep,
+                                total: totalSteps,
+                                label: `Creating ${fullParams.sections} sections...`
+                            });
+
+                            try {
+                                const sectionsCreated = [];
+                                for (let i = 1; i <= fullParams.sections; i++) {
+                                    const sectionData = {
+                                        ...baseParams,
+                                        name: `${fullParams.sectionPrefix || 'Section'} ${i}`
+                                    };
+                                    const section = await createSection(sectionData);
+                                    sectionsCreated.push(section);
+                                }
+                                results.sections = sectionsCreated.length;
+                            } catch (e) {
+                                console.error('Section creation failed:', e);
+                                results.sectionsError = e.message || String(e);
+                            }
+                            currentStep++;
+                        }
+
+                        // Build summary message
+                        const summaryParts = [`Created course "${course.name}" (ID: ${course.id})`];
+                        if (results.users) summaryParts.push(`${results.users} users enrolled`);
+                        if (results.assignmentGroups?.successful?.length) {
+                            summaryParts.push(`${results.assignmentGroups.successful.length} assignment groups`);
+                        }
+                        if (results.assignmentsInGroups) summaryParts.push(`${results.assignmentsInGroups} assignments in groups`);
+                        if (results.assignments) summaryParts.push(`${results.assignments.successful?.length || fullParams.assignments} standalone assignments`);
+                        if (results.discussions) summaryParts.push(`${results.discussions} discussions`);
+                        if (results.pages) summaryParts.push(`${results.pages} pages`);
+                        if (results.modules) summaryParts.push(`${results.modules} modules`);
+                        if (results.sections) summaryParts.push(`${results.sections} sections`);
+
+                        sendProgress(event, {
+                            mode: 'done',
+                            label: summaryParts.join(', ')
+                        });
+
+                        return {
+                            success: true,
+                            result: {
+                                course: course,
+                                course_id: course.id,
+                                ...results,
+                                message: summaryParts.join(', ')
+                            }
+                        };
+                    } catch (error) {
+                        console.error('Failed to create course:', error);
+                        throw new Error(`Failed to create course: ${error.message || error}`);
                     }
                 }
 
