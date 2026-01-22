@@ -856,7 +856,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
                 domain: data.domain,
                 token: data.token,
                 course_id: data.course_id,
-                module_id: data.module_ids[i].id
+                module_id: data.module_ids[i].id || data.module_ids[i]
             };
             requests.push({ id: i + 1, request: () => request(requestData) });
         }
@@ -894,12 +894,14 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
             // Check if the course has modules
             const currentModules = await modules.getModules(data);
             const requests = [];
+            const prefix = data.name || data.prefix || "Module";
+
             for (let i = 0; i < totalRequests; i++) {
                 const requestData = {
                     domain: data.domain,
                     token: data.token,
                     course_id: data.course_id,
-                    module_name: "Module " + (currentModules.length + i + 1)
+                    module_name: `${prefix} ${currentModules.length + i + 1}`
                 };
                 requests.push({ id: i + 1, request: () => request(requestData) });
             }

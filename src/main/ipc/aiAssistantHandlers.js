@@ -465,6 +465,7 @@ const OPERATION_MAP = {
         handler: 'axios:createModules',
         description: 'Create modules in a course',
         requiredParams: ['domain', 'token', 'courseId', 'number', 'prefix'],
+        optionalParams: ['name'],
         needsFetch: false
     },
     'relock-modules': {
@@ -1206,6 +1207,27 @@ IMPORTANT: For import-related assignments:
 - If user explicitly says "from all imports" or "from every import":
   * Set operation to "delete-all-imported-assignments"
   * Set confidence normally
+
+=== MODULE OPERATIONS PARSING ===
+For module operations, extract these parameters:
+- number: How many modules to create (default 1)
+- prefix: Base name for modules (default "Module")
+  * "create 5 modules" -> prefix="Module"
+  * "create 3 modules named 'Week'" -> prefix="Week"
+- filters: { empty: true } for "delete empty modules"
+  * Set this when user says "delete empty modules", "remove empty modules", etc.
+
+Module examples:
+- "Create 5 modules in course 123"
+  -> operation: "create-modules", number: 5, prefix: "Module"
+- "Create 10 modules named 'Unit' in course 456"
+  -> operation: "create-modules", number: 10, prefix: "Unit"
+- "Delete all empty modules from course 789"
+  -> operation: "delete-modules", filters: { empty: true }
+- "Relock modules in course 123"
+  -> operation: "relock-modules"
+- "Count modules in course 123"
+  -> operation: "get-modules", queryType: "count"
 
 Respond ONLY with valid JSON in this exact format:
 {
@@ -2049,7 +2071,9 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     domain: fullParams.domain,
                     token: fullParams.token,
                     course_id: fullParams.courseId || fullParams.course_id,
-                    filters: opInfo.filters
+                    filters: opInfo.filters,
+                    // Pass specific filters that handlers implementation supports directly
+                    emptyModules: fullParams.filters?.empty
                 });
 
                 console.log('AI Assistant: Fetching items with params:', fetchParams);
