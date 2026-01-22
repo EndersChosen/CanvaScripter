@@ -289,8 +289,25 @@ const OPERATION_MAP = {
         handler: 'axios:createAssignments',
         description: 'Create assignments in a course',
         requiredParams: ['domain', 'token', 'courseId', 'number', 'name'],
-        optionalParams: ['points', 'submissionTypes', 'publish', 'grade_type', 'peer_reviews', 'peer_review_count', 'anonymous'],
+        optionalParams: ['points', 'submissionTypes', 'publish', 'grade_type', 'peer_reviews', 'peer_review_count', 'anonymous', 'assignmentGroupId', 'assignment_group_id'],
         needsFetch: false
+    },
+
+    'get-empty-assignment-groups': {
+        handler: 'axios:getEmptyAssignmentGroups',
+        description: 'Get empty assignment groups in a course',
+        requiredParams: ['domain', 'token', 'courseId'],
+        needsFetch: false,
+        isQuery: true
+    },
+    'create-assignments-in-empty-groups': {
+        fetchHandler: 'axios:getEmptyAssignmentGroups',
+        createHandler: 'axios:createAssignments',
+        description: 'Create an assignment in each empty assignment group in a course',
+        requiredParams: ['domain', 'token', 'courseId'],
+        optionalParams: ['name', 'points', 'submissionTypes', 'publish', 'number'],
+        needsFetch: true,
+        isCreateInEach: true
     },
 
     // ==================== Assignment Group Operations ====================
@@ -304,7 +321,8 @@ const OPERATION_MAP = {
     'create-assignment-groups': {
         handler: 'axios:createAssignmentGroups',
         description: 'Create assignment groups in a course',
-        requiredParams: ['domain', 'token', 'courseId', 'number', 'prefix'],
+        requiredParams: ['domain', 'token', 'courseId', 'number'],
+        optionalParams: ['prefix', 'name', 'groupPrefix', 'assignmentsPerGroup', 'assignments_per_group', 'assignmentName', 'assignment_name'],
         needsFetch: false
     },
     'delete-assignment-group-with-assignments': {
@@ -706,7 +724,8 @@ Available operations:
 ${Object.entries(OPERATION_MAP).map(([key, op]) => `- ${key}: ${op.description}`).join('\n')}
 
 Extract:
-1. operation: The operation key from the list above
+1. operation: The operation key from the list above (single-step requests)
+    - For multi-step requests, omit operation and instead return "steps" (see below)
 2. domain: Canvas domain (e.g., "school.instructure.com")
 3. courseId: Course ID from URL (e.g., "6986" from "/courses/6986")
 4. importId: Import/migration ID if the user specifies "from import X" or "migration ID X"
@@ -723,6 +742,21 @@ Extract:
    - These operations fetch data and return it to the user without modifying anything
 8. summary: Human-readable description of what will be done
 9. warnings: Any potential issues or confirmations needed
+
+=== MULTI-STEP PARSING ===
+If the user asks for multiple actions in sequence (e.g., create course, add users, create groups, create assignments), return a "steps" array:
+"steps": [
+    { "operation": "create-course", "parameters": { ... } },
+    { "operation": "add-users-to-course", "parameters": { ... } },
+    { "operation": "create-assignment-groups", "parameters": { ... } },
+    { "operation": "create-assignments", "parameters": { ... } }
+]
+Use "summary" to describe the overall workflow.
+If a later step needs data from an earlier step, you may reference template tokens like:
+- "{{steps.0.result.course_id}}"
+- "{{steps.1.result.groupIds}}"
+You may also use "forEach" to repeat a step for a list (e.g., for each group ID):
+{ "operation": "create-assignments", "forEach": "groupIds", "parameters": { "assignment_group_id": "{{item}}", ... } }
 
 For conversation operations:
 - Extract userId: Canvas user ID for the sender (e.g., "user 123")
@@ -792,6 +826,27 @@ Conversation examples:
 Assignment group example:
 - "Delete all assignments in the 'Assignments #2' assignment group from https://school.com/courses/123"
     -> operation: "delete-assignments-in-assignment-group", groupName: "Assignments #2"
+
+=== CREATING ASSIGNMENTS IN EMPTY GROUPS ===
+When user wants to create assignment(s) in every empty assignment group:
+- Use operation: "create-assignments-in-empty-groups"
+- This automatically finds all empty groups and creates assignment(s) in each
+- Parameters: name (assignment name), number (assignments per group, default 1), points, submissionTypes, publish
+
+Examples:
+- "Create an assignment in every empty assignment group in course 123"
+    -> operation: "create-assignments-in-empty-groups", number: 1
+- "Add 2 assignments to each empty group in https://school.com/courses/456"
+    -> operation: "create-assignments-in-empty-groups", number: 2
+- "Fill empty assignment groups with assignments named 'Placeholder' in course 789"
+    -> operation: "create-assignments-in-empty-groups", name: "Placeholder"
+
+For creating assignment groups AND assignments in each group:
+- Use operation "create-assignment-groups"
+- Set number to the number of groups
+- Set assignmentsPerGroup to how many assignments to create per group
+- Use groupPrefix (or prefix/name) for group naming
+- Use assignmentName for the assignments' base name
 
    - publish: true/false (default false)
 7. summary: Human-readable description of what will be done
@@ -906,13 +961,24 @@ Respond ONLY with valid JSON in this exact format:
 {
   "operation": "operation-key",
   "needsImportChoice": true,
+    "steps": [
+        {
+            "operation": "operation-key",
+            "forEach": "optionalContextArrayName",
+            "parameters": { "domain": "..." }
+        }
+    ],
   "parameters": {
     "domain": "extracted-domain",
     "courseId": "extracted-id",
         "userId": "canvas-user-id",
         "groupName": "assignment group name",
+        "assignmentGroupId": "optional assignment group id",
     "importId": "12345",
     "number": 10,
+    "assignmentsPerGroup": 2,
+    "groupPrefix": "Assignment Group",
+    "assignmentName": "Assignment",
     "name": "Assignment Name",
     "title": "Announcement Title",
     "generateTitles": true,
@@ -987,7 +1053,20 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
             }
 
             // Parse and validate the response
-            const parsed = JSON.parse(cleanedText);
+            let parsed;
+            try {
+                parsed = JSON.parse(cleanedText);
+            } catch (parseError) {
+                // Attempt to extract the first JSON object from mixed content
+                const firstBrace = cleanedText.indexOf('{');
+                const lastBrace = cleanedText.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    const jsonSlice = cleanedText.slice(firstBrace, lastBrace + 1);
+                    parsed = JSON.parse(jsonSlice);
+                } else {
+                    throw parseError;
+                }
+            }
 
             // Preserve exact subject (including whitespace) for conversation operations
             if (parsed?.operation && parsed.operation.includes('conversation')) {
@@ -1024,18 +1103,49 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 }
             }
 
-            // Validate operation exists
-            if (parsed.operation && !OPERATION_MAP[parsed.operation]) {
-                return {
-                    success: false,
-                    error: 'Unknown operation',
-                    parsed
-                };
-            }
+            // Handle multi-step responses
+            if (Array.isArray(parsed.steps) && parsed.steps.length > 0) {
+                const fallbackDomain = normalizeDomain(parsed?.parameters?.domain || extractDomainFromPrompt(prompt));
+                const fallbackCourseId = parsed?.parameters?.courseId || extractCourseIdFromPrompt(prompt);
 
-            // Add operation metadata
-            if (parsed.operation && OPERATION_MAP[parsed.operation]) {
-                parsed.operationInfo = OPERATION_MAP[parsed.operation];
+                parsed.steps = parsed.steps.map((step, index) => {
+                    const stepOp = step.operation;
+                    if (!stepOp || !OPERATION_MAP[stepOp]) {
+                        throw new Error(`Unknown operation in steps[${index}]`);
+                    }
+                    const stepParams = step.parameters || {};
+
+                    const normalizedDomain = normalizeDomain(stepParams.domain || fallbackDomain);
+                    if (normalizedDomain) stepParams.domain = normalizedDomain;
+
+                    if (!stepParams.courseId) {
+                        const courseId = stepParams.course_id || fallbackCourseId;
+                        if (courseId) stepParams.courseId = courseId;
+                    }
+
+                    return {
+                        ...step,
+                        parameters: stepParams,
+                        operationInfo: OPERATION_MAP[stepOp]
+                    };
+                });
+
+                parsed.operation = 'multi-step';
+                parsed.operationInfo = { description: 'Multi-step workflow' };
+            } else {
+                // Validate operation exists
+                if (parsed.operation && !OPERATION_MAP[parsed.operation]) {
+                    return {
+                        success: false,
+                        error: 'Unknown operation',
+                        parsed
+                    };
+                }
+
+                // Add operation metadata
+                if (parsed.operation && OPERATION_MAP[parsed.operation]) {
+                    parsed.operationInfo = OPERATION_MAP[parsed.operation];
+                }
             }
 
             return {
@@ -1150,12 +1260,13 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
             // Prepare fetch parameters
             // Special handling for conversations and assignment groups
             const isConversationOp = operation.includes('conversation');
+            const isEmptyGroupsOp = operation === 'create-assignments-in-empty-groups' || operation === 'delete-empty-assignment-groups';
             const fetchParams = isConversationOp ? {
                 domain: fullParams.domain,
                 token: fullParams.token,
                 user_id: fullParams.userId || fullParams.user_id,
                 subject: fullParams.subject
-            } : (operation.includes('assignment-group') ? {
+            } : (operation.includes('assignment-group') || isEmptyGroupsOp ? {
                 domain: fullParams.domain,
                 token: fullParams.token,
                 course: fullParams.courseId || fullParams.course_id,
@@ -1330,6 +1441,12 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
             // For other operations, only return first 5 as preview
             const itemsToReturn = operation === 'relock-modules' ? items : items.slice(0, 5);
 
+            // Custom message for create-in-each operations
+            const isCreateInEach = opInfo.isCreateInEach;
+            const actionMessage = isCreateInEach
+                ? `Will create assignment(s) in ${items.length} empty assignment group(s)`
+                : undefined;
+
             return {
                 success: true,
                 needsConfirmation: true,
@@ -1344,7 +1461,9 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     };
                 }),
                 operation: operation,
-                filters: opInfo.filters
+                filters: opInfo.filters,
+                isCreateInEach: isCreateInEach,
+                actionMessage: actionMessage
             };
 
         } catch (error) {
@@ -1356,8 +1475,55 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
         }
     });
 
-    // Execute the parsed operation
-    ipcMain.handle('ai-assistant:executeOperation', async (event, { operation, parameters, token, confirmed }) => {
+    function resolvePathValue(source, path) {
+        if (!source || !path) return undefined;
+        const tokens = String(path)
+            .replace(/\[(\d+)\]/g, '.$1')
+            .split('.')
+            .filter(Boolean);
+
+        let current = source;
+        for (const token of tokens) {
+            if (current == null) return undefined;
+            current = current[token];
+        }
+        return current;
+    }
+
+    function resolveTemplateString(text, context) {
+        if (typeof text !== 'string') return text;
+        return text.replace(/\{\{\s*([^}]+)\s*\}\}/g, (match, path) => {
+            const value = resolvePathValue(context, path.trim());
+            if (value === undefined || value === null) return '';
+            if (typeof value === 'object') return JSON.stringify(value);
+            return String(value);
+        });
+    }
+
+    function resolveTemplatesDeep(value, context) {
+        if (typeof value === 'string') return resolveTemplateString(value, context);
+        if (Array.isArray(value)) return value.map(item => resolveTemplatesDeep(item, context));
+        if (value && typeof value === 'object') {
+            return Object.entries(value).reduce((acc, [key, val]) => {
+                acc[key] = resolveTemplatesDeep(val, context);
+                return acc;
+            }, {});
+        }
+        return value;
+    }
+
+    function resolveForEachList(forEachDef, context) {
+        if (!forEachDef) return null;
+        if (typeof forEachDef === 'string') {
+            return resolvePathValue(context, forEachDef);
+        }
+        if (typeof forEachDef === 'object' && forEachDef.list) {
+            return resolvePathValue(context, forEachDef.list);
+        }
+        return null;
+    }
+
+    async function executeSingleOperation(event, { operation, parameters, token, confirmed }) {
         try {
             const opInfo = OPERATION_MAP[operation];
             if (!opInfo) {
@@ -1407,6 +1573,9 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     dataType = 'modules';
                 } else if (fetchResult.groups) {
                     items = fetchResult.groups;
+                    dataType = 'assignment groups';
+                } else if (operation === 'get-empty-assignment-groups' && Array.isArray(fetchResult)) {
+                    items = fetchResult;
                     dataType = 'assignment groups';
                 } else if (fetchResult.discussions) {
                     items = fetchResult.discussions;
@@ -1525,6 +1694,9 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                             count: items.length,
                             dataType: dataType,
                             items: summary,
+                            ...(operation === 'get-empty-assignment-groups' && {
+                                groupIds: items.map(item => item.id || item._id).filter(Boolean)
+                            }),
                             summary: `Found ${items.length} ${dataType}. Showing first ${summary.length}.`
                         }
                     };
@@ -1537,6 +1709,9 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                             count: items.length,
                             dataType: dataType,
                             items: items,
+                            ...(operation === 'get-empty-assignment-groups' && {
+                                groupIds: items.map(item => item.id || item._id).filter(Boolean)
+                            }),
                             summary: `Retrieved ${items.length} ${dataType} with full details`
                         }
                     };
@@ -1568,12 +1743,13 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 // Prepare fetch parameters - map courseId to course_id
                 // Special handling for conversations and assignment groups
                 const isConversationOp = operation.includes('conversation');
+                const isEmptyGroupsOp = operation === 'create-assignments-in-empty-groups' || operation === 'delete-empty-assignment-groups';
                 const fetchParams = isConversationOp ? {
                     domain: fullParams.domain,
                     token: fullParams.token,
                     user_id: fullParams.userId || fullParams.user_id,
                     subject: fullParams.subject
-                } : (operation.includes('assignment-group') ? {
+                } : (operation.includes('assignment-group') || isEmptyGroupsOp ? {
                     domain: fullParams.domain,
                     token: fullParams.token,
                     course: fullParams.courseId || fullParams.course_id,
@@ -1690,6 +1866,106 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     return item;
                 });
 
+                // Special handling for create-in-each operations (e.g., create assignments in empty groups)
+                if (opInfo.isCreateInEach) {
+                    const createHandler = ipcMain._invokeHandlers?.get(opInfo.createHandler);
+                    if (!createHandler) {
+                        throw new Error(`Create handler ${opInfo.createHandler} not found.`);
+                    }
+
+                    const assignmentsPerGroup = Number(fullParams.number) || 1;
+                    const assignmentName = fullParams.name || fullParams.assignmentName || 'Assignment';
+                    const createResults = [];
+                    const totalGroups = normalizedItems.length;
+
+                    console.log(`AI Assistant: Creating ${assignmentsPerGroup} assignment(s) in each of ${totalGroups} empty groups`);
+
+                    // Send initial progress
+                    sendProgress(event, {
+                        mode: 'determinate',
+                        value: 0,
+                        processed: 0,
+                        total: totalGroups,
+                        label: `Creating assignments in ${totalGroups} empty groups...`
+                    });
+
+                    for (let i = 0; i < normalizedItems.length; i++) {
+                        const group = normalizedItems[i];
+                        const groupId = group.id || group._id;
+                        const groupName = group.name || `Group ${groupId}`;
+
+                        // Send progress update for this group
+                        sendProgress(event, {
+                            mode: 'determinate',
+                            value: i / totalGroups,
+                            processed: i,
+                            total: totalGroups,
+                            label: `Creating assignment(s) in group ${i + 1}/${totalGroups}: ${groupName}`
+                        });
+
+                        try {
+                            const createParams = {
+                                domain: fullParams.domain,
+                                token: fullParams.token,
+                                course_id: fullParams.courseId || fullParams.course_id,
+                                number: assignmentsPerGroup,
+                                name: assignmentName,
+                                points: fullParams.points || 0,
+                                submissionTypes: fullParams.submissionTypes || ['online_upload'],
+                                publish: fullParams.publish !== undefined ? fullParams.publish : false,
+                                grade_type: fullParams.grade_type || 'points',
+                                peer_reviews: fullParams.peer_reviews || false,
+                                peer_review_count: fullParams.peer_review_count || 0,
+                                anonymous: fullParams.anonymous || false,
+                                assignment_group_id: groupId,
+                                operationId: `ai-assistant-${Date.now()}-${groupId}`
+                            };
+
+                            const createResult = await createHandler(mockEvent, createParams);
+                            createResults.push({
+                                groupId,
+                                groupName,
+                                result: createResult,
+                                success: true
+                            });
+                        } catch (error) {
+                            console.error(`Failed to create assignments in group ${groupId}:`, error);
+                            createResults.push({
+                                groupId,
+                                groupName,
+                                error: error.message,
+                                success: false
+                            });
+                        }
+                    }
+
+                    // Send completion progress
+                    sendProgress(event, {
+                        mode: 'done',
+                        value: 1,
+                        processed: totalGroups,
+                        total: totalGroups,
+                        label: `Completed creating assignments in ${totalGroups} groups`
+                    });
+
+                    const successCount = createResults.filter(r => r.success).length;
+                    const totalAssignmentsCreated = createResults
+                        .filter(r => r.success)
+                        .reduce((sum, r) => sum + (r.result?.successful?.length || assignmentsPerGroup), 0);
+
+                    return {
+                        success: true,
+                        result: {
+                            message: `Created ${totalAssignmentsCreated} assignment(s) across ${successCount} empty assignment groups`,
+                            groupsProcessed: normalizedItems.length,
+                            groupsSuccessful: successCount,
+                            groupsFailed: createResults.filter(r => !r.success).length,
+                            assignmentsCreated: totalAssignmentsCreated,
+                            details: createResults
+                        }
+                    };
+                }
+
                 // Step 2: Delete/process the fetched items
                 const deleteHandler = ipcMain._invokeHandlers?.get(opInfo.deleteHandler);
                 if (!deleteHandler) {
@@ -1791,6 +2067,104 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     reply: event.reply
                 };
 
+                // Special case: create assignment groups and then create assignments in each group
+                if (operation === 'create-assignment-groups') {
+                    const assignmentsPerGroup = Number(fullParams.assignmentsPerGroup || fullParams.assignments_per_group || 0);
+                    if (assignmentsPerGroup > 0) {
+                        const groupPrefix = fullParams.groupPrefix || fullParams.prefix || fullParams.name || 'Assignment Group';
+                        const assignmentName = fullParams.assignmentName || fullParams.assignment_name || fullParams.assignmentTitle || 'Assignment';
+                        const numGroups = fullParams.number || 1;
+
+                        // Step 1: Create assignment groups
+                        sendProgress(event, {
+                            mode: 'indeterminate',
+                            label: `Step 1/2: Creating ${numGroups} assignment group(s)...`
+                        });
+
+                        const groupParams = {
+                            domain: fullParams.domain,
+                            token: fullParams.token,
+                            course: fullParams.courseId || fullParams.course_id,
+                            number: numGroups,
+                            name: groupPrefix,
+                            operationId: `ai-assistant-${Date.now()}`
+                        };
+
+                        const groupResult = await handler(mockEvent, groupParams);
+                        const createdGroupIds = (groupResult?.successful || [])
+                            .map(item => item?.value)
+                            .filter(Boolean);
+
+                        if (createdGroupIds.length === 0) {
+                            sendProgress(event, { mode: 'done', label: 'No assignment groups created' });
+                            return {
+                                success: true,
+                                result: {
+                                    groupResult,
+                                    assignmentsResult: [],
+                                    message: 'No assignment groups were created; assignments were not created.'
+                                }
+                            };
+                        }
+
+                        const createAssignmentsHandler = ipcMain._invokeHandlers?.get('axios:createAssignments');
+                        if (!createAssignmentsHandler) {
+                            throw new Error('Handler axios:createAssignments not found.');
+                        }
+
+                        // Step 2: Create assignments in each group
+                        const assignmentResults = [];
+                        const totalGroups = createdGroupIds.length;
+                        const totalAssignments = totalGroups * assignmentsPerGroup;
+
+                        for (let i = 0; i < createdGroupIds.length; i++) {
+                            const groupId = createdGroupIds[i];
+
+                            sendProgress(event, {
+                                mode: 'determinate',
+                                value: i / totalGroups,
+                                processed: i * assignmentsPerGroup,
+                                total: totalAssignments,
+                                label: `Step 2/2: Creating assignments in group ${i + 1}/${totalGroups} (${i * assignmentsPerGroup}/${totalAssignments} total)`
+                            });
+
+                            const assignmentParams = {
+                                domain: fullParams.domain,
+                                token: fullParams.token,
+                                course_id: fullParams.courseId || fullParams.course_id,
+                                number: assignmentsPerGroup,
+                                name: assignmentName,
+                                points: fullParams.points || 0,
+                                submissionTypes: fullParams.submissionTypes || ['online_upload'],
+                                publish: fullParams.publish !== undefined ? fullParams.publish : false,
+                                grade_type: fullParams.grade_type || 'points',
+                                peer_reviews: fullParams.peer_reviews || false,
+                                peer_review_count: fullParams.peer_review_count || 0,
+                                anonymous: fullParams.anonymous || false,
+                                assignment_group_id: groupId,
+                                operationId: `ai-assistant-${Date.now()}-${groupId}`
+                            };
+
+                            const assignmentResult = await createAssignmentsHandler(mockEvent, assignmentParams);
+                            assignmentResults.push({ groupId, result: assignmentResult });
+                        }
+
+                        sendProgress(event, {
+                            mode: 'done',
+                            label: `Created ${totalGroups} groups with ${totalAssignments} total assignments`
+                        });
+
+                        return {
+                            success: true,
+                            result: {
+                                groupResult,
+                                assignmentsResult: assignmentResults,
+                                message: `Created ${totalGroups} assignment groups with ${assignmentsPerGroup} assignment(s) each (${totalAssignments} total)`
+                            }
+                        };
+                    }
+                }
+
                 // Map parameters for create operations
                 let handlerParams = { ...fullParams };
                 if (operation.includes('conversation')) {
@@ -1862,12 +2236,13 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                         }
                     } else {
                         // Default create operation parameters (assignments, etc.)
+                        const defaultName = operation === 'create-assignments' ? 'Assignment' : 'Assignment Group';
                         handlerParams = {
                             domain: fullParams.domain,
                             token: fullParams.token,
                             [courseParam]: fullParams.courseId || fullParams.course_id,
                             number: fullParams.number || 1,
-                            name: fullParams.name || fullParams.prefix || 'Assignment Group',
+                            name: fullParams.name || fullParams.prefix || defaultName,
                             points: fullParams.points || 0,
                             submissionTypes: fullParams.submissionTypes || ['online_upload'],
                             publish: fullParams.publish !== undefined ? fullParams.publish : false,
@@ -1875,6 +2250,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                             peer_reviews: fullParams.peer_reviews || false,
                             peer_review_count: fullParams.peer_review_count || 0,
                             anonymous: fullParams.anonymous || false,
+                            assignment_group_id: fullParams.assignmentGroupId || fullParams.assignment_group_id,
                             operationId: `ai-assistant-${Date.now()}`
                         };
                     }
@@ -1888,6 +2264,136 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 result
             };
 
+        } catch (error) {
+            console.error('Execute Operation Error:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    function sendProgress(event, payload) {
+        try {
+            if (event?.sender?.send) {
+                event.sender.send('update-progress', payload);
+            }
+        } catch (error) {
+            console.warn('AI Assistant: Progress update failed:', error.message);
+        }
+    }
+
+    async function executeMultiStepOperation(event, { steps, token, confirmed }) {
+        const stepResults = [];
+        const context = { steps: stepResults, outputs: stepResults };
+        const totalSteps = steps.length || 1;
+
+        for (let index = 0; index < steps.length; index++) {
+            const step = steps[index];
+            if (!step?.operation || !OPERATION_MAP[step.operation]) {
+                throw new Error(`Unknown operation in steps[${index}]`);
+            }
+
+            const stepTitle = step.operationInfo?.description || step.operation;
+            sendProgress(event, {
+                mode: 'indeterminate',
+                label: `Step ${index + 1}/${totalSteps}: ${stepTitle}`
+            });
+
+            const baseParams = resolveTemplatesDeep(step.parameters || {}, context);
+            const list = resolveForEachList(step.forEach, context);
+            const itemVar = (step.forEach && step.forEach.itemVar) ? step.forEach.itemVar : 'item';
+
+            if (Array.isArray(list)) {
+                const loopResults = [];
+                const loopTotal = list.length || 1;
+                for (let itemIndex = 0; itemIndex < list.length; itemIndex++) {
+                    const loopContext = { ...context, [itemVar]: list[itemIndex] };
+                    const loopParams = resolveTemplatesDeep(baseParams, loopContext);
+                    const stepResult = await executeSingleOperation(event, {
+                        operation: step.operation,
+                        parameters: loopParams,
+                        token,
+                        confirmed
+                    });
+
+                    if (!stepResult.success) {
+                        throw new Error(stepResult.error || `Step ${index + 1} failed`);
+                    }
+
+                    loopResults.push({
+                        index: itemIndex,
+                        operation: step.operation,
+                        parameters: loopParams,
+                        result: stepResult.result
+                    });
+
+                    const overallValue = (index + (itemIndex + 1) / loopTotal) / totalSteps;
+                    sendProgress(event, {
+                        mode: 'determinate',
+                        value: overallValue,
+                        processed: itemIndex + 1,
+                        total: loopTotal,
+                        label: `Step ${index + 1}/${totalSteps}: ${stepTitle} (${itemIndex + 1}/${loopTotal})`
+                    });
+                }
+
+                stepResults.push({
+                    index,
+                    operation: step.operation,
+                    parameters: baseParams,
+                    forEach: step.forEach,
+                    result: loopResults
+                });
+            } else if (step.forEach) {
+                throw new Error(`Step ${index + 1} forEach resolved to a non-array value`);
+            } else {
+                const stepResult = await executeSingleOperation(event, {
+                    operation: step.operation,
+                    parameters: baseParams,
+                    token,
+                    confirmed
+                });
+
+                if (!stepResult.success) {
+                    throw new Error(stepResult.error || `Step ${index + 1} failed`);
+                }
+
+                stepResults.push({
+                    index,
+                    operation: step.operation,
+                    parameters: baseParams,
+                    result: stepResult.result
+                });
+
+                sendProgress(event, {
+                    mode: 'determinate',
+                    value: (index + 1) / totalSteps,
+                    label: `Completed step ${index + 1}/${totalSteps}: ${stepTitle}`
+                });
+            }
+        }
+
+        sendProgress(event, { mode: 'done', label: 'All steps complete' });
+
+        return {
+            success: true,
+            result: {
+                steps: stepResults,
+                summary: `Completed ${stepResults.length} steps`
+            }
+        };
+    }
+
+    // Execute the parsed operation
+    ipcMain.handle('ai-assistant:executeOperation', async (event, { operation, parameters, token, confirmed }) => {
+        try {
+            if (operation === 'multi-step' || Array.isArray(parameters?.steps)) {
+                const steps = Array.isArray(parameters?.steps) ? parameters.steps : [];
+                return await executeMultiStepOperation(event, { steps, token, confirmed });
+            }
+
+            return await executeSingleOperation(event, { operation, parameters, token, confirmed });
         } catch (error) {
             console.error('Execute Operation Error:', error);
             return {

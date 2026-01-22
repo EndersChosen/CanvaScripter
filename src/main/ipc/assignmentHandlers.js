@@ -91,6 +91,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
                 token: data.token,
                 course_id: data.course_id,
                 anonymous: data.anonymous,
+                assignment_group_id: data.assignment_group_id || data.assignmentGroupId,
                 grade_type: data.grade_type,
                 name: assignmentName,
                 peer_reviews: data.peer_reviews,

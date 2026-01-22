@@ -292,6 +292,40 @@ function showOperationPreview(parsed, token) {
         </div>`
         : '';
 
+    const hasSteps = Array.isArray(parsed.steps) && parsed.steps.length > 0;
+
+    const parametersHtml = hasSteps
+        ? `<div class="mb-3">
+                <strong>Steps:</strong>
+                <ol class="mb-0">
+                    ${parsed.steps.map((step, index) => {
+            const stepParams = step.parameters || {};
+            const stepTitle = step.operationInfo?.description || step.operation;
+            return `
+                            <li class="mb-2">
+                                <div><strong>${stepTitle}</strong></div>
+                                <div class="text-muted small">Step ${index + 1}</div>
+                                <div>
+                                    <small>Parameters:</small>
+                                    <pre class="bg-light p-2 rounded" style="white-space: pre-wrap;">${JSON.stringify(stepParams, null, 2)}</pre>
+                                </div>
+                            </li>
+                        `;
+        }).join('')}
+                </ol>
+            </div>`
+        : `<div class="mb-3">
+                <strong>Parameters:</strong>
+                <ul class="mb-0">
+                    ${Object.entries(parsed.parameters || {}).map(([key, value]) => {
+            if (typeof value === 'object') {
+                return `<li><strong>${key}:</strong> ${JSON.stringify(value)}</li>`;
+            }
+            return `<li><strong>${key}:</strong> ${value}</li>`;
+        }).join('')}
+                </ul>
+            </div>`;
+
     previewSection.innerHTML = `
         <div class="card border-primary mb-4">
             <div class="card-header bg-primary text-white">
@@ -304,17 +338,7 @@ function showOperationPreview(parsed, token) {
                 <div class="mb-3">
                     <strong>Summary:</strong> ${parsed.summary}
                 </div>
-                <div class="mb-3">
-                    <strong>Parameters:</strong>
-                    <ul class="mb-0">
-                        ${Object.entries(parsed.parameters).map(([key, value]) => {
-        if (typeof value === 'object') {
-            return `<li><strong>${key}:</strong> ${JSON.stringify(value)}</li>`;
-        }
-        return `<li><strong>${key}:</strong> ${value}</li>`;
-    }).join('')}
-                    </ul>
-                </div>
+                ${parametersHtml}
                 ${warnings}
                 <div class="mb-3">
                     <strong>Confidence:</strong> 
@@ -678,14 +702,24 @@ async function executeOperation(parsed, token) {
         }
 
         // Build confirmation dialog
-        const itemType = parsed.operation.includes('assignment') ? 'assignments' :
-            (parsed.operation.includes('module') ? 'modules' :
-                (parsed.operation.includes('conversation') ? 'conversations' :
-                    (parsed.operation.includes('group') ? 'groups' : 'items')));
+        const isCreateInEmptyGroups = parsed.operation === 'create-assignments-in-empty-groups';
+        const itemType = isCreateInEmptyGroups ? 'empty assignment groups' :
+            (parsed.operation.includes('assignment') ? 'assignments' :
+                (parsed.operation.includes('module') ? 'modules' :
+                    (parsed.operation.includes('conversation') ? 'conversations' :
+                        (parsed.operation.includes('group') ? 'groups' : 'items'))));
 
         // Check if this is a relock-modules operation - show checkboxes
         const isRelockModules = parsed.operation === 'relock-modules';
         const isConversations = parsed.operation.includes('conversation');
+
+        // Determine the action verb for the confirmation message
+        let actionVerb = 'process';
+        if (parsed.operation.includes('delete')) {
+            actionVerb = 'delete';
+        } else if (isCreateInEmptyGroups) {
+            actionVerb = 'create assignments in';
+        }
 
         let confirmHtml = `
             <div class="card border-warning mb-3">
@@ -693,7 +727,7 @@ async function executeOperation(parsed, token) {
                     <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Confirmation Required</h5>
                 </div>
                 <div class="card-body">
-                    <p class="mb-3"><strong>I found ${fetchResult.itemCount} ${itemType} matching your criteria.</strong></p>
+                    <p class="mb-3"><strong>${isCreateInEmptyGroups ? `Found ${fetchResult.itemCount} ${itemType} to create assignments in.` : `I found ${fetchResult.itemCount} ${itemType} matching your criteria.`}</strong></p>
         `;
 
         if (fetchResult.items && fetchResult.items.length > 0) {
@@ -741,7 +775,7 @@ async function executeOperation(parsed, token) {
         }
 
         confirmHtml += `
-                    <p class="mb-3 text-danger"><strong>Are you sure you want to ${parsed.operation.includes('delete') ? 'delete' : 'process'} ${isRelockModules ? 'the selected' : (fetchResult.itemCount > 1 ? 'these' : 'this')} ${isRelockModules ? '' : fetchResult.itemCount} ${itemType}?</strong></p>
+                    <p class="mb-3 text-danger"><strong>Are you sure you want to ${actionVerb} ${isRelockModules ? 'the selected' : (fetchResult.itemCount > 1 ? 'these' : 'this')} ${isRelockModules ? '' : fetchResult.itemCount} ${itemType}?</strong></p>
                     <div class="d-flex gap-2">
                         <button id="ai-confirm-execute" class="btn btn-danger">
                             <i class="bi bi-check-circle"></i> Yes, Proceed
@@ -966,7 +1000,7 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
                         </div>
                         <div>
                             <h6 class="mb-0">Executing operation...</h6>
-                            <small class="text-muted">${parsed.summary}</small>
+                            <small id="ai-progress-label" class="text-muted">${parsed.summary}</small>
                         </div>
                     </div>
                     <div class="progress" style="height: 25px;">
@@ -983,17 +1017,57 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
     // Listen for progress updates using progressAPI
     const unsubscribe = window.progressAPI.onUpdateProgress((progress) => {
         const progressBar = document.getElementById('ai-progress-bar');
+        const progressLabel = document.getElementById('ai-progress-label');
         if (progressBar) {
-            const percent = Math.round(progress);
-            progressBar.style.width = `${percent}%`;
-            progressBar.setAttribute('aria-valuenow', percent);
-            progressBar.textContent = `${percent}%`;
+            if (typeof progress === 'number') {
+                const percent = Math.round(progress);
+                progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+                progressBar.style.width = `${percent}%`;
+                progressBar.setAttribute('aria-valuenow', percent);
+                progressBar.textContent = `${percent}%`;
+                if (progressLabel) progressLabel.textContent = `${percent}%`;
+                return;
+            }
+
+            const mode = progress?.mode || 'determinate';
+            if (mode === 'indeterminate') {
+                progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+                progressBar.style.width = '100%';
+                progressBar.textContent = '';
+                if (progressLabel) progressLabel.textContent = progress?.label || 'Processing...';
+            } else if (mode === 'done') {
+                progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+                progressBar.style.width = '100%';
+                progressBar.setAttribute('aria-valuenow', 100);
+                progressBar.textContent = '100%';
+                if (progressLabel) progressLabel.textContent = progress?.label || 'Done';
+            } else {
+                progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+                const value = typeof progress?.value === 'number' ? progress.value : (typeof progress?.percent === 'number' ? progress.percent / 100 : 0);
+                const percent = Math.round(Math.max(0, Math.min(1, value)) * 100);
+                progressBar.style.width = `${percent}%`;
+                progressBar.setAttribute('aria-valuenow', percent);
+                progressBar.textContent = `${percent}%`;
+                if (progressLabel) {
+                    if (progress?.label) {
+                        progressLabel.textContent = progress.label;
+                    } else if (typeof progress?.processed === 'number' && typeof progress?.total === 'number') {
+                        progressLabel.textContent = `Processed ${progress.processed}/${progress.total} (${percent}%)`;
+                    } else {
+                        progressLabel.textContent = `${percent}%`;
+                    }
+                }
+            }
         }
     });
 
     try {
         // Prepare parameters - for relock-modules with selection, override module list
-        let executionParams = { ...parsed.parameters };
+        let executionParams = { ...(parsed.parameters || {}) };
+
+        if (Array.isArray(parsed.steps) && parsed.steps.length > 0) {
+            executionParams.steps = parsed.steps;
+        }
 
         if (parsed.selectedModules && parsed.selectedModules.length > 0) {
             // User has specifically selected modules, use only those
@@ -1023,7 +1097,29 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
 
         // Handle different result formats
         const res = result.result;
-        if (res.queryType) {
+        if (res.steps && Array.isArray(res.steps)) {
+            resultHtml += '<div class="mb-2">';
+            resultHtml += `<p class="mb-2"><strong>Steps Completed:</strong> ${res.steps.length}</p>`;
+            resultHtml += '<ol class="mb-2">';
+            res.steps.forEach(stepResult => {
+                const stepTitle = stepResult.operation || 'Step';
+                resultHtml += `<li class="mb-2"><strong>${stepTitle}</strong>`;
+                if (stepResult.result?.fetchedCount !== undefined || stepResult.result?.deletedCount !== undefined) {
+                    const fetched = stepResult.result.fetchedCount ?? 'n/a';
+                    const deleted = stepResult.result.deletedCount ?? 'n/a';
+                    resultHtml += ` - Found ${fetched}, Deleted ${deleted}`;
+                } else if (stepResult.result?.successful || stepResult.result?.succeeded) {
+                    const successCount = stepResult.result.successful?.length || stepResult.result.succeeded?.length || 0;
+                    resultHtml += ` - Successful: ${successCount}`;
+                }
+                resultHtml += '</li>';
+            });
+            resultHtml += '</ol>';
+            if (res.summary) {
+                resultHtml += `<p class="text-muted mb-0">${res.summary}</p>`;
+            }
+            resultHtml += '</div>';
+        } else if (res.queryType) {
             // Information query results
             resultHtml += '<div class="mb-2">';
             if (res.queryType === 'count') {

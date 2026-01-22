@@ -326,13 +326,16 @@ function deleteAssignmentsCombined(e) {
                             <input id="f-group-id" class="form-control" type="text" placeholder="Assignment Group ID" disabled />
                         </div>
                         <div class="col-auto ms-4" id="f-in-group-name-container" style="display: none;">
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                <input id="f-group-name" class="form-control" type="text" list="f-group-name-list" placeholder="Search or select group" aria-label="Search or select assignment group" disabled />
-                                <span class="input-group-text"><i class="bi bi-chevron-down"></i></span>
+                            <div class="dropdown w-100" id="f-group-name-dropdown">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input id="f-group-name" class="form-control" type="text" list="f-group-name-list" placeholder="Search or select group" aria-label="Search or select assignment group" autocomplete="off" disabled />
+                                    <button id="f-group-name-toggle" class="btn btn-outline-secondary dropdown-toggle" type="button" aria-label="Show group options"></button>
+                                </div>
+                                <div class="dropdown-menu w-100 shadow-sm" id="f-group-name-menu"></div>
                             </div>
                             <datalist id="f-group-name-list"></datalist>
-                            <small class="form-text text-muted">Type to search, or open the list</small>
+                            <small class="form-text text-muted">Type to search, or use the arrow to open the list</small>
                         </div>
                         <div class="w-100"></div>
                         <div class="col-auto form-check">
@@ -355,13 +358,16 @@ function deleteAssignmentsCombined(e) {
                             <input id="f-not-group-id" class="form-control" type="text" placeholder="Assignment Group ID" disabled />
                         </div>
                         <div class="col-auto ms-4" id="f-not-in-group-name-container" style="display: none;">
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                <input id="f-not-group-name" class="form-control" type="text" list="f-not-group-name-list" placeholder="Search or select group" aria-label="Search or select assignment group" disabled />
-                                <span class="input-group-text"><i class="bi bi-chevron-down"></i></span>
+                            <div class="dropdown w-100" id="f-not-group-name-dropdown">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input id="f-not-group-name" class="form-control" type="text" list="f-not-group-name-list" placeholder="Search or select group" aria-label="Search or select assignment group" autocomplete="off" disabled />
+                                    <button id="f-not-group-name-toggle" class="btn btn-outline-secondary dropdown-toggle" type="button" aria-label="Show group options"></button>
+                                </div>
+                                <div class="dropdown-menu w-100 shadow-sm" id="f-not-group-name-menu"></div>
                             </div>
                             <datalist id="f-not-group-name-list"></datalist>
-                            <small class="form-text text-muted">Type to search, or open the list</small>
+                            <small class="form-text text-muted">Type to search, or use the arrow to open the list</small>
                         </div>
                     </div>
                 </div>
@@ -403,6 +409,9 @@ function deleteAssignmentsCombined(e) {
         const fInGroupIdContainer = form.querySelector('#f-in-group-id-container');
         const fInGroupNameContainer = form.querySelector('#f-in-group-name-container');
         const fGroupNameList = form.querySelector('#f-group-name-list');
+        const fGroupNameDropdown = form.querySelector('#f-group-name-dropdown');
+        const fGroupNameToggle = form.querySelector('#f-group-name-toggle');
+        const fGroupNameMenu = form.querySelector('#f-group-name-menu');
         const fNotInGroup = form.querySelector('#f-not-in-group');
         const fNotGroupId = form.querySelector('#f-not-group-id');
         const fNotGroupName = form.querySelector('#f-not-group-name');
@@ -411,6 +420,9 @@ function deleteAssignmentsCombined(e) {
         const fNotInGroupIdContainer = form.querySelector('#f-not-in-group-id-container');
         const fNotInGroupNameContainer = form.querySelector('#f-not-in-group-name-container');
         const fNotGroupNameList = form.querySelector('#f-not-group-name-list');
+        const fNotGroupNameDropdown = form.querySelector('#f-not-group-name-dropdown');
+        const fNotGroupNameToggle = form.querySelector('#f-not-group-name-toggle');
+        const fNotGroupNameMenu = form.querySelector('#f-not-group-name-menu');
         const fIncludeGraded = form.querySelector('#f-include-graded');
 
         // Get containers for visual styling
@@ -529,8 +541,81 @@ function deleteAssignmentsCombined(e) {
                 fNotGroupNameList.appendChild(option2);
             });
 
+            renderGroupMenu(fGroupNameMenu, assignmentGroupsCache, fGroupName);
+            renderGroupMenu(fNotGroupNameMenu, assignmentGroupsCache, fNotGroupName);
+
             console.log('Built and cached', assignmentGroupsCache.length, 'assignment groups from assignments');
             return assignmentGroupsCache;
+        }
+
+        function renderGroupMenu(menuEl, groups, inputEl) {
+            if (!menuEl) return;
+            menuEl.innerHTML = '';
+            if (!groups || groups.length === 0) {
+                const empty = document.createElement('span');
+                empty.className = 'dropdown-item disabled text-muted';
+                empty.textContent = 'No groups found';
+                menuEl.appendChild(empty);
+                return;
+            }
+            groups.forEach(group => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'dropdown-item';
+                item.textContent = group.name;
+                item.dataset.groupId = group.id;
+                item.addEventListener('click', () => {
+                    if (inputEl) inputEl.value = group.name;
+                    menuEl.classList.remove('show');
+                    if (typeof updateCount === 'function') updateCount();
+                });
+                menuEl.appendChild(item);
+            });
+        }
+
+        function setupGroupDropdown(containerEl, inputEl, menuEl, toggleBtn) {
+            if (!containerEl || !inputEl || !menuEl) return;
+
+            const applyFilter = () => {
+                const query = inputEl.value.trim().toLowerCase();
+                let visibleCount = 0;
+                menuEl.querySelectorAll('.dropdown-item:not(.disabled)').forEach(item => {
+                    const match = item.textContent.toLowerCase().includes(query);
+                    item.classList.toggle('d-none', !match);
+                    if (match) visibleCount++;
+                });
+                const emptyItem = menuEl.querySelector('.dropdown-item.disabled');
+                if (emptyItem) emptyItem.classList.toggle('d-none', visibleCount > 0);
+            };
+
+            const showMenu = () => {
+                applyFilter();
+                menuEl.classList.add('show');
+            };
+
+            const hideMenu = () => {
+                menuEl.classList.remove('show');
+            };
+
+            inputEl.addEventListener('focus', () => {
+                if (!inputEl.disabled) showMenu();
+            });
+            inputEl.addEventListener('input', () => {
+                if (!inputEl.disabled) showMenu();
+            });
+            toggleBtn?.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (menuEl.classList.contains('show')) {
+                    hideMenu();
+                } else if (!inputEl.disabled) {
+                    inputEl.focus();
+                    showMenu();
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!containerEl.contains(e.target)) hideMenu();
+            });
         }
 
         // Helper function to get group ID from name (case-insensitive)
@@ -1330,6 +1415,9 @@ function deleteAssignmentsCombined(e) {
 
         fNotGroupId.addEventListener('input', updateCount);
         fNotGroupName.addEventListener('input', updateCount);
+
+        setupGroupDropdown(fGroupNameDropdown, fGroupName, fGroupNameMenu, fGroupNameToggle);
+        setupGroupDropdown(fNotGroupNameDropdown, fNotGroupName, fNotGroupNameMenu, fNotGroupNameToggle);
 
         // Add event listener for the global grade filter
         fIncludeGraded.addEventListener('change', updateCount);
@@ -4119,6 +4207,13 @@ function assignmentCreator(e) {
                     <input id="assignment-name" type="text" class="form-control form-control-sm" placeholder="Assignment" value="Assignment" />
                 </div>
 
+                <div class="col-12 col-sm-3">
+                    <label class="form-label" for="assignment-group-id">Assignment Group ID <span class="text-muted">(optional)</span></label>
+                    <input id="assignment-group-id" type="text" class="form-control form-control-sm" placeholder="e.g. 12345" />
+                    <div id="assignment-group-help" class="form-text">Leave blank to use the default group</div>
+                    <div class="invalid-feedback">Assignment Group ID must be numeric.</div>
+                </div>
+
                 <div class="w-100"></div>
 
                 <div class="col-6 col-sm-2">
@@ -4226,20 +4321,27 @@ function assignmentCreator(e) {
 
         // Validation for course id and global domain/token - ONLY ATTACH ONCE
         const cID = form.querySelector('#course-id');
+        const groupIdInput = form.querySelector('#assignment-group-id');
         const validateForm = () => {
             const courseVal = cID.value.trim();
             const courseValid = /^\d+$/.test(courseVal);
             const domain = document.querySelector('#domain').value.trim();
             const token = document.querySelector('#token').value.trim();
+            const groupVal = groupIdInput?.value.trim() || '';
+            const groupValid = groupVal === '' || /^\d+$/.test(groupVal);
 
             cID.classList.toggle('is-invalid', !courseValid && courseVal.length > 0);
+            if (groupIdInput) {
+                groupIdInput.classList.toggle('is-invalid', !groupValid && groupVal.length > 0);
+            }
 
             // Enable button only if all required fields are present
-            const allValid = courseValid && domain.length > 0 && token.length > 0;
+            const allValid = courseValid && domain.length > 0 && token.length > 0 && groupValid;
             form.querySelector('#action-btn').disabled = !allValid;
         };
 
         cID.addEventListener('input', validateForm);
+        groupIdInput?.addEventListener('input', validateForm);
 
         // Also listen to domain and token changes
         const domainInput = document.querySelector('#domain');
@@ -4323,6 +4425,7 @@ function assignmentCreator(e) {
             const peer_reviews = form.querySelector('#peer-reviews').checked;
             const peer_review_count = peer_reviews ? Math.max(1, parseInt(form.querySelector('#peer-review-count').value || '1', 10)) : 0;
             const anonymous = form.querySelector('#anonymous').checked;
+            const assignment_group_id = (form.querySelector('#assignment-group-id')?.value || '').trim();
 
             const submissionTypes = Array.from(form.querySelectorAll('[data-st]'))
                 .filter(cb => cb.checked)
@@ -4398,6 +4501,7 @@ function assignmentCreator(e) {
                 peer_review_count,
                 anonymous,
                 submissionTypes,
+                assignment_group_id: assignment_group_id || undefined,
                 operationId: currentOperationId
             };
 

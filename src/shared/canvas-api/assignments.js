@@ -75,39 +75,36 @@ async function createAssignments(data) {
     //
     //********************************************
 
-    const createAssignmentMutation = `mutation createAssignments($courseId: ID!,$name: String!, $submissionTypes: [SubmissionType!], $gradingType: GradingType, $pointsPossible: Float, $state: AssignmentState, $peerReviews: Boolean, $peerReviewCount: Int, $anonymous: Boolean) {
-        createAssignment(input: {
-            courseId: $courseId,
-            name: $name,
-            description: "I'm a cool description",
-            pointsPossible: $pointsPossible,
-            gradingType: $gradingType,
-            submissionTypes: $submissionTypes
-            state: $state,
-            anonymousGrading: $anonymous,
-            peerReviews: {enabled: $peerReviews, automaticReviews: $peerReviews, count: $peerReviewCount},
-            postToSis: false
-        }) {
-            assignment {
-                _id
-            }
-            errors {
-                attribute
-                message
-            }
-        }
-    }`
+    const createAssignmentMutation = `mutation createAssignments($courseId: ID!, $name: String!, $submissionTypes: [SubmissionType!], $gradingType: GradingType, $pointsPossible: Float, $state: AssignmentState, $peerReviews: Boolean, $peerReviewCount: Int, $anonymous: Boolean, $assignmentGroupId: ID) {
+  createAssignment(
+        input: {courseId: $courseId, name: $name, description: "I'm a cool description", pointsPossible: $pointsPossible, gradingType: $gradingType, submissionTypes: $submissionTypes, state: $state, anonymousGrading: $anonymous, peerReviews: {enabled: $peerReviews, automaticReviews: $peerReviews, count: $peerReviewCount}, postToSis: false, assignmentGroupId: $assignmentGroupId}
+  ) {
+    assignment {
+      _id
+    }
+    errors {
+      attribute
+      message
+    }
+  }
+}`
+
+    const normalizedSubmissionTypes = Array.isArray(data.submissionTypes)
+        ? data.submissionTypes
+        : (data.submissionTypes ? [data.submissionTypes] : ['online_upload']);
+    const assignmentGroupId = data.assignment_group_id || data.assignmentGroupId || data.assignment_groupId || null;
 
     const mutationVariables = {
         "courseId": data.course_id,
         "name": data.name,
-        "submissionTypes": data.submissionTypes,
+        "submissionTypes": normalizedSubmissionTypes,
         "gradingType": data.grade_type,
         "pointsPossible": data.points,
         "state": data.publish === "published" || data.publish === true ? "published" : "unpublished",
         "peerReviews": data.peer_reviews,
         "peerReviewCount": data.peer_review_count || 1,
-        "anonymous": data.anonymous
+        "anonymous": data.anonymous,
+        "assignmentGroupId": assignmentGroupId || null
     };
 
     try {
