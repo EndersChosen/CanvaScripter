@@ -102,8 +102,10 @@ class HARAnalyzer {
         const sizeByType = {};
 
         this.entries.forEach(entry => {
-            const contentSize = entry.response.content.size || 0;
-            const transferSize = entry.response.bodySize || 0;
+            const rawContentSize = entry.response.content.size;
+            const rawTransferSize = entry.response.bodySize;
+            const contentSize = (typeof rawContentSize === 'number' && rawContentSize >= 0) ? rawContentSize : 0;
+            const transferSize = (typeof rawTransferSize === 'number' && rawTransferSize >= 0) ? rawTransferSize : 0;
 
             totalContentSize += contentSize;
             totalTransferSize += transferSize;
@@ -136,15 +138,28 @@ class HARAnalyzer {
      * Get timing analysis (slowest requests)
      */
     getTimingAnalysis(limit = 10) {
+        const normalizeTiming = value => (typeof value === 'number' && value >= 0) ? value : 0;
+
         return this.entries
-            .map(entry => ({
-                url: entry.request.url,
-                time: entry.time,
-                dns: entry.timings.dns,
-                connect: entry.timings.connect,
-                wait: entry.timings.wait,
-                receive: entry.timings.receive
-            }))
+            .map(entry => {
+                const timings = entry.timings || {};
+                const dns = normalizeTiming(timings.dns);
+                const connect = normalizeTiming(timings.connect);
+                const wait = normalizeTiming(timings.wait);
+                const receive = normalizeTiming(timings.receive);
+                const time = (typeof entry.time === 'number' && entry.time >= 0)
+                    ? entry.time
+                    : (dns + connect + wait + receive);
+
+                return {
+                    url: entry.request.url,
+                    time,
+                    dns,
+                    connect,
+                    wait,
+                    receive
+                };
+            })
             .sort((a, b) => b.time - a.time)
             .slice(0, limit);
     }

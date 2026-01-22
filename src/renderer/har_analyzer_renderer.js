@@ -279,10 +279,21 @@ function showHarAiLoadingState() {
     `;
 }
 
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function displayHarAiResults(analysis) {
     const resultsDiv = document.getElementById('har-ai-results');
     // Simple display for now, assuming analysis returns a markdown string or object with content
     const content = typeof analysis === 'string' ? analysis : (analysis.content || JSON.stringify(analysis, null, 2));
+    const safeContent = escapeHtml(content);
 
     // Convert newlines to breaks if it's plain text, or render markdown if we had a renderer
     // For now, let's wrap in a pre tag or basic div
@@ -290,7 +301,7 @@ function displayHarAiResults(analysis) {
         <div class="card">
             <div class="card-header bg-success text-white">AI Analysis Result</div>
             <div class="card-body">
-                <div class="ai-response-content" style="white-space: pre-wrap;">${content}</div>
+                <div class="ai-response-content" style="white-space: pre-wrap;">${safeContent}</div>
             </div>
         </div>
     `;
@@ -300,7 +311,7 @@ function showHarAiError(message) {
     const resultsDiv = document.getElementById('har-ai-results');
     resultsDiv.innerHTML = `
         <div class="alert alert-danger" role="alert">
-            <i class="bi bi-exclamation-triangle-fill"></i> ${message}
+            <i class="bi bi-exclamation-triangle-fill"></i> ${escapeHtml(message)}
         </div>
     `;
 }
@@ -309,7 +320,7 @@ function displayHarAnalysisResults(analysis) {
     const resultsDiv = document.getElementById('har-results');
 
     const html = `
-        < div class="har-analysis-results" >
+        <div class="har-analysis-results">
             ${renderDiagnosis(analysis)}
             ${renderOverview(analysis)}
             ${renderBrowserInfo(analysis)}
@@ -321,7 +332,7 @@ function displayHarAnalysisResults(analysis) {
             ${renderSecurity(analysis)}
             ${renderContentTypes(analysis)}
             ${renderCookies(analysis)}
-        </div >
+        </div>
         `;
 
     resultsDiv.innerHTML = html;
@@ -333,7 +344,7 @@ function renderOverview(analysis) {
     const startTime = stats.startTime ? new Date(stats.startTime).toLocaleString() : 'N/A';
 
     return `
-        < div class="card mb-3" >
+        <div class="card mb-3">
             <div class="card-header bg-primary text-white" role="button" data-bs-toggle="collapse" data-bs-target="#overview-collapse" aria-expanded="true">
                 <h5 class="mb-0">
                     <i class="bi bi-info-circle"></i> Overview
@@ -370,7 +381,7 @@ function renderOverview(analysis) {
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
         `;
 }
 
@@ -389,7 +400,7 @@ function renderBrowserInfo(analysis) {
     else if (browser.browserName.includes('Safari')) browserIcon = 'bi-browser-safari';
 
     return `
-        < div class="card mb-3" >
+        <div class="card mb-3">
             <div class="card-header bg-secondary text-white" role="button" data-bs-toggle="collapse" data-bs-target="#browser-collapse" aria-expanded="true">
                 <h5 class="mb-0">
                     <i class="bi ${browserIcon}"></i> Browser & Environment
@@ -404,7 +415,7 @@ function renderBrowserInfo(analysis) {
                                 <i class="bi ${browserIcon} fs-4 me-2 text-primary"></i>
                                 <div>
                                     <strong>Browser</strong>
-                                    <div class="text-muted">${browser.fullBrowserString}</div>
+                                    <div class="text-muted">${escapeHtml(browser.fullBrowserString)}</div>
                                 </div>
                             </div>
                         </div>
@@ -413,7 +424,7 @@ function renderBrowserInfo(analysis) {
                                 <i class="bi bi-hdd fs-4 me-2 text-success"></i>
                                 <div>
                                     <strong>Operating System</strong>
-                                    <div class="text-muted">${browser.fullOSString}</div>
+                                    <div class="text-muted">${escapeHtml(browser.fullOSString)}</div>
                                 </div>
                             </div>
                         </div>
@@ -422,7 +433,7 @@ function renderBrowserInfo(analysis) {
                                 <i class="bi ${deviceIcon} fs-4 me-2 text-info"></i>
                                 <div>
                                     <strong>Device Type</strong>
-                                    <div class="text-muted">${browser.deviceType}</div>
+                                    <div class="text-muted">${escapeHtml(browser.deviceType)}</div>
                                 </div>
                             </div>
                         </div>
@@ -432,14 +443,14 @@ function renderBrowserInfo(analysis) {
                             <strong>User-Agent String:</strong>
                             <div class="mt-1">
                                 <code class="d-block p-2 bg-light rounded" style="font-size: 0.75rem; word-break: break-all;">
-                                    ${browser.userAgent}
+                                    ${escapeHtml(browser.userAgent)}
                                 </code>
                             </div>
                         </div>
                     ` : ''}
                 </div>
             </div>
-        </div >
+        </div>
         `;
 }
 
@@ -453,16 +464,16 @@ function renderStatusCodes(analysis) {
         else if (category === 'Failed') badgeClass = 'dark';
 
         return `
-        < tr >
+        <tr>
                 <td><span class="badge bg-${badgeClass}">${status}</span></td>
                 <td>${category}</td>
                 <td>${count}</td>
-            </tr >
+            </tr>
         `;
     }).join('');
 
     return `
-        < div class="card mb-3" >
+        <div class="card mb-3">
             <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#status-collapse">
                 <h5 class="mb-0">
                     <i class="bi bi-bar-chart"></i> HTTP Status Codes
@@ -487,20 +498,20 @@ function renderStatusCodes(analysis) {
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
         `;
 }
 
 function renderDomains(analysis) {
     const domainRows = analysis.domains.slice(0, 15).map(({ domain, count }) => `
-        < tr >
-            <td>${domain}</td>
+        <tr>
+            <td>${escapeHtml(domain)}</td>
             <td><span class="badge bg-secondary">${count}</span></td>
-        </tr >
+        </tr>
         `).join('');
 
     return `
-        < div class="card mb-3" >
+        <div class="card mb-3">
             <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#domains-collapse">
                 <h5 class="mb-0">
                     <i class="bi bi-globe"></i> Top Domains
@@ -524,14 +535,14 @@ function renderDomains(analysis) {
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
         `;
 }
 
 function renderErrors(analysis) {
     if (analysis.errors.length === 0) {
         return `
-        < div class="card mb-3 border-success" >
+        <div class="card mb-3 border-success">
                 <div class="card-header bg-success text-white" role="button" data-bs-toggle="collapse" data-bs-target="#errors-collapse">
                     <h5 class="mb-0">
                         <i class="bi bi-check-circle"></i> Errors
@@ -543,23 +554,23 @@ function renderErrors(analysis) {
                         <p class="mb-0 text-success"><i class="bi bi-check-circle-fill"></i> No HTTP errors found (4xx, 5xx)</p>
                     </div>
                 </div>
-            </div >
+            </div>
         `;
     }
 
     const errorRows = analysis.errors.map(error => {
         let badgeClass = error.status >= 500 ? 'danger' : 'warning';
         return `
-        < tr >
+        <tr>
                 <td><span class="badge bg-${badgeClass}">${error.status}</span></td>
                 <td>${error.method}</td>
-                <td class="text-truncate" style="max-width: 400px;" title="${error.url}">${error.url}</td>
-            </tr >
+                <td class="text-truncate" style="max-width: 400px;" title="${escapeHtml(error.url)}">${escapeHtml(error.url)}</td>
+            </tr>
         `;
     }).join('');
 
     return `
-        < div class="card mb-3 border-danger" >
+        <div class="card mb-3 border-danger">
             <div class="card-header bg-danger text-white" role="button" data-bs-toggle="collapse" data-bs-target="#errors-collapse" aria-expanded="true">
                 <h5 class="mb-0">
                     <i class="bi bi-exclamation-triangle"></i> Errors (${analysis.errors.length})
@@ -584,14 +595,14 @@ function renderErrors(analysis) {
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
         `;
 }
 
 function renderAuthFlow(analysis) {
     if (!analysis.authFlow.detected) {
         return `
-        < div class="card mb-3" >
+        <div class="card mb-3">
                 <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#authflow-collapse">
                     <h5 class="mb-0">
                         <i class="bi bi-shield-lock"></i> Authentication Flow
@@ -603,7 +614,7 @@ function renderAuthFlow(analysis) {
                         <p class="mb-0 text-muted">No authentication flow detected</p>
                     </div>
                 </div>
-            </div >
+            </div>
         `;
     }
 
@@ -615,16 +626,16 @@ function renderAuthFlow(analysis) {
         else if (req.status >= 400) statusBadge = 'danger';
 
         return `
-        < tr >
+        <tr>
                 <td><span class="badge bg-${statusBadge}">${req.status}</span></td>
                 <td>${req.method}</td>
-                <td class="text-truncate" style="max-width: 400px;" title="${req.url}">${req.url}</td>
-            </tr >
+                <td class="text-truncate" style="max-width: 400px;" title="${escapeHtml(req.url)}">${escapeHtml(req.url)}</td>
+            </tr>
         `;
     }).join('');
 
     return `
-        < div class="card mb-3" >
+        <div class="card mb-3">
             <div class="card-header bg-info text-white" role="button" data-bs-toggle="collapse" data-bs-target="#authflow-collapse" aria-expanded="true">
                 <h5 class="mb-0">
                     <i class="bi bi-shield-lock"></i> Authentication Flow
@@ -633,7 +644,7 @@ function renderAuthFlow(analysis) {
             </div>
             <div id="authflow-collapse" class="collapse show">
                 <div class="card-body">
-                    <p><strong>Type:</strong> ${authType}</p>
+                    <p><strong>Type:</strong> ${escapeHtml(authType)}</p>
                     <p><strong>Requests:</strong> ${analysis.authFlow.requestCount}</p>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover">
@@ -651,29 +662,29 @@ function renderAuthFlow(analysis) {
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
         `;
 }
 
 function renderPerformance(analysis) {
     const timingRows = analysis.timing.map((t, i) => `
-        < tr >
+        <tr>
             <td>${i + 1}</td>
             <td>${t.time.toFixed(0)}ms</td>
-            <td class="text-truncate" style="max-width: 400px;" title="${t.url}">${t.url}</td>
-        </tr >
+            <td class="text-truncate" style="max-width: 400px;" title="${escapeHtml(t.url)}">${escapeHtml(t.url)}</td>
+        </tr>
         `).join('');
 
     const sizeRows = analysis.size.byType.slice(0, 10).map(({ type, sizeKB, count }) => `
-        < tr >
-            <td>${type}</td>
+        <tr>
+            <td>${escapeHtml(type)}</td>
             <td>${sizeKB} KB</td>
             <td>${count}</td>
-        </tr >
+        </tr>
         `).join('');
 
     return `
-        < div class="card mb-3" >
+        <div class="card mb-3">
             <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#performance-collapse">
                 <h5 class="mb-0">
                     <i class="bi bi-speedometer2"></i> Performance
@@ -734,14 +745,14 @@ function renderPerformance(analysis) {
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
         `;
 }
 
 function renderSecurity(analysis) {
     const security = analysis.security;
     return `
-        < div class="card mb-3" >
+        <div class="card mb-3">
             <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#security-collapse">
                 <h5 class="mb-0">
                     <i class="bi bi-shield-check"></i> Security Headers
@@ -770,20 +781,20 @@ function renderSecurity(analysis) {
                     </ul>
                 </div>
             </div>
-        </div >
+        </div>
         `;
 }
 
 function renderContentTypes(analysis) {
     const rows = analysis.contentTypes.slice(0, 15).map(({ type, count }) => `
-        < tr >
-            <td>${type}</td>
+        <tr>
+            <td>${escapeHtml(type)}</td>
             <td><span class="badge bg-secondary">${count}</span></td>
-        </tr >
+        </tr>
         `).join('');
 
     return `
-        < div class="card mb-3" >
+        <div class="card mb-3">
             <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#content-types-collapse">
                 <h5 class="mb-0">
                     <i class="bi bi-file-earmark-text"></i> Content Types
@@ -807,22 +818,22 @@ function renderContentTypes(analysis) {
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
         `;
 }
 
 function renderCookies(analysis) {
     const cookieRows = analysis.cookies.byDomain.slice(0, 10).map(({ domain, count }) => `
-        < tr >
-            <td>${domain}</td>
+        <tr>
+            <td>${escapeHtml(domain)}</td>
             <td><span class="badge bg-secondary">${count}</span></td>
-        </tr >
+        </tr>
         `).join('');
 
     const noCookies = analysis.cookies.totalCookies === 0;
 
     return `
-        < div class="card mb-3" >
+        <div class="card mb-3">
             <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#cookies-collapse">
                 <h5 class="mb-0">
                     <i class="bi bi-cookie"></i> Cookies
@@ -849,7 +860,7 @@ function renderCookies(analysis) {
                     `}
                 </div>
             </div>
-        </div >
+        </div>
         `;
 }
 
@@ -890,9 +901,9 @@ function renderDiagnosis(analysis) {
         }
         // If reason starts with bullet or special char, it's likely not a list item
         if (r.startsWith('•') || r.startsWith('⚠️') || r.startsWith('Root Cause') || r.startsWith('The authentication')) {
-            return `< li style = "list-style: none; margin-left: -1em;" > ${r}</li > `;
+            return `<li style="list-style: none; margin-left: -1em;">${escapeHtml(r)}</li>`;
         }
-        return `< li > ${r}</li > `;
+        return `<li>${escapeHtml(r)}</li>`;
     }).join('');
 
     const recommendationsList = diagnosis.recommendations.map(r => {
@@ -901,16 +912,16 @@ function renderDiagnosis(analysis) {
             return '<li style="list-style: none; height: 0.5em;"></li>';
         }
         if (r.startsWith('🔧') || r.startsWith('⚠️') || r.startsWith('This is NOT')) {
-            return `< li style = "list-style: none; margin-left: -1em;" > <strong>${r}</strong></li > `;
+            return `<li style="list-style: none; margin-left: -1em;"><strong>${escapeHtml(r)}</strong></li>`;
         }
         if (r.match(/^\d+\./)) {
-            return `< li style = "list-style: none; margin-left: -1em;" > ${r}</li > `;
+            return `<li style="list-style: none; margin-left: -1em;">${escapeHtml(r)}</li>`;
         }
-        return `< li > ${r}</li > `;
+        return `<li>${escapeHtml(r)}</li>`;
     }).join('');
 
     return `
-        < div class="card mb-3 ${borderClass}" >
+        <div class="card mb-3 ${borderClass}">
             <div class="card-header ${headerClass}" role="button" data-bs-toggle="collapse" data-bs-target="#diagnosis-collapse" aria-expanded="true">
                 <h5 class="mb-0">
                     <i class="bi ${icon}"></i> ${title}
@@ -938,15 +949,15 @@ function renderDiagnosis(analysis) {
                     ` : ''}
                 </div>
             </div>
-        </div >
+        </div>
         `;
 }
 
 function showHarError(message) {
     const resultsDiv = document.getElementById('har-results');
     resultsDiv.innerHTML = `
-        < div class="alert alert-danger" role = "alert" >
-            <i class="bi bi-exclamation-triangle-fill"></i> ${message}
-        </div >
+        <div class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i> ${escapeHtml(message)}
+        </div>
         `;
 }
