@@ -1303,18 +1303,8 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
                 resultHtml += `<p class="mb-1 text-warning"><strong>Failed:</strong> ${res.failedCount}</p>`;
             }
             resultHtml += '</div>';
-        } else if (res.successful !== undefined || res.failed !== undefined) {
-            // Batch operation results (create operations)
-            const successCount = res.successful?.length || 0;
-            const failedCount = res.failed?.length || 0;
-            resultHtml += '<div class="mb-2">';
-            resultHtml += `<p class="mb-1"><strong>Successful:</strong> ${successCount}</p>`;
-            if (failedCount > 0) {
-                resultHtml += `<p class="mb-1 text-warning"><strong>Failed:</strong> ${failedCount}</p>`;
-            }
-            resultHtml += '</div>';
         } else if (res.course && res.course_id) {
-            // Course creation result - show course link
+            // Course creation result - show course link (check BEFORE batch results since course creation may include successful arrays)
             const courseUrl = `https://${parsed.parameters?.domain || 'canvas.instructure.com'}/courses/${res.course_id}`;
             resultHtml += '<div class="mb-2">';
             resultHtml += `<p class="mb-2"><strong>Course Created:</strong> <a href="${courseUrl}" target="_blank" class="text-decoration-none">${res.course.name || 'New Course'} <i class="bi bi-box-arrow-up-right"></i></a></p>`;
@@ -1331,6 +1321,16 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
             if (res.pages) resultHtml += `<p class="mb-1"><i class="bi bi-file-richtext"></i> Pages: ${res.pages}</p>`;
             if (res.modules) resultHtml += `<p class="mb-1"><i class="bi bi-collection"></i> Modules: ${res.modules}</p>`;
             if (res.sections) resultHtml += `<p class="mb-1"><i class="bi bi-diagram-3"></i> Sections: ${res.sections}</p>`;
+            resultHtml += '</div>';
+        } else if (res.successful !== undefined || res.failed !== undefined) {
+            // Batch operation results (create operations)
+            const successCount = res.successful?.length || 0;
+            const failedCount = res.failed?.length || 0;
+            resultHtml += '<div class="mb-2">';
+            resultHtml += `<p class="mb-1"><strong>Successful:</strong> ${successCount}</p>`;
+            if (failedCount > 0) {
+                resultHtml += `<p class="mb-1 text-warning"><strong>Failed:</strong> ${failedCount}</p>`;
+            }
             resultHtml += '</div>';
         } else {
             // Generic result
