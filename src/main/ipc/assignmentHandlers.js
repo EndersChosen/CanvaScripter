@@ -13,8 +13,8 @@ const { batchHandler } = require('../../shared/batchHandler');
 
 // ==================== State Management ====================
 
-// Operation-level cancellation (shared with conversations and other handlers)
-const operationCancelFlags = new Map();
+// Operation-level cancellation (shared across handlers)
+const { operationCancelFlags } = require('./operationCancelStore');
 
 // Sender-level cancellation for specific operations
 const deleteCancelFlags = new Map();

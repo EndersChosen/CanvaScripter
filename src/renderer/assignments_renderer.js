@@ -326,9 +326,13 @@ function deleteAssignmentsCombined(e) {
                             <input id="f-group-id" class="form-control" type="text" placeholder="Assignment Group ID" disabled />
                         </div>
                         <div class="col-auto ms-4" id="f-in-group-name-container" style="display: none;">
-                            <input id="f-group-name" class="form-control" type="text" list="f-group-name-list" placeholder="Search or select group name" disabled />
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input id="f-group-name" class="form-control" type="text" list="f-group-name-list" placeholder="Search or select group" aria-label="Search or select assignment group" disabled />
+                                <span class="input-group-text"><i class="bi bi-chevron-down"></i></span>
+                            </div>
                             <datalist id="f-group-name-list"></datalist>
-                            <small class="form-text text-muted">Type to search or select from list</small>
+                            <small class="form-text text-muted">Type to search, or open the list</small>
                         </div>
                         <div class="w-100"></div>
                         <div class="col-auto form-check">
@@ -351,9 +355,13 @@ function deleteAssignmentsCombined(e) {
                             <input id="f-not-group-id" class="form-control" type="text" placeholder="Assignment Group ID" disabled />
                         </div>
                         <div class="col-auto ms-4" id="f-not-in-group-name-container" style="display: none;">
-                            <input id="f-not-group-name" class="form-control" type="text" list="f-not-group-name-list" placeholder="Search or select group name" disabled />
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input id="f-not-group-name" class="form-control" type="text" list="f-not-group-name-list" placeholder="Search or select group" aria-label="Search or select assignment group" disabled />
+                                <span class="input-group-text"><i class="bi bi-chevron-down"></i></span>
+                            </div>
                             <datalist id="f-not-group-name-list"></datalist>
-                            <small class="form-text text-muted">Type to search or select from list</small>
+                            <small class="form-text text-muted">Type to search, or open the list</small>
                         </div>
                     </div>
                 </div>
@@ -443,7 +451,7 @@ function deleteAssignmentsCombined(e) {
             [fNonModule, fNoDue, fUnpub, fNoSubs, fOlder, fOlderCreated, fOlderDate, fOlderCreatedDate, fFromImport, fImportId, fInGroup, fNotInGroup, fIncludeGraded].forEach(el => {
                 if (el) el.disabled = disabled;
             });
-            
+
             // Handle radio buttons and their inputs separately based on checkbox state
             if (!disabled) {
                 // When enabling filters, only enable inputs if their parent checkbox is checked
@@ -461,7 +469,7 @@ function deleteAssignmentsCombined(e) {
                     fGroupId.disabled = true;
                     fGroupName.disabled = true;
                 }
-                
+
                 if (fNotInGroup.checked) {
                     fNotInGroupModeId.disabled = false;
                     fNotInGroupModeName.disabled = false;
@@ -489,62 +497,47 @@ function deleteAssignmentsCombined(e) {
             }
         };
 
-        // Function to fetch and cache assignment groups
-        async function fetchAssignmentGroups() {
-            if (assignmentGroupsFetched && assignmentGroupsCache) {
-                return assignmentGroupsCache;
-            }
+        // Build assignment group cache from the assignments we already fetched
+        function buildAssignmentGroupsFromAssignments(assignments) {
+            const map = new Map();
+            (assignments || []).forEach(a => {
+                const group = a.assignmentGroup || {};
+                const id = group._id ? String(group._id).trim() : '';
+                const name = (group.name || '').trim();
+                if (!id || !name) return;
+                if (!map.has(id)) {
+                    map.set(id, { id, name });
+                }
+            });
 
-            const domain = document.querySelector('#domain').value.trim();
-            const token = document.querySelector('#token').value.trim();
-            const course_id = courseID.value.trim();
+            assignmentGroupsCache = Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+            assignmentGroupsFetched = true;
 
-            if (!course_id || isNaN(Number(course_id))) {
-                console.log('Cannot fetch assignment groups - invalid course ID');
-                return [];
-            }
+            // Populate both datalists
+            fGroupNameList.innerHTML = '';
+            fNotGroupNameList.innerHTML = '';
 
-            try {
-                console.log('Fetching assignment groups for course:', course_id);
-                const groups = await window.axios.getAssignmentGroups({
-                    domain,
-                    token,
-                    course: course_id
-                });
+            assignmentGroupsCache.forEach(group => {
+                const option1 = document.createElement('option');
+                option1.value = group.name;
+                option1.dataset.groupId = group.id;
+                fGroupNameList.appendChild(option1);
 
-                assignmentGroupsCache = groups || [];
-                assignmentGroupsFetched = true;
+                const option2 = document.createElement('option');
+                option2.value = group.name;
+                option2.dataset.groupId = group.id;
+                fNotGroupNameList.appendChild(option2);
+            });
 
-                // Populate both datalists
-                fGroupNameList.innerHTML = '';
-                fNotGroupNameList.innerHTML = '';
-
-                assignmentGroupsCache.forEach(group => {
-                    const option1 = document.createElement('option');
-                    option1.value = group.name;
-                    option1.dataset.groupId = group.id;
-                    fGroupNameList.appendChild(option1);
-
-                    const option2 = document.createElement('option');
-                    option2.value = group.name;
-                    option2.dataset.groupId = group.id;
-                    fNotGroupNameList.appendChild(option2);
-                });
-
-                console.log('Fetched and cached', assignmentGroupsCache.length, 'assignment groups');
-                return assignmentGroupsCache;
-            } catch (error) {
-                console.error('Error fetching assignment groups:', error);
-                assignmentGroupsCache = [];
-                assignmentGroupsFetched = false;
-                return [];
-            }
+            console.log('Built and cached', assignmentGroupsCache.length, 'assignment groups from assignments');
+            return assignmentGroupsCache;
         }
 
-        // Helper function to get group ID from name
+        // Helper function to get group ID from name (case-insensitive)
         function getGroupIdFromName(groupName) {
             if (!assignmentGroupsCache || !groupName) return null;
-            const group = assignmentGroupsCache.find(g => g.name === groupName);
+            const needle = groupName.trim().toLowerCase();
+            const group = assignmentGroupsCache.find(g => (g.name || '').trim().toLowerCase() === needle);
             return group ? String(group.id) : null;
         }
 
@@ -566,16 +559,16 @@ function deleteAssignmentsCombined(e) {
             }
         });
 
-        // Fetch assignment groups when course ID is valid and user focuses on group name inputs
+        // Build assignment groups from cached assignments when user focuses group name inputs
         fGroupName.addEventListener('focus', async () => {
-            if (!assignmentGroupsFetched && courseID.value.trim()) {
-                await fetchAssignmentGroups();
+            if (!assignmentGroupsFetched && allAssignmentsCache) {
+                buildAssignmentGroupsFromAssignments(allAssignmentsCache);
             }
         });
 
         fNotGroupName.addEventListener('focus', async () => {
-            if (!assignmentGroupsFetched && courseID.value.trim()) {
-                await fetchAssignmentGroups();
+            if (!assignmentGroupsFetched && allAssignmentsCache) {
+                buildAssignmentGroupsFromAssignments(allAssignmentsCache);
             }
         });
 
@@ -1101,6 +1094,12 @@ function deleteAssignmentsCombined(e) {
             importedAssignmentsCache = null;
             cachedImportId = null;
 
+            // Clear assignment group filter inputs on new check
+            if (fGroupId) fGroupId.value = '';
+            if (fGroupName) fGroupName.value = '';
+            if (fNotGroupId) fNotGroupId.value = '';
+            if (fNotGroupName) fNotGroupName.value = '';
+
             // Reset deletion tracking for new course
             totalDeletedCount = 0;
             originalAssignmentCount = 0;
@@ -1115,6 +1114,11 @@ function deleteAssignmentsCombined(e) {
                 const all = await window.axios.getAllAssignmentsForCombined({ domain, token, course_id: cid });
                 console.log('Received assignments:', all ? all.length : 'null/undefined', all);
                 allAssignmentsCache = all;
+
+                // Build assignment group list immediately from fetched assignments
+                if (Array.isArray(allAssignmentsCache)) {
+                    buildAssignmentGroupsFromAssignments(allAssignmentsCache);
+                }
 
                 // Set original count only on first fetch (when totalDeletedCount is 0)
                 if (totalDeletedCount === 0) {
@@ -1262,9 +1266,8 @@ function deleteAssignmentsCombined(e) {
                 fGroupId.disabled = true;
                 fGroupName.disabled = false;
 
-                // Fetch assignment groups if not already fetched
-                if (!assignmentGroupsFetched) {
-                    await fetchAssignmentGroups();
+                if (!assignmentGroupsFetched && allAssignmentsCache) {
+                    buildAssignmentGroupsFromAssignments(allAssignmentsCache);
                 }
                 updateCount();
             }
@@ -1318,9 +1321,8 @@ function deleteAssignmentsCombined(e) {
                 fNotGroupId.disabled = true;
                 fNotGroupName.disabled = false;
 
-                // Fetch assignment groups if not already fetched
-                if (!assignmentGroupsFetched) {
-                    await fetchAssignmentGroups();
+                if (!assignmentGroupsFetched && allAssignmentsCache) {
+                    buildAssignmentGroupsFromAssignments(allAssignmentsCache);
                 }
                 updateCount();
             }

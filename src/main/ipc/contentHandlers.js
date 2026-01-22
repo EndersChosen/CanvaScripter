@@ -15,7 +15,7 @@ const grading_standards = require('../../shared/canvas-api/grading_standards');
 const { getPageViews, updateNotifications } = require('../../shared/canvas-api/users');
 
 // State management for cancellation tracking
-const operationCancelFlags = new Map();
+const { operationCancelFlags } = require('./operationCancelStore');
 const deleteCancelFlags = new Map();
 
 /**
