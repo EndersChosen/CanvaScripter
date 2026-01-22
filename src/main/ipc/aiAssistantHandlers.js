@@ -342,6 +342,25 @@ const OPERATION_MAP = {
         },
         needsFetch: true
     },
+    'delete-assignments-not-in-group': {
+        fetchHandler: 'axios:getAllAssignmentsForCombined',
+        deleteHandler: 'axios:deleteAssignments',
+        description: 'Delete all assignments NOT in a specific assignment group (keep only assignments in the group)',
+        requiredParams: ['domain', 'token', 'courseId', 'keepGroupId'],
+        filters: {
+            notInGroupId: true,
+            includeGraded: false
+        },
+        needsFetch: true
+    },
+    'move-assignments-to-group': {
+        fetchHandler: 'axios:getAssignmentsToMove',
+        moveHandler: 'axios:moveAssignmentsToSingleGroup',
+        description: 'Move all assignments to a specific assignment group',
+        requiredParams: ['domain', 'token', 'courseId', 'targetGroupId'],
+        needsFetch: true,
+        isMoveOperation: true
+    },
 
     // ==================== Conversation Operations ====================
     'get-conversations': {
@@ -359,9 +378,11 @@ const OPERATION_MAP = {
     },
     'get-deleted-conversations': {
         handler: 'axios:getDeletedConversations',
-        description: 'Get deleted conversations',
+        description: 'Get deleted conversations for a user with optional date filters',
         requiredParams: ['domain', 'token'],
-        needsFetch: false
+        optionalParams: ['userId', 'user_id', 'deletedAfter', 'deleted_after', 'deletedBefore', 'deleted_before'],
+        needsFetch: false,
+        isQuery: true
     },
     'restore-deleted-conversations': {
         handler: 'axios:restoreDeletedConversations',
@@ -833,7 +854,39 @@ You may also use "forEach" to repeat a step for a list (e.g., for each group ID)
 
 For conversation operations:
 - Extract userId: Canvas user ID for the sender (e.g., "user 123")
-- Extract subject: exact subject text to match
+- Extract subject: exact subject text to match (case-sensitive, must be exact)
+
+=== CONVERSATION OPERATIONS ===
+Supported conversation operations:
+
+1. get-conversations: Search for conversations by subject for a specific user
+   - Required: userId, subject
+   - Returns conversations matching the exact subject text
+
+2. delete-conversations: Delete conversations with a specific subject
+   - Required: userId, subject
+   - Searches for sent conversations and deletes them for all recipients
+
+3. get-deleted-conversations: Retrieve deleted conversations
+   - Required: domain, token
+   - Optional: userId (to filter by specific user), deletedAfter (ISO date), deletedBefore (ISO date)
+   - Returns deleted conversations, optionally filtered by date range
+
+4. restore-deleted-conversations: Restore previously deleted conversations
+   - Required: conversations (array of conversation objects with message_id, user_id, conversation_id)
+   - This is typically used with data from a file upload (CSV/JSON)
+
+Conversation examples:
+- "Delete all messages sent by user 123 with subject 'Test Message'"
+    -> operation: "delete-conversations", userId: "123", subject: "Test Message"
+- "Find conversations from user 456 with subject 'Hello'"
+    -> operation: "get-conversations", userId: "456", subject: "Hello"
+- "Get deleted conversations for user 789"
+    -> operation: "get-deleted-conversations", userId: "789"
+- "Get deleted conversations deleted after January 1, 2024"
+    -> operation: "get-deleted-conversations", deletedAfter: "2024-01-01"
+- "Show me deleted messages from user 123 between March 1 and March 15, 2024"
+    -> operation: "get-deleted-conversations", userId: "123", deletedAfter: "2024-03-01", deletedBefore: "2024-03-15"
 
 === INFORMATION QUERY PARSING ===
 When users ask questions about course content, use the appropriate get-*-info operation:
@@ -890,15 +943,37 @@ Examples:
 - "How many announcements titled 'Test' are in course 123?"
   -> operation: "get-announcements-info", queryType: "count", titleFilter: "Test"
 
-Conversation examples:
-- "Delete all messages sent by user 123 with subject 'Test Message'"
-    -> operation: "delete-conversations", userId: "123", subject: "Test Message"
-- "Find conversations from user 456 with subject 'Hello'"
-    -> operation: "get-conversations", userId: "456", subject: "Hello"
-
 Assignment group example:
 - "Delete all assignments in the 'Assignments #2' assignment group from https://school.com/courses/123"
     -> operation: "delete-assignments-in-assignment-group", groupName: "Assignments #2"
+
+=== MOVE ASSIGNMENTS TO A SINGLE GROUP ===
+When user wants to move all assignments to a specific assignment group:
+- Use operation: "move-assignments-to-group"
+- Required: targetGroupId - the assignment group ID to move assignments to
+- This moves all assignments in the course to the specified group
+
+Examples:
+- "Move all assignments to assignment group 12345 in course 123"
+    -> operation: "move-assignments-to-group", targetGroupId: "12345"
+- "Move all assignments in https://school.com/courses/123 to group 67890"
+    -> operation: "move-assignments-to-group", targetGroupId: "67890"
+- "Consolidate all assignments into assignment group 54321 in course 456"
+    -> operation: "move-assignments-to-group", targetGroupId: "54321"
+
+=== KEEP ONLY ASSIGNMENTS IN A SPECIFIC GROUP ===
+When user wants to delete all assignments EXCEPT those in a specific group:
+- Use operation: "delete-assignments-not-in-group"
+- Required: keepGroupId - the assignment group ID to keep (delete all others)
+- This deletes assignments NOT in the specified group
+
+Examples:
+- "Delete all assignments except those in group 12345 from course 123"
+    -> operation: "delete-assignments-not-in-group", keepGroupId: "12345"
+- "Keep only assignments in assignment group 67890, delete the rest from course 456"
+    -> operation: "delete-assignments-not-in-group", keepGroupId: "67890"
+- "Remove all assignments not in the 'Final Exams' group from https://school.com/courses/123"
+    -> operation: "delete-assignments-not-in-group", groupName: "Final Exams"
 
 === CREATING ASSIGNMENTS IN EMPTY GROUPS ===
 When user wants to create assignment(s) in every empty assignment group:
@@ -931,6 +1006,36 @@ Common submission types:
 - "online_url" = website URL
 - "on_paper" = on paper
 - "external_tool" = external tool
+
+=== ASSIGNMENT CREATION PARSING ===
+For create-assignments operation, extract these parameters:
+- name: Assignment name/title (required)
+- number: How many assignments to create (default 1)
+- points: Point value for the assignment (default 0)
+- submissionTypes: Array of submission types (default ["online_upload"])
+  * "online_upload" = file upload
+  * "online_text_entry" = text entry  
+  * "online_url" = website URL
+  * "on_paper" = on paper
+  * "external_tool" = external tool
+- publish: true/false - whether to publish the assignment (default false)
+- grade_type: Grading type - "points", "percent", "pass_fail", "letter_grade", "gpa_scale", "not_graded" (default "points")
+- peer_reviews: true/false - enable peer reviews (default false)
+- peer_review_count: Number of peer reviews required per student (only if peer_reviews is true)
+- anonymous: true/false - enable anonymous grading (default false)
+- assignmentGroupId: ID of the assignment group to place the assignment in
+
+Examples:
+- "Create 5 assignments named 'Homework' worth 10 points each in course 123"
+    -> operation: "create-assignments", name: "Homework", number: 5, points: 10
+- "Create an assignment called 'Essay' with text entry submission in course 456"
+    -> operation: "create-assignments", name: "Essay", submissionTypes: ["online_text_entry"]
+- "Create a peer review assignment with 3 reviews per student named 'Peer Review Essay' in course 789"
+    -> operation: "create-assignments", name: "Peer Review Essay", peer_reviews: true, peer_review_count: 3
+- "Create an assignment with anonymous grading called 'Final Exam' worth 100 points"
+    -> operation: "create-assignments", name: "Final Exam", points: 100, anonymous: true
+- "Create a pass/fail assignment named 'Attendance' that accepts on paper submissions"
+    -> operation: "create-assignments", name: "Attendance", grade_type: "pass_fail", submissionTypes: ["on_paper"]
 
 === ANNOUNCEMENT CREATION PARSING ===
 For create-announcements operation, extract these parameters:
@@ -1047,6 +1152,8 @@ Respond ONLY with valid JSON in this exact format:
         "userId": "canvas-user-id",
         "groupName": "assignment group name",
         "assignmentGroupId": "optional assignment group id",
+        "targetGroupId": "target group ID for move operations",
+        "keepGroupId": "group ID to keep when deleting others",
     "importId": "12345",
     "number": 10,
     "assignmentsPerGroup": 2,
@@ -1062,6 +1169,9 @@ Respond ONLY with valid JSON in this exact format:
     "points": 10,
     "submissionTypes": ["online_upload"],
     "publish": false,
+    "subject": "exact conversation subject text",
+    "deletedAfter": "2024-01-01 (date filter for deleted conversations)",
+    "deletedBefore": "2024-12-31 (date filter for deleted conversations)",
     "queryType": "count or list or details (for info operations)",
     "filters": { "unpublished": true, "noSubmissions": true },
     "titleFilter": "optional title filter for announcements"
@@ -1074,6 +1184,7 @@ Respond ONLY with valid JSON in this exact format:
 Note: For announcements, use "title" (not "name") and include "message", "delayed_post_at", "lock_at" as needed.
 Set generateTitles to true when creating multiple announcements with varied/unique titles.
 For information queries (get-*-info operations), include queryType parameter and filters object when applicable.
+For conversation operations, use "subject" for exact subject matching (case-sensitive) and include date filters when querying deleted conversations.
 
 If the request is unclear or unsupported, set confidence to 0 and explain in summary.`;
 
@@ -1623,12 +1734,24 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     reply: event.reply
                 };
 
-                // Prepare query parameters
-                const queryParams = {
-                    domain: fullParams.domain,
-                    token: fullParams.token,
-                    course_id: fullParams.courseId || fullParams.course_id
-                };
+                // Prepare query parameters - handle special cases
+                let queryParams;
+                if (operation === 'get-deleted-conversations') {
+                    // Special handling for deleted conversations with optional filters
+                    queryParams = {
+                        domain: fullParams.domain,
+                        token: fullParams.token,
+                        user_id: fullParams.userId || fullParams.user_id,
+                        deleted_after: fullParams.deletedAfter || fullParams.deleted_after,
+                        deleted_before: fullParams.deletedBefore || fullParams.deleted_before
+                    };
+                } else {
+                    queryParams = {
+                        domain: fullParams.domain,
+                        token: fullParams.token,
+                        course_id: fullParams.courseId || fullParams.course_id
+                    };
+                }
 
                 console.log('AI Assistant: Fetching data with params:', queryParams);
                 const fetchResult = await handler(mockEvent, queryParams);
@@ -1650,6 +1773,9 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 } else if (operation === 'get-empty-assignment-groups' && Array.isArray(fetchResult)) {
                     items = fetchResult;
                     dataType = 'assignment groups';
+                } else if (operation === 'get-deleted-conversations' && Array.isArray(fetchResult)) {
+                    items = fetchResult;
+                    dataType = 'deleted conversations';
                 } else if (fetchResult.discussions) {
                     items = fetchResult.discussions;
                     dataType = 'discussions';
@@ -1801,6 +1927,22 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     }
                     fullParams.assignmentGroupId = resolvedGroupId;
                 }
+
+                // Resolve group name to ID for delete-assignments-not-in-group
+                if (operation === 'delete-assignments-not-in-group') {
+                    if (fullParams.groupName && !fullParams.keepGroupId) {
+                        const { id: resolvedGroupId, groups } = await resolveAssignmentGroupId({ ...fullParams, groupName: fullParams.groupName }, event);
+                        if (!resolvedGroupId) {
+                            const suggestionText = (groups || []).map(g => g?.name).filter(Boolean).slice(0, 10).join(', ');
+                            throw new Error(`Assignment group "${fullParams.groupName}" not found. Available groups (first 10): ${suggestionText || 'none'}`);
+                        }
+                        fullParams.keepGroupId = resolvedGroupId;
+                    }
+                    if (!fullParams.keepGroupId) {
+                        throw new Error('keepGroupId or groupName is required for delete-assignments-not-in-group operation');
+                    }
+                }
+
                 // Step 1: Fetch the items with filters
                 const fetchHandler = ipcMain._invokeHandlers?.get(opInfo.fetchHandler);
                 if (!fetchHandler) {
@@ -1906,6 +2048,19 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                                 ''
                             ).trim();
                             return assignmentGroupId === groupId;
+                        });
+                    }
+                    // Filter to keep only assignments NOT in a specific group (inverse of assignmentGroupId filter)
+                    if (filters.notInGroupId && fullParams.keepGroupId) {
+                        const keepGroupId = String(fullParams.keepGroupId).trim();
+                        items = items.filter(a => {
+                            const assignmentGroupId = String(
+                                a.assignmentGroup?._id ||
+                                a.assignmentGroupId ||
+                                a.assignment_group_id ||
+                                ''
+                            ).trim();
+                            return assignmentGroupId !== keepGroupId;
                         });
                     }
                     // Filter announcements by title (case-insensitive partial match)
@@ -2035,6 +2190,67 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                             groupsFailed: createResults.filter(r => !r.success).length,
                             assignmentsCreated: totalAssignmentsCreated,
                             details: createResults
+                        }
+                    };
+                }
+
+                // Special handling for move operations (e.g., move assignments to a single group)
+                if (opInfo.isMoveOperation) {
+                    const moveHandler = ipcMain._invokeHandlers?.get(opInfo.moveHandler);
+                    if (!moveHandler) {
+                        throw new Error(`Move handler ${opInfo.moveHandler} not found.`);
+                    }
+
+                    const targetGroupId = fullParams.targetGroupId;
+                    if (!targetGroupId) {
+                        throw new Error('Target assignment group ID is required for move operation');
+                    }
+
+                    // Filter out assignments already in the target group
+                    const assignmentsToMove = normalizedItems.filter(a => {
+                        const currentGroupId = String(
+                            a.assignmentGroup?._id ||
+                            a.assignmentGroupId ||
+                            a.assignment_group_id ||
+                            ''
+                        ).trim();
+                        return currentGroupId !== String(targetGroupId).trim();
+                    });
+
+                    if (assignmentsToMove.length === 0) {
+                        return {
+                            success: true,
+                            result: {
+                                message: 'All assignments are already in the target group',
+                                count: 0,
+                                movedCount: 0,
+                                alreadyInGroup: normalizedItems.length
+                            }
+                        };
+                    }
+
+                    // Prepare move parameters
+                    const moveParams = {
+                        url: fullParams.domain,
+                        token: fullParams.token,
+                        course: fullParams.courseId || fullParams.course_id,
+                        number: assignmentsToMove.length,
+                        assignments: assignmentsToMove,
+                        groupID: targetGroupId
+                    };
+
+                    console.log(`AI Assistant: Moving ${assignmentsToMove.length} assignments to group ${targetGroupId}`);
+                    const moveResult = await moveHandler(mockEvent, moveParams);
+
+                    return {
+                        success: true,
+                        result: {
+                            message: `Moved ${moveResult.successful?.length || assignmentsToMove.length} assignment(s) to the target group`,
+                            movedCount: moveResult.successful?.length || assignmentsToMove.length,
+                            failedCount: moveResult.failed?.length || 0,
+                            alreadyInGroup: normalizedItems.length - assignmentsToMove.length,
+                            successful: moveResult.successful || assignmentsToMove.length,
+                            failed: moveResult.failed || 0
                         }
                     };
                 }
