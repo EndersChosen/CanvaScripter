@@ -310,16 +310,50 @@ function deleteAssignmentsCombined(e) {
                             <input id="f-in-group" class="form-check-input" type="checkbox" />
                             <label for="f-in-group" class="form-check-label">In specific assignment group</label>
                         </div>
-                        <div class="col-auto">
+                        <div class="w-100"></div>
+                        <div class="col-auto ms-4">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="in-group-mode" id="f-in-group-mode-id" value="id" checked disabled>
+                                <label class="form-check-label" for="f-in-group-mode-id">By ID</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="in-group-mode" id="f-in-group-mode-name" value="name" disabled>
+                                <label class="form-check-label" for="f-in-group-mode-name">By Name</label>
+                            </div>
+                        </div>
+                        <div class="w-100"></div>
+                        <div class="col-auto ms-4" id="f-in-group-id-container">
                             <input id="f-group-id" class="form-control" type="text" placeholder="Assignment Group ID" disabled />
+                        </div>
+                        <div class="col-auto ms-4" id="f-in-group-name-container" style="display: none;">
+                            <input id="f-group-name" class="form-control" type="text" list="f-group-name-list" placeholder="Search or select group name" disabled />
+                            <datalist id="f-group-name-list"></datalist>
+                            <small class="form-text text-muted">Type to search or select from list</small>
                         </div>
                         <div class="w-100"></div>
                         <div class="col-auto form-check">
                             <input id="f-not-in-group" class="form-check-input" type="checkbox" />
                             <label for="f-not-in-group" class="form-check-label">NOT in specific assignment group</label>
                         </div>
-                        <div class="col-auto">
+                        <div class="w-100"></div>
+                        <div class="col-auto ms-4">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="not-in-group-mode" id="f-not-in-group-mode-id" value="id" checked disabled>
+                                <label class="form-check-label" for="f-not-in-group-mode-id">By ID</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="not-in-group-mode" id="f-not-in-group-mode-name" value="name" disabled>
+                                <label class="form-check-label" for="f-not-in-group-mode-name">By Name</label>
+                            </div>
+                        </div>
+                        <div class="w-100"></div>
+                        <div class="col-auto ms-4" id="f-not-in-group-id-container">
                             <input id="f-not-group-id" class="form-control" type="text" placeholder="Assignment Group ID" disabled />
+                        </div>
+                        <div class="col-auto ms-4" id="f-not-in-group-name-container" style="display: none;">
+                            <input id="f-not-group-name" class="form-control" type="text" list="f-not-group-name-list" placeholder="Search or select group name" disabled />
+                            <datalist id="f-not-group-name-list"></datalist>
+                            <small class="form-text text-muted">Type to search or select from list</small>
                         </div>
                     </div>
                 </div>
@@ -337,7 +371,7 @@ function deleteAssignmentsCombined(e) {
         const progressInfo = form.querySelector('#combined-progress-info');
         const responseDiv = form.querySelector('#combined-response-container');
         const cancelDeleteBtn = form.querySelector('#cancel-delete-assignments-btn');
-        
+
         // Track current delete operation
         let currentDeleteOperationId = null;
         let isDeleting = false;
@@ -355,8 +389,20 @@ function deleteAssignmentsCombined(e) {
         const fImportId = form.querySelector('#f-import-id');
         const fInGroup = form.querySelector('#f-in-group');
         const fGroupId = form.querySelector('#f-group-id');
+        const fGroupName = form.querySelector('#f-group-name');
+        const fInGroupModeId = form.querySelector('#f-in-group-mode-id');
+        const fInGroupModeName = form.querySelector('#f-in-group-mode-name');
+        const fInGroupIdContainer = form.querySelector('#f-in-group-id-container');
+        const fInGroupNameContainer = form.querySelector('#f-in-group-name-container');
+        const fGroupNameList = form.querySelector('#f-group-name-list');
         const fNotInGroup = form.querySelector('#f-not-in-group');
         const fNotGroupId = form.querySelector('#f-not-group-id');
+        const fNotGroupName = form.querySelector('#f-not-group-name');
+        const fNotInGroupModeId = form.querySelector('#f-not-in-group-mode-id');
+        const fNotInGroupModeName = form.querySelector('#f-not-in-group-mode-name');
+        const fNotInGroupIdContainer = form.querySelector('#f-not-in-group-id-container');
+        const fNotInGroupNameContainer = form.querySelector('#f-not-in-group-name-container');
+        const fNotGroupNameList = form.querySelector('#f-not-group-name-list');
         const fIncludeGraded = form.querySelector('#f-include-graded');
 
         // Get containers for visual styling
@@ -383,15 +429,124 @@ function deleteAssignmentsCombined(e) {
         // Set initial states
         fImportId.disabled = true; // Import ID input starts disabled since checkbox is unchecked
         fGroupId.disabled = true; // Group ID input starts disabled since checkbox is unchecked
+        fGroupName.disabled = true; // Group name input starts disabled since checkbox is unchecked
+        fInGroupModeId.disabled = true; // In group mode radio starts disabled
+        fInGroupModeName.disabled = true; // In group mode radio starts disabled
         fNotGroupId.disabled = true; // Not Group ID input starts disabled since checkbox is unchecked
+        fNotGroupName.disabled = true; // Not Group name input starts disabled since checkbox is unchecked
+        fNotInGroupModeId.disabled = true; // Not in group mode radio starts disabled
+        fNotInGroupModeName.disabled = true; // Not in group mode radio starts disabled
         fOlderDate.disabled = true; // Older date input starts disabled since checkbox is unchecked
         fOlderCreatedDate.disabled = true; // Older created date input starts disabled since checkbox is unchecked
 
         const setFiltersDisabled = (disabled) => {
-            [fNonModule, fNoDue, fUnpub, fNoSubs, fOlder, fOlderCreated, fOlderDate, fOlderCreatedDate, fFromImport, fImportId, fInGroup, fGroupId, fNotInGroup, fNotGroupId, fIncludeGraded].forEach(el => {
+            [fNonModule, fNoDue, fUnpub, fNoSubs, fOlder, fOlderCreated, fOlderDate, fOlderCreatedDate, fFromImport, fImportId, fInGroup, fNotInGroup, fIncludeGraded].forEach(el => {
                 if (el) el.disabled = disabled;
             });
+            
+            // Handle radio buttons and their inputs separately based on checkbox state
+            if (!disabled) {
+                // When enabling filters, only enable inputs if their parent checkbox is checked
+                if (fInGroup.checked) {
+                    fInGroupModeId.disabled = false;
+                    fInGroupModeName.disabled = false;
+                    if (fInGroupModeId.checked) {
+                        fGroupId.disabled = false;
+                    } else {
+                        fGroupName.disabled = false;
+                    }
+                } else {
+                    fInGroupModeId.disabled = true;
+                    fInGroupModeName.disabled = true;
+                    fGroupId.disabled = true;
+                    fGroupName.disabled = true;
+                }
+                
+                if (fNotInGroup.checked) {
+                    fNotInGroupModeId.disabled = false;
+                    fNotInGroupModeName.disabled = false;
+                    if (fNotInGroupModeId.checked) {
+                        fNotGroupId.disabled = false;
+                    } else {
+                        fNotGroupName.disabled = false;
+                    }
+                } else {
+                    fNotInGroupModeId.disabled = true;
+                    fNotInGroupModeName.disabled = true;
+                    fNotGroupId.disabled = true;
+                    fNotGroupName.disabled = true;
+                }
+            } else {
+                // When disabling all filters, disable everything
+                fInGroupModeId.disabled = true;
+                fInGroupModeName.disabled = true;
+                fGroupId.disabled = true;
+                fGroupName.disabled = true;
+                fNotInGroupModeId.disabled = true;
+                fNotInGroupModeName.disabled = true;
+                fNotGroupId.disabled = true;
+                fNotGroupName.disabled = true;
+            }
         };
+
+        // Function to fetch and cache assignment groups
+        async function fetchAssignmentGroups() {
+            if (assignmentGroupsFetched && assignmentGroupsCache) {
+                return assignmentGroupsCache;
+            }
+
+            const domain = document.querySelector('#domain').value.trim();
+            const token = document.querySelector('#token').value.trim();
+            const course_id = courseID.value.trim();
+
+            if (!course_id || isNaN(Number(course_id))) {
+                console.log('Cannot fetch assignment groups - invalid course ID');
+                return [];
+            }
+
+            try {
+                console.log('Fetching assignment groups for course:', course_id);
+                const groups = await window.axios.getAssignmentGroups({
+                    domain,
+                    token,
+                    course: course_id
+                });
+
+                assignmentGroupsCache = groups || [];
+                assignmentGroupsFetched = true;
+
+                // Populate both datalists
+                fGroupNameList.innerHTML = '';
+                fNotGroupNameList.innerHTML = '';
+
+                assignmentGroupsCache.forEach(group => {
+                    const option1 = document.createElement('option');
+                    option1.value = group.name;
+                    option1.dataset.groupId = group.id;
+                    fGroupNameList.appendChild(option1);
+
+                    const option2 = document.createElement('option');
+                    option2.value = group.name;
+                    option2.dataset.groupId = group.id;
+                    fNotGroupNameList.appendChild(option2);
+                });
+
+                console.log('Fetched and cached', assignmentGroupsCache.length, 'assignment groups');
+                return assignmentGroupsCache;
+            } catch (error) {
+                console.error('Error fetching assignment groups:', error);
+                assignmentGroupsCache = [];
+                assignmentGroupsFetched = false;
+                return [];
+            }
+        }
+
+        // Helper function to get group ID from name
+        function getGroupIdFromName(groupName) {
+            if (!assignmentGroupsCache || !groupName) return null;
+            const group = assignmentGroupsCache.find(g => g.name === groupName);
+            return group ? String(group.id) : null;
+        }
 
         // Filters are enabled by default so users can select them before the initial check
 
@@ -401,6 +556,27 @@ function deleteAssignmentsCombined(e) {
             const validCourse = /^(\d+)$/.test(val);
             courseID.classList.toggle('is-invalid', !validCourse && val.length > 0);
             checkBtn.disabled = !validCourse;
+
+            // Reset assignment groups cache when course ID changes
+            if (assignmentGroupsFetched) {
+                assignmentGroupsCache = null;
+                assignmentGroupsFetched = false;
+                fGroupNameList.innerHTML = '';
+                fNotGroupNameList.innerHTML = '';
+            }
+        });
+
+        // Fetch assignment groups when course ID is valid and user focuses on group name inputs
+        fGroupName.addEventListener('focus', async () => {
+            if (!assignmentGroupsFetched && courseID.value.trim()) {
+                await fetchAssignmentGroups();
+            }
+        });
+
+        fNotGroupName.addEventListener('focus', async () => {
+            if (!assignmentGroupsFetched && courseID.value.trim()) {
+                await fetchAssignmentGroups();
+            }
         });
 
         function renderResults(finalAssignments) {
@@ -409,34 +585,34 @@ function deleteAssignmentsCombined(e) {
             console.log('allAssignmentsCache length:', allAssignmentsCache ? allAssignmentsCache.length : 'null/undefined');
             console.log('totalDeletedCount:', totalDeletedCount);
             console.log('originalAssignmentCount:', originalAssignmentCount);
-            
+
             responseDiv.innerHTML = '';
             const responseCard = form.querySelector('#combined-response-container-card');
             if (responseCard) {
                 responseCard.hidden = false; // Always show the results card
             }
-            
+
             const details = document.createElement('div');
             details.id = 'combined-response-details';
             details.className = 'card';
             const currentAvailable = Array.isArray(allAssignmentsCache) ? allAssignmentsCache.length : finalAssignments.length;
-            
+
             console.log('Calculated currentAvailable:', currentAvailable);
-            
+
             // Calculate display text based on deletion status
             let headerText = 'Results';
             let statusText = '';
-            
+
             if (totalDeletedCount > 0) {
                 headerText = 'Delete More Assignments';
                 statusText = `Deleted ${totalDeletedCount} of ${originalAssignmentCount} assignments. ${finalAssignments.length} remaining assignments match your filters.`;
             } else {
                 statusText = `Found ${finalAssignments.length} out of ${currentAvailable} assignments matching the selected filters.`;
             }
-            
+
             console.log('Header text:', headerText);
             console.log('Status text:', statusText);
-            
+
             details.innerHTML = `
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>${headerText}</span>
@@ -467,26 +643,26 @@ function deleteAssignmentsCombined(e) {
             removeBtn.addEventListener('click', async (e2) => {
                 e2.preventDefault();
                 e2.stopPropagation();
-                
+
                 // Generate unique operation ID for deletion
                 currentDeleteOperationId = `delete-assignments-${Date.now()}`;
                 isDeleting = true;
                 isDeletingCancelling = false;
-                
+
                 // Show processing card and hide results temporarily
                 progressDiv.hidden = false;
                 progressBar.parentElement.hidden = false;
                 progressBar.style.width = '0%';
                 if (spinner) spinner.hidden = false;
                 progressInfo.innerHTML = `Deleting ${finalAssignments.length} assignments...`;
-                
+
                 // Show cancel button
                 cancelDeleteBtn.hidden = false;
                 cancelDeleteBtn.disabled = false;
-                
+
                 // Disable the delete button during processing
                 removeBtn.disabled = true;
-                
+
                 const domain = document.querySelector('#domain').value.trim();
                 const token = document.querySelector('#token').value.trim();
                 const cid = form.querySelector('#course-id').value.trim();
@@ -498,7 +674,7 @@ function deleteAssignmentsCombined(e) {
                     assignments: finalAssignments.map(a => ({ id: a.id, name: a.name })),
                     operationId: currentDeleteOperationId
                 };
-                
+
                 // Subscribe to progress updates
                 const progressUnsub = window.progressAPI?.onUpdateProgress?.((p) => {
                     // Don't update progress if we're cancelling
@@ -510,13 +686,13 @@ function deleteAssignmentsCombined(e) {
                 try {
                     const result = await window.axios.deleteAssignments(payload);
                     const { successful, failed, cancelled } = result;
-                    
+
                     // Hide cancel button after operation completes
                     cancelDeleteBtn.hidden = true;
-                    
+
                     // Update deletion tracking
                     totalDeletedCount += successful.length;
-                    
+
                     // Handle cancellation
                     if (cancelled) {
                         const successText = successful.length === 1 ? 'assignment' : 'assignments';
@@ -524,32 +700,32 @@ function deleteAssignmentsCombined(e) {
                             <i class="bi bi-exclamation-circle me-2"></i>
                             <strong>Cancelled:</strong> Deleted ${successful.length} ${successText} before cancellation.
                         </div>`;
-                        
+
                         // Hide processing card
                         progressDiv.hidden = true;
                         if (spinner) spinner.hidden = true;
-                        
+
                         // Re-apply filters to update results
                         updateCount();
                         return;
                     }
-                    
+
                     // Report initial results
                     const successText = successful.length === 1 ? 'assignment' : 'assignments';
                     const failureText = failed.length === 1 ? 'assignment' : 'assignments';
-                    
+
                     let resultMessage = `<div class="alert alert-success d-flex align-items-center" role="alert">
                         <i class="bi bi-check-circle-fill me-2"></i>
                         <div>Successfully deleted ${successful.length} ${successText}!</div>
                     </div>`;
-                    
+
                     if (failed.length > 0) {
                         resultMessage += `<div class="alert alert-warning d-flex align-items-center mt-2" role="alert">
                             <i class="bi bi-exclamation-triangle-fill me-2"></i>
                             <div>Failed to delete ${failed.length} ${failureText}.</div>
                         </div>`;
                     }
-                    
+
                     progressInfo.innerHTML = resultMessage;
 
                     // Check for empty assignment groups after successful deletion
@@ -557,7 +733,7 @@ function deleteAssignmentsCombined(e) {
                         progressInfo.innerHTML = 'Checking for empty assignment groups...';
                         try {
                             const groupResult = await checkAndDeleteEmptyAssignmentGroups(domain, cid, token, progressInfo, details);
-                            
+
                             if (groupResult.deletedCount > 0 || groupResult.failedCount > 0) {
                                 progressInfo.innerHTML += `<br>Deleted ${groupResult.deletedCount} empty assignment group(s)${groupResult.failedCount > 0 ? `, failed to delete ${groupResult.failedCount}` : ''}.`;
                                 // Give user time to see the group deletion result
@@ -571,7 +747,7 @@ function deleteAssignmentsCombined(e) {
                         progressInfo.innerHTML = 'Refreshing assignment data...';
                         try {
                             console.log('Refreshing assignments after deletion...');
-                            
+
                             // Use a simpler call without progress callback to avoid cloning issues
                             const updatedAssignments = await window.axios.getAllAssignmentsForCombined({
                                 domain,
@@ -582,7 +758,7 @@ function deleteAssignmentsCombined(e) {
                             if (updatedAssignments && Array.isArray(updatedAssignments)) {
                                 console.log(`Refreshed assignment cache: ${updatedAssignments.length} assignments (was ${allAssignmentsCache ? allAssignmentsCache.length : 'null'})`);
                                 allAssignmentsCache = updatedAssignments;
-                                
+
                                 // Update success message with refresh info
                                 const refreshSuccessMessage = `<div class="alert alert-success d-flex align-items-center" role="alert">
                                     <i class="bi bi-check-circle-fill me-2"></i>
@@ -592,7 +768,7 @@ function deleteAssignmentsCombined(e) {
                                         ✓ Refreshed assignment data: ${updatedAssignments.length} assignments found</small>
                                     </div>
                                 </div>`;
-                                
+
                                 if (failed.length > 0) {
                                     progressInfo.innerHTML = refreshSuccessMessage + `<div class="alert alert-warning d-flex align-items-center mt-2" role="alert">
                                         <i class="bi bi-exclamation-triangle-fill me-2"></i>
@@ -607,7 +783,7 @@ function deleteAssignmentsCombined(e) {
                             }
                         } catch (refreshError) {
                             console.error('Error refreshing assignments:', refreshError);
-                            
+
                             // If refresh fails, show success message without refresh info
                             const basicSuccessMessage = `<div class="alert alert-success d-flex align-items-center" role="alert">
                                 <i class="bi bi-check-circle-fill me-2"></i>
@@ -617,7 +793,7 @@ function deleteAssignmentsCombined(e) {
                                     <small class="text-warning">⚠ Could not refresh assignment data - please re-run the check to see updated results</small>
                                 </div>
                             </div>`;
-                            
+
                             if (failed.length > 0) {
                                 progressInfo.innerHTML = basicSuccessMessage + `<div class="alert alert-warning d-flex align-items-center mt-2" role="alert">
                                     <i class="bi bi-exclamation-triangle-fill me-2"></i>
@@ -632,11 +808,11 @@ function deleteAssignmentsCombined(e) {
                     // Hide processing card after completion
                     progressDiv.hidden = true;
                     if (spinner) spinner.hidden = true;
-                    
+
                     // Re-apply filters to update the results with refreshed data
                     console.log('Reapplying filters after deletion and refresh...');
                     updateCount();
-                    
+
                 } catch (err) {
                     cancelDeleteBtn.hidden = true;
                     progressDiv.hidden = true;
@@ -650,26 +826,26 @@ function deleteAssignmentsCombined(e) {
                 }
             });
         }
-        
+
         // Handle cancel delete button
         cancelDeleteBtn.addEventListener('click', async () => {
             console.log('Cancel delete button clicked. Operation ID:', currentDeleteOperationId, 'Button disabled:', cancelDeleteBtn.disabled);
-            
+
             if (!currentDeleteOperationId || cancelDeleteBtn.disabled) {
                 console.log('Cancel aborted - missing operation ID or button already disabled');
                 return;
             }
-            
+
             // Set cancelling flag to stop progress updates
             isDeletingCancelling = true;
-            
+
             // Disable button and update UI immediately
             cancelDeleteBtn.disabled = true;
             cancelDeleteBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Cancelling...';
             progressInfo.textContent = 'Cancelling...';
-            
+
             console.log('Requesting cancellation for delete operation:', currentDeleteOperationId);
-            
+
             try {
                 await window.axios.cancelOperation(currentDeleteOperationId);
                 console.log('Delete cancellation request sent successfully');
@@ -700,9 +876,13 @@ function deleteAssignmentsCombined(e) {
             const useFromImport = fFromImport.checked;
             const importIdVal = fImportId.value;
             const useInGroup = fInGroup.checked;
+            const inGroupMode = fInGroupModeId.checked ? 'id' : 'name';
             const groupIdVal = fGroupId.value.trim();
+            const groupNameVal = fGroupName.value.trim();
             const useNotInGroup = fNotInGroup.checked;
+            const notInGroupMode = fNotInGroupModeId.checked ? 'id' : 'name';
             const notGroupIdVal = fNotGroupId.value.trim();
+            const notGroupNameVal = fNotGroupName.value.trim();
 
             console.log('Active filters:', {
                 useNonModule, useNoDue, useUnpub, useNoSubs, includeGradedGlobal,
@@ -711,7 +891,7 @@ function deleteAssignmentsCombined(e) {
 
             let filtered = allAssignmentsCache;
             console.log('Starting with', filtered.length, 'assignments');
-            
+
             if (useNonModule) {
                 filtered = filtered.filter(a => {
                     const inCore = Array.isArray(a.modules) && a.modules.length > 0;
@@ -823,34 +1003,58 @@ function deleteAssignmentsCombined(e) {
             }
 
             // Apply assignment group filters
-            if (useInGroup && groupIdVal) {
-                const targetGroupId = String(groupIdVal).trim();
-                console.log(`Assignment group filter - filtering to include only assignments in group: ${targetGroupId}`);
-                const beforeLength = filtered.length;
-                filtered = filtered.filter(a => {
-                    const assignmentGroupId = String(a.assignmentGroup?._id || '').trim();
-                    const isIncluded = assignmentGroupId === targetGroupId;
-                    if (beforeLength <= 5) { // Only log for small sets to avoid spam
-                        console.log(`Assignment group filter - checking assignment ${a._id} (${a.name}) in group ${assignmentGroupId}: ${isIncluded ? 'INCLUDED' : 'excluded'}`);
+            if (useInGroup) {
+                let targetGroupId = null;
+
+                if (inGroupMode === 'id' && groupIdVal) {
+                    targetGroupId = String(groupIdVal).trim();
+                } else if (inGroupMode === 'name' && groupNameVal) {
+                    targetGroupId = getGroupIdFromName(groupNameVal);
+                    if (!targetGroupId) {
+                        console.log(`Assignment group filter - could not find group ID for name: ${groupNameVal}`);
                     }
-                    return isIncluded;
-                });
-                console.log(`Assignment group filter - assignments in group ${targetGroupId}: ${filtered.length}`);
+                }
+
+                if (targetGroupId) {
+                    console.log(`Assignment group filter - filtering to include only assignments in group: ${targetGroupId}`);
+                    const beforeLength = filtered.length;
+                    filtered = filtered.filter(a => {
+                        const assignmentGroupId = String(a.assignmentGroup?._id || '').trim();
+                        const isIncluded = assignmentGroupId === targetGroupId;
+                        if (beforeLength <= 5) { // Only log for small sets to avoid spam
+                            console.log(`Assignment group filter - checking assignment ${a._id} (${a.name}) in group ${assignmentGroupId}: ${isIncluded ? 'INCLUDED' : 'excluded'}`);
+                        }
+                        return isIncluded;
+                    });
+                    console.log(`Assignment group filter - assignments in group ${targetGroupId}: ${filtered.length}`);
+                }
             }
 
-            if (useNotInGroup && notGroupIdVal) {
-                const excludeGroupId = String(notGroupIdVal).trim();
-                console.log(`Assignment group filter - filtering to exclude assignments in group: ${excludeGroupId}`);
-                const beforeLength = filtered.length;
-                filtered = filtered.filter(a => {
-                    const assignmentGroupId = String(a.assignmentGroup?._id || '').trim();
-                    const isIncluded = assignmentGroupId !== excludeGroupId;
-                    if (beforeLength <= 5) { // Only log for small sets to avoid spam
-                        console.log(`Assignment group filter - checking assignment ${a._id} (${a.name}) in group ${assignmentGroupId}: ${isIncluded ? 'INCLUDED' : 'excluded'}`);
+            if (useNotInGroup) {
+                let excludeGroupId = null;
+
+                if (notInGroupMode === 'id' && notGroupIdVal) {
+                    excludeGroupId = String(notGroupIdVal).trim();
+                } else if (notInGroupMode === 'name' && notGroupNameVal) {
+                    excludeGroupId = getGroupIdFromName(notGroupNameVal);
+                    if (!excludeGroupId) {
+                        console.log(`Assignment group filter - could not find group ID for name: ${notGroupNameVal}`);
                     }
-                    return isIncluded;
-                });
-                console.log(`Assignment group filter - assignments not in group ${excludeGroupId}: ${filtered.length}`);
+                }
+
+                if (excludeGroupId) {
+                    console.log(`Assignment group filter - filtering to exclude assignments in group: ${excludeGroupId}`);
+                    const beforeLength = filtered.length;
+                    filtered = filtered.filter(a => {
+                        const assignmentGroupId = String(a.assignmentGroup?._id || '').trim();
+                        const isIncluded = assignmentGroupId !== excludeGroupId;
+                        if (beforeLength <= 5) { // Only log for small sets to avoid spam
+                            console.log(`Assignment group filter - checking assignment ${a._id} (${a.name}) in group ${assignmentGroupId}: ${isIncluded ? 'INCLUDED' : 'excluded'}`);
+                        }
+                        return isIncluded;
+                    });
+                    console.log(`Assignment group filter - assignments not in group ${excludeGroupId}: ${filtered.length}`);
+                }
             }
 
             renderResults(filtered.map(a => ({ id: a._id || a.id, name: a.name })));
@@ -896,7 +1100,7 @@ function deleteAssignmentsCombined(e) {
             // Clear import cache when fetching new assignments (might be different course)
             importedAssignmentsCache = null;
             cachedImportId = null;
-            
+
             // Reset deletion tracking for new course
             totalDeletedCount = 0;
             originalAssignmentCount = 0;
@@ -911,12 +1115,12 @@ function deleteAssignmentsCombined(e) {
                 const all = await window.axios.getAllAssignmentsForCombined({ domain, token, course_id: cid });
                 console.log('Received assignments:', all ? all.length : 'null/undefined', all);
                 allAssignmentsCache = all;
-                
+
                 // Set original count only on first fetch (when totalDeletedCount is 0)
                 if (totalDeletedCount === 0) {
                     originalAssignmentCount = all ? all.length : 0;
                 }
-                
+
                 // Hide processing card after successful fetch
                 progressDiv.hidden = true;
                 progressInfo.innerHTML = '';
@@ -924,14 +1128,14 @@ function deleteAssignmentsCombined(e) {
                 setFiltersDisabled(false);
                 cancelBtn.disabled = true;
                 checkBtn.disabled = false;
-                
+
                 // Show immediate feedback about what was found
                 if (!all || all.length === 0) {
                     progressInfo.innerHTML = '<span class="text-info">No assignments found in this course.</span>';
                 } else {
                     // Don't show the success message, just proceed to results
                 }
-                
+
                 // Apply current filter state instead of showing all assignments
                 updateCount();
             } catch (error) {
@@ -1014,26 +1218,116 @@ function deleteAssignmentsCombined(e) {
         // Toggle assignment group filter input enablement based on checkboxes
         // Make the two assignment group filters mutually exclusive
         fInGroup.addEventListener('change', () => {
-            fGroupId.disabled = !fInGroup.checked;
+            const isChecked = fInGroup.checked;
+
+            // Enable/disable mode radio buttons
+            fInGroupModeId.disabled = !isChecked;
+            fInGroupModeName.disabled = !isChecked;
+
+            // Enable/disable the appropriate input based on mode
+            if (fInGroupModeId.checked) {
+                fGroupId.disabled = !isChecked;
+                fGroupName.disabled = true;
+            } else {
+                fGroupId.disabled = true;
+                fGroupName.disabled = !isChecked;
+            }
+
             // If "In specific group" is checked, uncheck "NOT in specific group"
-            if (fInGroup.checked && fNotInGroup.checked) {
+            if (isChecked && fNotInGroup.checked) {
                 fNotInGroup.checked = false;
                 fNotGroupId.disabled = true;
+                fNotGroupName.disabled = true;
+                fNotInGroupModeId.disabled = true;
+                fNotInGroupModeName.disabled = true;
             }
             updateCount();
         });
+
+        // Toggle between ID and name mode for "In group" filter
+        fInGroupModeId.addEventListener('change', () => {
+            if (fInGroupModeId.checked && fInGroup.checked) {
+                fInGroupIdContainer.style.display = 'block';
+                fInGroupNameContainer.style.display = 'none';
+                fGroupId.disabled = false;
+                fGroupName.disabled = true;
+                updateCount();
+            }
+        });
+
+        fInGroupModeName.addEventListener('change', async () => {
+            if (fInGroupModeName.checked && fInGroup.checked) {
+                fInGroupIdContainer.style.display = 'none';
+                fInGroupNameContainer.style.display = 'block';
+                fGroupId.disabled = true;
+                fGroupName.disabled = false;
+
+                // Fetch assignment groups if not already fetched
+                if (!assignmentGroupsFetched) {
+                    await fetchAssignmentGroups();
+                }
+                updateCount();
+            }
+        });
+
         fGroupId.addEventListener('input', updateCount);
+        fGroupName.addEventListener('input', updateCount);
 
         fNotInGroup.addEventListener('change', () => {
-            fNotGroupId.disabled = !fNotInGroup.checked;
+            const isChecked = fNotInGroup.checked;
+
+            // Enable/disable mode radio buttons
+            fNotInGroupModeId.disabled = !isChecked;
+            fNotInGroupModeName.disabled = !isChecked;
+
+            // Enable/disable the appropriate input based on mode
+            if (fNotInGroupModeId.checked) {
+                fNotGroupId.disabled = !isChecked;
+                fNotGroupName.disabled = true;
+            } else {
+                fNotGroupId.disabled = true;
+                fNotGroupName.disabled = !isChecked;
+            }
+
             // If "NOT in specific group" is checked, uncheck "In specific group"
-            if (fNotInGroup.checked && fInGroup.checked) {
+            if (isChecked && fInGroup.checked) {
                 fInGroup.checked = false;
                 fGroupId.disabled = true;
+                fGroupName.disabled = true;
+                fInGroupModeId.disabled = true;
+                fInGroupModeName.disabled = true;
             }
             updateCount();
         });
+
+        // Toggle between ID and name mode for "NOT in group" filter
+        fNotInGroupModeId.addEventListener('change', () => {
+            if (fNotInGroupModeId.checked && fNotInGroup.checked) {
+                fNotInGroupIdContainer.style.display = 'block';
+                fNotInGroupNameContainer.style.display = 'none';
+                fNotGroupId.disabled = false;
+                fNotGroupName.disabled = true;
+                updateCount();
+            }
+        });
+
+        fNotInGroupModeName.addEventListener('change', async () => {
+            if (fNotInGroupModeName.checked && fNotInGroup.checked) {
+                fNotInGroupIdContainer.style.display = 'none';
+                fNotInGroupNameContainer.style.display = 'block';
+                fNotGroupId.disabled = true;
+                fNotGroupName.disabled = false;
+
+                // Fetch assignment groups if not already fetched
+                if (!assignmentGroupsFetched) {
+                    await fetchAssignmentGroups();
+                }
+                updateCount();
+            }
+        });
+
         fNotGroupId.addEventListener('input', updateCount);
+        fNotGroupName.addEventListener('input', updateCount);
 
         // Add event listener for the global grade filter
         fIncludeGraded.addEventListener('change', updateCount);
@@ -1047,6 +1341,10 @@ function deleteAssignmentsCombined(e) {
         // Cache for imported assignments to avoid repeated API calls
         let importedAssignmentsCache = null;
         let cachedImportId = null;
+
+        // Cache for assignment groups to populate dropdowns
+        let assignmentGroupsCache = null;
+        let assignmentGroupsFetched = false;
     }
     form.hidden = false;
 
@@ -2968,102 +3266,102 @@ function moveAssignmentsToSingleGroup(e) {
 
         const checkBtn = moveAssignmentsForm.querySelector('#action-btn');
         checkBtn.addEventListener('click', async function (e) {
-        e.stopPropagation();
-        e.preventDefault();
+            e.stopPropagation();
+            e.preventDefault();
 
-        checkBtn.disabled = true;
-        console.log('Inside renderer check');
+            checkBtn.disabled = true;
+            console.log('Inside renderer check');
 
-        const magResponseContainer = moveAssignmentsForm.querySelector('#mag-response-container');
-        const magResponseContainerCard = moveAssignmentsForm.querySelector('#mag-response-container-card');
-        const domain = document.querySelector('#domain').value.trim();
-        const apiToken = document.querySelector('#token').value.trim();
-        const magProgressDiv = moveAssignmentsForm.querySelector('#mag-progress-div');
-        const magProgressBar = magProgressDiv.querySelector('.progress-bar');
-        const magProgressInfo = moveAssignmentsForm.querySelector('#mag-progress-info');
+            const magResponseContainer = moveAssignmentsForm.querySelector('#mag-response-container');
+            const magResponseContainerCard = moveAssignmentsForm.querySelector('#mag-response-container-card');
+            const domain = document.querySelector('#domain').value.trim();
+            const apiToken = document.querySelector('#token').value.trim();
+            const magProgressDiv = moveAssignmentsForm.querySelector('#mag-progress-div');
+            const magProgressBar = magProgressDiv.querySelector('.progress-bar');
+            const magProgressInfo = moveAssignmentsForm.querySelector('#mag-progress-info');
 
-        // clean environment
-        magResponseContainer.innerHTML = '';
-        magResponseContainerCard.hidden = true;
-        magProgressDiv.hidden = false;
-        magProgressBar.parentElement.hidden = true;
-        updateProgressWithPercent(magProgressBar, 0);
-        magProgressInfo.innerHTML = "Checking...";
+            // clean environment
+            magResponseContainer.innerHTML = '';
+            magResponseContainerCard.hidden = true;
+            magProgressDiv.hidden = false;
+            magProgressBar.parentElement.hidden = true;
+            updateProgressWithPercent(magProgressBar, 0);
+            magProgressInfo.innerHTML = "Checking...";
 
-        const data = {
-            domain: domain,
-            token: apiToken,
-            course: courseID.value.trim()
-        }
-
-        let assignments = [];
-        let hasError = false;
-        try {
-            assignments = await window.axios.getAssignmentsToMove(data);
-            magProgressInfo.innerHTML = '';
-        } catch (error) {
-            errorHandler(error, magProgressInfo);
-            hasError = true;
-        } finally {
-            checkBtn.disabled = false;
-
-        }
-
-        if (!hasError) {
-            if (!assignments || assignments.length === 0) {
-                magResponseContainer.innerHTML = `
-                    <div class="alert alert-info mt-3">No assignments found for this course.</div>
-                `;
-                const magResponseContainerCard = moveAssignmentsForm.querySelector('#mag-response-container-card');
-                magResponseContainerCard.hidden = false;
-                return;
+            const data = {
+                domain: domain,
+                token: apiToken,
+                course: courseID.value.trim()
             }
 
-            // Use manual group id if provided and numeric, otherwise default to first assignment's group
-            const manualGroup = groupIdInput.value.trim();
-            const isManualOverride = !isNaN(Number(manualGroup)) && manualGroup !== '';
-            let assignmentGroupId = isManualOverride
-                ? manualGroup
-                : assignments[0].assignmentGroupId;
-
-            console.log('found assignments', assignments.length);
-
-            // Filter out assignments that are already in the target group
-            const totalAssignments = assignments.length;
-            const assignmentsToMove = assignments.filter(assignment => 
-                assignment.assignmentGroupId !== assignmentGroupId
-            );
-            const alreadyInGroup = totalAssignments - assignmentsToMove.length;
-
-            console.log(`Assignments to move: ${assignmentsToMove.length}, already in target group: ${alreadyInGroup}`);
-
-            // Fetch assignment group details
-            magProgressInfo.innerHTML = 'Fetching assignment group details...';
-            let assignmentGroupName = 'Unknown';
-            let assignmentGroupDetails = null;
-            let groupFetchError = false;
-            
+            let assignments = [];
+            let hasError = false;
             try {
-                const groupData = {
-                    domain: domain,
-                    token: apiToken,
-                    course: courseID.value.trim(),
-                    groupId: assignmentGroupId
-                };
-                assignmentGroupDetails = await window.axios.getAssignmentGroupById(groupData);
-                assignmentGroupName = assignmentGroupDetails.name;
+                assignments = await window.axios.getAssignmentsToMove(data);
                 magProgressInfo.innerHTML = '';
-                magProgressDiv.hidden = true;
             } catch (error) {
-                console.error('Could not fetch assignment group details:', error);
-                groupFetchError = true;
-                magProgressDiv.hidden = true;
-                
-                // Show error in response container
-                const magResponseContainerCard = moveAssignmentsForm.querySelector('#mag-response-container-card');
-                magResponseContainerCard.hidden = false;
-                
-                magResponseContainer.innerHTML = `
+                errorHandler(error, magProgressInfo);
+                hasError = true;
+            } finally {
+                checkBtn.disabled = false;
+
+            }
+
+            if (!hasError) {
+                if (!assignments || assignments.length === 0) {
+                    magResponseContainer.innerHTML = `
+                    <div class="alert alert-info mt-3">No assignments found for this course.</div>
+                `;
+                    const magResponseContainerCard = moveAssignmentsForm.querySelector('#mag-response-container-card');
+                    magResponseContainerCard.hidden = false;
+                    return;
+                }
+
+                // Use manual group id if provided and numeric, otherwise default to first assignment's group
+                const manualGroup = groupIdInput.value.trim();
+                const isManualOverride = !isNaN(Number(manualGroup)) && manualGroup !== '';
+                let assignmentGroupId = isManualOverride
+                    ? manualGroup
+                    : assignments[0].assignmentGroupId;
+
+                console.log('found assignments', assignments.length);
+
+                // Filter out assignments that are already in the target group
+                const totalAssignments = assignments.length;
+                const assignmentsToMove = assignments.filter(assignment =>
+                    assignment.assignmentGroupId !== assignmentGroupId
+                );
+                const alreadyInGroup = totalAssignments - assignmentsToMove.length;
+
+                console.log(`Assignments to move: ${assignmentsToMove.length}, already in target group: ${alreadyInGroup}`);
+
+                // Fetch assignment group details
+                magProgressInfo.innerHTML = 'Fetching assignment group details...';
+                let assignmentGroupName = 'Unknown';
+                let assignmentGroupDetails = null;
+                let groupFetchError = false;
+
+                try {
+                    const groupData = {
+                        domain: domain,
+                        token: apiToken,
+                        course: courseID.value.trim(),
+                        groupId: assignmentGroupId
+                    };
+                    assignmentGroupDetails = await window.axios.getAssignmentGroupById(groupData);
+                    assignmentGroupName = assignmentGroupDetails.name;
+                    magProgressInfo.innerHTML = '';
+                    magProgressDiv.hidden = true;
+                } catch (error) {
+                    console.error('Could not fetch assignment group details:', error);
+                    groupFetchError = true;
+                    magProgressDiv.hidden = true;
+
+                    // Show error in response container
+                    const magResponseContainerCard = moveAssignmentsForm.querySelector('#mag-response-container-card');
+                    magResponseContainerCard.hidden = false;
+
+                    magResponseContainer.innerHTML = `
                     <div class="alert alert-danger">
                         <h5 class="alert-heading">
                             <i class="bi bi-exclamation-triangle me-2"></i>Invalid Assignment Group ID
@@ -3071,22 +3369,22 @@ function moveAssignmentsToSingleGroup(e) {
                         <p class="mb-2">
                             Could not find assignment group with ID <strong>${assignmentGroupId}</strong> in this course.
                         </p>
-                        ${isManualOverride ? 
-                            `<hr><p class="mb-0 small"><i class="bi bi-info-circle me-1"></i>Please check that the assignment group ID is correct and belongs to course ${courseID.value.trim()}.</p>` 
+                        ${isManualOverride ?
+                            `<hr><p class="mb-0 small"><i class="bi bi-info-circle me-1"></i>Please check that the assignment group ID is correct and belongs to course ${courseID.value.trim()}.</p>`
                             : `<hr><p class="mb-0 small"><i class="bi bi-info-circle me-1"></i>The first assignment references a group that doesn't exist. Please manually specify a valid assignment group ID.</p>`
                         }
                     </div>
                 `;
-                return;
-            }
+                    return;
+                }
 
-            // Show the results card
-            const magResponseContainerCard = moveAssignmentsForm.querySelector('#mag-response-container-card');
-            magResponseContainerCard.hidden = false;
+                // Show the results card
+                const magResponseContainerCard = moveAssignmentsForm.querySelector('#mag-response-container-card');
+                magResponseContainerCard.hidden = false;
 
-            // Check if all assignments are already in the target group
-            if (assignmentsToMove.length === 0) {
-                magResponseContainer.innerHTML = `
+                // Check if all assignments are already in the target group
+                if (assignmentsToMove.length === 0) {
+                    magResponseContainer.innerHTML = `
                     <div class="alert alert-success">
                         <h5 class="alert-heading">
                             <i class="bi bi-check-circle me-2"></i>All Assignments Already in Target Group
@@ -3100,11 +3398,11 @@ function moveAssignmentsToSingleGroup(e) {
                         </p>
                     </div>
                 `;
-                return;
-            }
+                    return;
+                }
 
-            //const eContent = document.querySelector('#endpoint-content');
-            magResponseContainer.innerHTML = `
+                //const eContent = document.querySelector('#endpoint-content');
+                magResponseContainer.innerHTML = `
                 <div class="card border-info">
                     <div class="card-header bg-info-subtle">
                         <h5 class="card-title mb-0">
@@ -3157,9 +3455,9 @@ function moveAssignmentsToSingleGroup(e) {
                                         <i class="bi bi-hash me-1"></i>ID: ${assignmentGroupId}
                                         ${assignmentGroupDetails && assignmentGroupDetails.position ? ` | Position: ${assignmentGroupDetails.position}` : ''}
                                     </div>
-                                    ${!isManualOverride ? 
-                                        `<div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Auto-detected from first assignment</div>` 
-                                        : `<div class="form-text mt-2"><i class="bi bi-pencil me-1"></i>Manually specified group</div>`}
+                                    ${!isManualOverride ?
+                        `<div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Auto-detected from first assignment</div>`
+                        : `<div class="form-text mt-2"><i class="bi bi-pencil me-1"></i>Manually specified group</div>`}
                                 </div>
                             </div>
 
@@ -3181,88 +3479,88 @@ function moveAssignmentsToSingleGroup(e) {
                 </div>    
             `;
 
-            const magResponseDetails = magResponseContainer.querySelector('#mag-response-details');
+                const magResponseDetails = magResponseContainer.querySelector('#mag-response-details');
 
-            const cancelBtn = magResponseContainer.querySelector('#cancel-btn');
-            cancelBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
+                const cancelBtn = magResponseContainer.querySelector('#cancel-btn');
+                cancelBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
 
-                courseID.value = '';
-                magResponseContainer.innerHTML = '';
-                magResponseContainerCard.hidden = true;
-                checkBtn.disabled = false;
-                //clearData(courseID, responseContent);
-            });
-
-            const moveBtn = magResponseContainer.querySelector('#move-btn');
-            moveBtn.addEventListener('click', async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-
-                console.log('inside move');
-
-                // Hide the confirmation card and show progress
-                magResponseContainer.innerHTML = '';
-                magResponseContainerCard.hidden = true;
-
-                // Prevent new checks during move operation
-                checkBtn.disabled = true;
-                
-                // Show progress card
-                magProgressDiv.hidden = false;
-                magProgressBar.parentElement.hidden = false;
-                updateProgressWithPercent(magProgressBar, 0);
-                magProgressInfo.innerHTML = `Moving ${assignmentsToMove.length} assignment${assignmentsToMove.length !== 1 ? 's' : ''} to ${assignmentGroupName}...`;
-
-                // const messageData = {
-                //     url: `https://${domain}/api/v1/courses/${courseID}/assignments`,
-                //     token: apiToken,
-                //     content: assignments
-                // }
-
-                const messageData = {
-                    url: `https://${domain}/api/v1/courses/${courseID.value.trim()}/assignments`,
-                    token: apiToken,
-                    number: assignmentsToMove.length,
-                    assignments: assignmentsToMove,
-                    groupID: assignmentGroupId
-                }
-
-                window.progressAPI.onUpdateProgress((progress) => {
-                    updateProgressWithPercent(magProgressBar, progress);
+                    courseID.value = '';
+                    magResponseContainer.innerHTML = '';
+                    magResponseContainerCard.hidden = true;
+                    checkBtn.disabled = false;
+                    //clearData(courseID, responseContent);
                 });
 
-                try {
-                    const moveAssignmentsToSingleGroup = await window.axios.moveAssignmentsToSingleGroup(messageData);
-                    const { successful, failed } = moveAssignmentsToSingleGroup;
+                const moveBtn = magResponseContainer.querySelector('#move-btn');
+                moveBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
 
-                    magProgressDiv.hidden = true;
-                    magProgressInfo.innerHTML = '';
-                    const resultCard = createResultCard(
-                        'Move Assignments Results',
-                        `Successfully moved ${successful.length} assignment${successful.length !== 1 ? 's' : ''}${failed.length > 0 ? `, failed to move ${failed.length} assignment${failed.length !== 1 ? 's' : ''}` : ''}`,
-                        failed,
-                        failed.length > 0 ? 'danger' : 'success'
-                    );
-                    
-                    // Clear and update the response container
-                    magResponseContainer.innerHTML = '';
-                    magResponseContainer.appendChild(resultCard);
-                    magResponseContainerCard.hidden = false;
+                    console.log('inside move');
 
-                    checkBtn.disabled = false;
-                } catch (err) {
-                    magProgressDiv.hidden = true;
+                    // Hide the confirmation card and show progress
                     magResponseContainer.innerHTML = '';
-                    magResponseContainerCard.hidden = false;
-                    errorHandler(err, magProgressInfo, magResponseContainer)
-                } finally {
-                    checkBtn.disabled = false;
-                }
-            });
-        }
-    });
+                    magResponseContainerCard.hidden = true;
+
+                    // Prevent new checks during move operation
+                    checkBtn.disabled = true;
+
+                    // Show progress card
+                    magProgressDiv.hidden = false;
+                    magProgressBar.parentElement.hidden = false;
+                    updateProgressWithPercent(magProgressBar, 0);
+                    magProgressInfo.innerHTML = `Moving ${assignmentsToMove.length} assignment${assignmentsToMove.length !== 1 ? 's' : ''} to ${assignmentGroupName}...`;
+
+                    // const messageData = {
+                    //     url: `https://${domain}/api/v1/courses/${courseID}/assignments`,
+                    //     token: apiToken,
+                    //     content: assignments
+                    // }
+
+                    const messageData = {
+                        url: `https://${domain}/api/v1/courses/${courseID.value.trim()}/assignments`,
+                        token: apiToken,
+                        number: assignmentsToMove.length,
+                        assignments: assignmentsToMove,
+                        groupID: assignmentGroupId
+                    }
+
+                    window.progressAPI.onUpdateProgress((progress) => {
+                        updateProgressWithPercent(magProgressBar, progress);
+                    });
+
+                    try {
+                        const moveAssignmentsToSingleGroup = await window.axios.moveAssignmentsToSingleGroup(messageData);
+                        const { successful, failed } = moveAssignmentsToSingleGroup;
+
+                        magProgressDiv.hidden = true;
+                        magProgressInfo.innerHTML = '';
+                        const resultCard = createResultCard(
+                            'Move Assignments Results',
+                            `Successfully moved ${successful.length} assignment${successful.length !== 1 ? 's' : ''}${failed.length > 0 ? `, failed to move ${failed.length} assignment${failed.length !== 1 ? 's' : ''}` : ''}`,
+                            failed,
+                            failed.length > 0 ? 'danger' : 'success'
+                        );
+
+                        // Clear and update the response container
+                        magResponseContainer.innerHTML = '';
+                        magResponseContainer.appendChild(resultCard);
+                        magResponseContainerCard.hidden = false;
+
+                        checkBtn.disabled = false;
+                    } catch (err) {
+                        magProgressDiv.hidden = true;
+                        magResponseContainer.innerHTML = '';
+                        magResponseContainerCard.hidden = false;
+                        errorHandler(err, magProgressInfo, magResponseContainer)
+                    } finally {
+                        checkBtn.disabled = false;
+                    }
+                });
+            }
+        });
     }
     moveAssignmentsForm.hidden = false;
 }
@@ -4071,7 +4369,7 @@ function assignmentCreator(e) {
                     if (isCancelling) {
                         return;
                     }
-                    
+
                     if (typeof payload === 'number') {
                         updateProgressWithPercent(progressBar, payload);
                     } else if (payload && typeof payload === 'object') {
@@ -4106,7 +4404,7 @@ function assignmentCreator(e) {
                 const ok = result?.successful?.length || 0;
                 const bad = result?.failed?.length || 0;
                 const wasCancelled = result?.cancelled || false;
-                
+
                 // Hide the progress bar and clear progress text
                 progressBar.parentElement.hidden = true;
                 progressDiv.hidden = true;
@@ -4114,7 +4412,7 @@ function assignmentCreator(e) {
                 progressInfo.textContent = '';
 
                 let responseHTML = '';
-                
+
                 if (wasCancelled) {
                     responseHTML = `
                         <div class="alert alert-warning" role="alert">
@@ -4138,13 +4436,13 @@ function assignmentCreator(e) {
                 }
 
                 responseDiv.innerHTML = responseHTML;
-                
+
                 // Show the response container card
                 const responseCard = form.querySelector('#cac-response-container-card');
                 if (responseCard) {
                     responseCard.hidden = false;
                 }
-                
+
                 // Add click handler for the view assignments link
                 if (ok > 0) {
                     const viewLink = responseDiv.querySelector('#view-assignments-link');
@@ -4156,7 +4454,7 @@ function assignmentCreator(e) {
                         });
                     }
                 }
-                
+
                 // Reset the assignment number field to 1 to prevent accidental multiple creations
                 form.querySelector('#assignment-number').value = '1';
                 updateAssignmentNumberVisual(); // Update visual state after reset
@@ -4177,27 +4475,27 @@ function assignmentCreator(e) {
         // Handle cancel creation button
         cancelCreateBtn.addEventListener('click', async () => {
             console.log('Cancel button clicked. Operation ID:', currentOperationId, 'Button disabled:', cancelCreateBtn.disabled);
-            
+
             if (!currentOperationId || cancelCreateBtn.disabled) {
                 console.log('Cancel aborted - missing operation ID or button already disabled');
                 return;
             }
-            
+
             // Get the progress info element
             const progressInfo = form.querySelector('#cac-progress-info');
-            
+
             // Set cancelling flag to stop progress updates
             isCancelling = true;
-            
+
             // Disable button and update UI immediately
             cancelCreateBtn.disabled = true;
             cancelCreateBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Cancelling...';
             if (progressInfo) {
                 progressInfo.textContent = 'Cancelling...';
             }
-            
+
             console.log('Requesting cancellation for operation:', currentOperationId);
-            
+
             try {
                 await window.axios.cancelOperation(currentOperationId);
                 console.log('Cancellation request sent successfully');

@@ -917,7 +917,7 @@ async function deleteAssignmentGroupWithAssignments(data) {
 async function getAllAssignmentsForCombined(data) {
     // data: { domain, token, course_id }
     const query = `
-        query AllAssignmentsForCombined($courseId: ID, $nextPage: String) {
+                query AllAssignmentsForCombined($courseId: ID, $nextPage: String) {
             course(id: $courseId) {
                 assignmentsConnection(first: 500, after: $nextPage, filter: {gradingPeriodId: null}) {
                     nodes {
@@ -928,7 +928,7 @@ async function getAllAssignmentsForCombined(data) {
                         createdAt
                         hasSubmittedSubmissions
                         gradedSubmissionsExist
-                        assignmentGroup { _id }
+                        assignmentGroup { _id name }
                         modules { _id id name }
                         quiz { modules { _id id name } }
                         discussion { modules { _id id name } }
