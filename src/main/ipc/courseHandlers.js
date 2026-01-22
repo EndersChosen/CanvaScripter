@@ -386,6 +386,87 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
     });
 
     /**
+     * Create multiple courses and associate them with a blueprint course
+     * Used by AI Assistant for "create associated courses" operations
+     */
+    ipcMain.handle('axios:createAssociatedCourses', async (event, data) => {
+        console.log('courseHandlers.js > createAssociatedCourses');
+
+        try {
+            const { domain, token, blueprintCourseId, numberOfCourses } = data;
+
+            // First verify the blueprint course is actually a blueprint
+            const courseInfo = await getCourseInfo({ domain, token, course_id: blueprintCourseId });
+            if (!courseInfo.blueprint) {
+                throw new Error('The specified course is not configured as a blueprint course');
+            }
+
+            // Create the courses
+            progressStartIndeterminate(mainWindow, `Creating ${numberOfCourses} course(s)...`);
+
+            const createData = {
+                domain,
+                token,
+                bpCourseID: blueprintCourseId,
+                acCourseNum: numberOfCourses
+            };
+
+            // Use the existing createBasicCourse handler to create courses
+            const createBasicCourse = require('../../shared/canvas-api/courses').createBasicCourse;
+            const createdCourses = [];
+
+            for (let i = 0; i < numberOfCourses; i++) {
+                progressUpdateDeterminate(mainWindow, i + 1, numberOfCourses, `Creating course ${i + 1} of ${numberOfCourses}...`);
+                try {
+                    const courseData = {
+                        domain,
+                        token
+                    };
+                    const course = await createBasicCourse(courseData);
+                    createdCourses.push(course);
+                } catch (error) {
+                    console.error(`Failed to create course ${i + 1}:`, error);
+                }
+            }
+
+            if (createdCourses.length === 0) {
+                throw new Error('Failed to create any courses');
+            }
+
+            // Associate the created courses with the blueprint
+            const associatedCourseIds = createdCourses.map(course => course.id);
+
+            progressStartIndeterminate(mainWindow, `Associating ${associatedCourseIds.length} course(s) with blueprint...`);
+
+            const associateData = {
+                domain,
+                token,
+                bpCourseID: blueprintCourseId,
+                associated_course_ids: associatedCourseIds
+            };
+
+            await associateCourses(associateData);
+
+            // Trigger sync
+            const syncResult = await syncBPCourses(associateData);
+
+            progressDone(mainWindow);
+
+            return {
+                success: true,
+                coursesCreated: createdCourses.length,
+                courseIds: associatedCourseIds,
+                syncStatus: syncResult?.workflow_state || 'completed',
+                message: `Created and associated ${createdCourses.length} course(s) with blueprint course ${blueprintCourseId}`
+            };
+
+        } catch (error) {
+            progressDone(mainWindow);
+            throw error.message || error;
+        }
+    });
+
+    /**
      * Add and associate multiple courses (incomplete implementation in original)
      */
     ipcMain.handle('axios:addAssociateCourse', async (event, data) => {

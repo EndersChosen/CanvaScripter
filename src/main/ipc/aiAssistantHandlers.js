@@ -400,8 +400,16 @@ const OPERATION_MAP = {
     },
     'restore-course-content': {
         handler: 'axios:restoreContent',
-        description: 'Restore deleted course content',
-        requiredParams: ['domain', 'token', 'courseId'],
+        description: 'Restore deleted course content by providing content type and IDs',
+        requiredParams: ['domain', 'token', 'courseId', 'contentType', 'contentIds'],
+        optionalParams: [],
+        needsFetch: false
+    },
+    'create-associated-courses': {
+        handler: 'axios:createAssociatedCourses',
+        description: 'Create multiple courses and associate them with a blueprint course',
+        requiredParams: ['domain', 'token', 'blueprintCourseId', 'numberOfCourses'],
+        optionalParams: [],
         needsFetch: false
     },
     'create-support-course': {
@@ -510,6 +518,7 @@ const OPERATION_MAP = {
         handler: 'axios:createDiscussions',
         description: 'Create discussion topics in a course',
         requiredParams: ['domain', 'token', 'courseId', 'number', 'prefix'],
+        optionalParams: ['message', 'published', 'threaded', 'delayed_post_at'],
         needsFetch: false
     },
     'delete-discussions': {
@@ -779,6 +788,38 @@ Extract:
    - These operations fetch data and return it to the user without modifying anything
 8. summary: Human-readable description of what will be done
 9. warnings: Any potential issues or confirmations needed
+
+=== COURSE OPERATIONS ===
+Supported course operations:
+
+1. reset-course: Reset course content to default state
+   - Required: courseId
+   - Removes all content from a course
+
+2. restore-course-content: Restore deleted course content
+   - Required: courseId, contentType, contentIds
+   - contentType values: "assignment_", "assignment_group_", "discussion_topic_", "quiz_", "wiki_page_", "context_module_", "rubric_", "group_", "group_category_"
+   - contentIds: comma-separated IDs or array of IDs to restore
+
+3. create-associated-courses: Create multiple courses and associate them with a blueprint course
+   - Required: blueprintCourseId, numberOfCourses
+   - Creates the specified number of courses and associates them with the blueprint
+
+4. get-course-info: Get information about a course
+   - Required: courseId
+   - Returns course details including whether it's a blueprint
+
+Course operation examples:
+- "Reset course 123"
+    -> operation: "reset-course", courseId: "123"
+- "Restore assignments 456, 789 in course 123"
+    -> operation: "restore-course-content", courseId: "123", contentType: "assignment_", contentIds: ["456", "789"]
+- "Restore module 555 in course 123"
+    -> operation: "restore-course-content", courseId: "123", contentType: "context_module_", contentIds: ["555"]
+- "Create 5 associated courses for blueprint course 100"
+    -> operation: "create-associated-courses", blueprintCourseId: "100", numberOfCourses: 5
+- "Get info for course 123"
+    -> operation: "get-course-info", courseId: "123"
 
 === COMPREHENSIVE COURSE CREATION ===
 When user wants to create a course WITH content (users, assignments, discussions, etc.), use the single "create-course" operation with all parameters.
@@ -1121,6 +1162,37 @@ Announcement deletion examples:
 - "Clear all announcements from my course 999"
   -> operation: "delete-all-announcements", no titleFilter
 
+=== DISCUSSION CREATION PARSING ===
+For create-discussions operation, extract these parameters:
+- prefix: The discussion title prefix/name (required). Look for phrases like:
+  * "titled X", "called X", "named X", 'discussion "X"', "title: X"
+  * Numbers are appended automatically (e.g., "Week Discussion" -> "Week Discussion 1", "Week Discussion 2")
+- number: How many discussions to create (default 1)
+- message: The discussion body/prompt text (optional). Look for:
+  * "with message X", "with body X", "with prompt X"
+  * "saying X", "asking X", "about X"
+- published: true/false - whether to publish immediately (default true)
+  * Look for "unpublished", "draft", "not published" -> false
+  * Look for "published", "visible" -> true
+- threaded: true/false - whether to enable threaded replies (default true)
+  * Look for "threaded", "allow replies" -> true
+  * Look for "focused", "non-threaded", "side comment" -> false
+- delayed_post_at: When to post the discussion (ISO 8601 format). Look for:
+  * "delay until", "schedule for", "post on", "available on"
+  * Convert dates to ISO format (e.g., "March 1, 2024" -> "2024-03-01T00:00:00Z")
+
+Discussion creation examples:
+- "Create 5 discussions named 'Week Discussion' in course 123"
+  -> operation: "create-discussions", prefix: "Week Discussion", number: 5
+- "Create a discussion titled 'Introduce Yourself' with message 'Share your background'"
+  -> operation: "create-discussions", prefix: "Introduce Yourself", number: 1, message: "Share your background"
+- "Create 3 unpublished discussions called 'Draft Discussion' in course 456"
+  -> operation: "create-discussions", prefix: "Draft Discussion", number: 3, published: false
+- "Create discussion 'Final Project Discussion' scheduled for March 15, 2024"
+  -> operation: "create-discussions", prefix: "Final Project Discussion", delayed_post_at: "2024-03-15T00:00:00Z"
+- "Create a focused (non-threaded) discussion named 'Q&A Session'"
+  -> operation: "create-discussions", prefix: "Q&A Session", threaded: false
+
 IMPORTANT: For import-related assignments:
 - If user asks to delete "imported assignments" or "assignments from an/the import" WITHOUT specifying an import ID:
   * Set operation to "delete-imported-assignments"
@@ -1154,6 +1226,10 @@ Respond ONLY with valid JSON in this exact format:
         "assignmentGroupId": "optional assignment group id",
         "targetGroupId": "target group ID for move operations",
         "keepGroupId": "group ID to keep when deleting others",
+        "blueprintCourseId": "blueprint course ID for associated courses",
+        "numberOfCourses": "number of courses to create",
+        "contentType": "content type prefix for restore (e.g., assignment_, context_module_)",
+        "contentIds": ["id1", "id2"],
     "importId": "12345",
     "number": 10,
     "assignmentsPerGroup": 2,
@@ -2862,6 +2938,30 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 if (operation.includes('conversation')) {
                     handlerParams.user_id = handlerParams.user_id || handlerParams.userId;
                 }
+                // Special handling for restore-course-content - map AI params to handler format
+                if (operation === 'restore-course-content') {
+                    const contentIds = Array.isArray(fullParams.contentIds)
+                        ? fullParams.contentIds
+                        : (typeof fullParams.contentIds === 'string'
+                            ? fullParams.contentIds.split(',').map(id => id.trim())
+                            : []);
+                    handlerParams = {
+                        domain: fullParams.domain,
+                        token: fullParams.token,
+                        courseID: fullParams.courseId || fullParams.course_id,
+                        context: fullParams.contentType,
+                        values: contentIds
+                    };
+                }
+                // Special handling for create-associated-courses
+                if (operation === 'create-associated-courses') {
+                    handlerParams = {
+                        domain: fullParams.domain,
+                        token: fullParams.token,
+                        blueprintCourseId: fullParams.blueprintCourseId || fullParams.bpCourseID,
+                        numberOfCourses: parseInt(fullParams.numberOfCourses || fullParams.number || 1)
+                    };
+                }
                 if (operation === 'delete-assignment-group-with-assignments') {
                     const { id: resolvedGroupId, groups } = await resolveAssignmentGroupId(handlerParams, event);
                     if (!resolvedGroupId) {
@@ -2926,6 +3026,26 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                                 operationId: `ai-assistant-${Date.now()}`
                             };
                         }
+                    } else if (operation === 'create-discussions') {
+                        // Handle discussion-specific parameters - build requests array
+                        const number = fullParams.number || 1;
+                        const prefix = fullParams.prefix || fullParams.name || 'Discussion';
+                        const requests = [];
+
+                        for (let i = 1; i <= number; i++) {
+                            requests.push({
+                                domain: fullParams.domain,
+                                token: fullParams.token,
+                                course_id: fullParams.courseId || fullParams.course_id,
+                                title: `${prefix} ${i}`,
+                                message: fullParams.message || '',
+                                published: fullParams.published !== undefined ? fullParams.published : true,
+                                threaded: fullParams.threaded !== undefined ? fullParams.threaded : true,
+                                delayed_post_at: fullParams.delayed_post_at || null
+                            });
+                        }
+
+                        handlerParams = { requests };
                     } else {
                         // Default create operation parameters (assignments, etc.)
                         const defaultName = operation === 'create-assignments' ? 'Assignment' : 'Assignment Group';
