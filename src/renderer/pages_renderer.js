@@ -1,5 +1,12 @@
 // pages_renderer.js - UI for creating Pages
 function pagesTemplate(e) {
+  if (e.target.id === 'delete-pages') {
+    deletePagesTemplate(e);
+    return;
+  }
+
+  if (e.target.id !== 'create-pages') return;
+
   hideEndpoints(e);
 
   const eContent = document.querySelector('#endpoint-content');
@@ -382,4 +389,316 @@ function pagesTemplate(e) {
   }
 }
 
+function deletePagesTemplate(e) {
+  hideEndpoints(e);
+
+  const eContent = document.querySelector('#endpoint-content');
+  let form = eContent.querySelector('#delete-pages-form');
+
+  if (!form) {
+    form = document.createElement('form');
+    form.id = 'delete-pages-form';
+    form.innerHTML = `
+            <style>
+                #delete-pages-form .card-title { font-size: 1.1rem; }
+                #delete-pages-form .card-header small { font-size: 0.7rem; }
+                #delete-pages-form .form-label, #delete-pages-form .form-check-label { font-size: 0.85rem; }
+                #delete-pages-form .form-text { font-size: 0.7rem; }
+                #delete-pages-form .card-body { padding: 0.75rem; }
+                #delete-pages-form .btn { padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+                #delete-pages-form .form-control, #delete-pages-form .form-select { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #delete-pages-form .bi { font-size: 0.9rem; }
+                #delete-pages-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #delete-pages-form .g-3 { gap: 0.5rem !important; }
+                #delete-pages-form .progress { height: 12px; }
+            </style>
+            <div class="card">
+                <div class="card-header bg-danger-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-trash me-1"></i>Delete Pages
+                    </h3>
+                    <small class="text-muted">Remove pages from a course using filters</small>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="course-id">
+                                <i class="bi bi-mortarboard-fill me-1"></i>Course ID
+                            </label>
+                            <input type="text" class="form-control form-control-sm" id="course-id" placeholder="Enter course ID" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="filter-type">
+                                <i class="bi bi-funnel me-1"></i>Filter By
+                            </label>
+                            <select class="form-select form-select-sm" id="filter-type">
+                                <option value="all">All pages</option>
+                                <option value="unpublished">Unpublished</option>
+                                <option value="created_after">Created After</option>
+                                <option value="created_before">Created Before</option>
+                                <option value="title_search">Title Search</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="filter-options-row" class="row g-3 mb-2" style="display: none;">
+                        <div class="col-12">
+                            <div id="date-filter-group" style="display: none;">
+                                <label class="form-label fw-bold" for="filter-date">Select Date</label>
+                                <input type="date" class="form-control form-control-sm" id="filter-date" />
+                            </div>
+                            <div id="title-filter-group" style="display: none;">
+                                <label class="form-label fw-bold" for="title-search">Title Search Term</label>
+                                <input type="text" class="form-control form-control-sm" id="title-search" placeholder="Enter part of title to match" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-2">
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-sm btn-primary w-100" id="check-btn" disabled>
+                                <i class="bi bi-search me-1"></i>Find Pages
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="confirmation-section" class="mt-3" style="display: none;">
+                        <div class="alert alert-warning">
+                            <p class="mb-0 fw-bold" id="found-count-text">Found 0 pages.</p>
+                            <p class="small mb-2">Are you sure you want to delete these pages?</p>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-danger flex-grow-1" id="confirm-delete-btn">
+                                    <i class="bi bi-trash me-1"></i>Yes, Delete Pages
+                                </button>
+                                <button type="button" class="btn btn-sm btn-secondary" id="cancel-delete-btn">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Card -->
+            <div class="card mt-2" id="delete-progress-card" hidden>
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-gear me-1"></i>Deleting Pages
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p id="delete-progress-info" class="mb-2"></p>
+                    <div class="progress mb-2" style="height: 12px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" 
+                             id="delete-progress-bar" style="width:0%" role="progressbar" 
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                    <small class="text-muted" id="delete-progress-detail"></small>
+                </div>
+            </div>
+            
+            <!-- Result Area -->
+            <div id="delete-result-area" class="mt-2"></div>
+    `;
+    eContent.append(form);
+  }
+
+  form.hidden = false;
+
+  // Elements
+  const courseIdInput = form.querySelector('#course-id');
+  const filterTypeSelect = form.querySelector('#filter-type');
+  const filterOptionsRow = form.querySelector('#filter-options-row');
+  const dateFilterGroup = form.querySelector('#date-filter-group');
+  const titleFilterGroup = form.querySelector('#title-filter-group');
+  const filterDateInput = form.querySelector('#filter-date');
+  const titleSearchInput = form.querySelector('#title-search');
+  const checkBtn = form.querySelector('#check-btn');
+  const confirmationSection = form.querySelector('#confirmation-section');
+  const foundCountText = form.querySelector('#found-count-text');
+  const confirmDeleteBtn = form.querySelector('#confirm-delete-btn');
+  const cancelDeleteBtn = form.querySelector('#cancel-delete-btn');
+  const progressCard = form.querySelector('#delete-progress-card');
+  const progressBar = form.querySelector('#delete-progress-bar');
+  const progressInfo = form.querySelector('#delete-progress-info');
+  const progressDetail = form.querySelector('#delete-progress-detail');
+  const resultArea = form.querySelector('#delete-result-area');
+
+  let pagesToDelete = [];
+
+  // Toggle filter inputs
+  filterTypeSelect.addEventListener('change', () => {
+    const val = filterTypeSelect.value;
+    filterOptionsRow.style.display = 'none';
+    dateFilterGroup.style.display = 'none';
+    titleFilterGroup.style.display = 'none';
+
+    if (val === 'created_after' || val === 'created_before') {
+      filterOptionsRow.style.display = 'block';
+      dateFilterGroup.style.display = 'block';
+    } else if (val === 'title_search') {
+      filterOptionsRow.style.display = 'block';
+      titleFilterGroup.style.display = 'block';
+    }
+
+    validateForm();
+  });
+
+  // Validation
+  function validateForm() {
+    const cid = courseIdInput.value.trim();
+    const filter = filterTypeSelect.value;
+    let valid = cid && !isNaN(cid) && parseInt(cid) > 0;
+
+    if (valid) {
+      if ((filter === 'created_after' || filter === 'created_before') && !filterDateInput.value) {
+        valid = false;
+      } else if (filter === 'title_search' && !titleSearchInput.value.trim()) {
+        valid = false;
+      }
+    }
+
+    checkBtn.disabled = !valid;
+  }
+
+  courseIdInput.addEventListener('input', validateForm);
+  filterDateInput.addEventListener('input', validateForm);
+  titleSearchInput.addEventListener('input', validateForm);
+
+  // Check button handler
+  checkBtn.addEventListener('click', async () => {
+    const domain = document.querySelector('#domain').value.trim();
+    const token = document.querySelector('#token').value.trim();
+    const courseId = courseIdInput.value.trim();
+
+    if (!domain || !token) {
+      alert('Please configure domain and token settings.');
+      return;
+    }
+
+    // Reset UI
+    confirmationSection.style.display = 'none';
+    resultArea.innerHTML = '';
+    progressCard.hidden = false;
+    progressBar.style.width = '100%';
+    progressBar.classList.add('progress-bar-animated');
+    progressInfo.textContent = 'Searching for pages...';
+    progressDetail.textContent = 'Querying Canvas GraphQL API...';
+    checkBtn.disabled = true;
+
+    try {
+      const filter = filterTypeSelect.value;
+      const titleSearchTerm = filter === 'title_search' ? titleSearchInput.value.trim() : '';
+
+      // Fetch pages with optional title search via GraphQL
+      const pages = await window.axios.getPagesGraphQL({
+        domain,
+        token,
+        course_id: courseId,
+        title_search: titleSearchTerm
+      });
+
+      // Client-side filtering for other criteria
+      let filteredPages = pages;
+
+      if (filter === 'unpublished') {
+        filteredPages = pages.filter(p => !p.published);
+      } else if (filter === 'created_after') {
+        const date = new Date(filterDateInput.value);
+        filteredPages = pages.filter(p => new Date(p.createdAt) > date);
+      } else if (filter === 'created_before') {
+        const date = new Date(filterDateInput.value);
+        // End of selected day
+        date.setHours(23, 59, 59, 999);
+        filteredPages = pages.filter(p => new Date(p.createdAt) < date);
+      }
+
+      pagesToDelete = filteredPages;
+
+      // Show confirmation
+      progressCard.hidden = true;
+
+      if (pagesToDelete.length === 0) {
+        resultArea.innerHTML = `<div class="alert alert-info"><i class="bi bi-info-circle me-1"></i>No pages found matching your criteria.</div>`;
+        checkBtn.disabled = false;
+      } else {
+        foundCountText.textContent = `Found ${pagesToDelete.length} pages to delete.`;
+        confirmationSection.style.display = 'block';
+        checkBtn.disabled = false;
+      }
+
+    } catch (err) {
+      progressCard.hidden = true;
+      checkBtn.disabled = false;
+      resultArea.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i>Error: ${err.message || err}</div>`;
+    }
+  });
+
+  // Cancel button
+  cancelDeleteBtn.addEventListener('click', () => {
+    confirmationSection.style.display = 'none';
+    pagesToDelete = [];
+  });
+
+  // Confirm Delete button
+  confirmDeleteBtn.addEventListener('click', async () => {
+    const domain = document.querySelector('#domain').value.trim();
+    const token = document.querySelector('#token').value.trim();
+    const courseId = courseIdInput.value.trim();
+
+    if (pagesToDelete.length === 0) return;
+
+    confirmationSection.style.display = 'none';
+    progressCard.hidden = false;
+    progressBar.classList.remove('bg-danger'); // Use standard blue for progress
+    progressBar.style.width = '0%';
+    progressInfo.textContent = `Deleting ${pagesToDelete.length} pages...`;
+
+    try {
+      const requests = pagesToDelete.map(page => ({
+        domain,
+        token,
+        course_id: courseId,
+        page_url: page.url, // GraphQL returns url slug
+        page_id: page._id // Canvas ID
+      }));
+
+      // Setup progress listener
+      window.progressAPI.onUpdateProgress((progress) => {
+        if (typeof progress === 'object') {
+          progressBar.style.width = `${(progress.processed / progress.total) * 100}%`;
+          progressDetail.textContent = `Deleted ${progress.processed} of ${progress.total}...`;
+        } else {
+          progressBar.style.width = `${progress}%`;
+        }
+      });
+
+      const res = await window.axios.deletePages({ requests });
+
+      progressCard.hidden = true;
+
+      // Show final results
+      const successful = res.successful?.length || 0;
+      const failed = res.failed?.length || 0;
+
+      let resultHtml = `
+            <div class="alert ${failed === 0 ? 'alert-success' : 'alert-warning'}">
+                <h5 class="alert-heading"><i class="bi bi-check-circle me-1"></i>Operation Complete</h5>
+                <p>Successfully deleted ${successful} pages.</p>
+        `;
+
+      if (failed > 0) {
+        resultHtml += `<p class="text-danger">Failed to delete ${failed} pages.</p>`;
+      }
+
+      resultHtml += '</div>';
+      resultArea.innerHTML = resultHtml;
+
+    } catch (err) {
+      progressCard.hidden = true;
+      resultArea.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i>Error deleting pages: ${err.message || err}</div>`;
+    }
+  });
+}
+
 window.pagesTemplate = pagesTemplate;
+window.deletePagesTemplate = deletePagesTemplate;

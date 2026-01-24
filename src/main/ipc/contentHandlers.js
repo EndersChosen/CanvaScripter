@@ -306,6 +306,63 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
         return res;
     });
 
+    /**
+     * Get pages (GraphQL)
+     */
+    ipcMain.handle('axios:getPagesGraphQL', async (_event, data) => {
+        console.log('inside axios:getPagesGraphQL');
+        try {
+            const result = await pages.getPagesGraphQL(data);
+            return result;
+        } catch (error) {
+            console.error('Error in axios:getPagesGraphQL:', error);
+            throw error;
+        }
+    });
+
+    /**
+     * Delete pages in batch
+     */
+    ipcMain.handle('axios:deletePages', async (_event, data) => {
+        console.log('inside axios:deletePages');
+        const items = Array.isArray(data.requests) ? data.requests : [];
+        let completed = 0;
+        const total = items.length || 1;
+
+        const update = () => {
+            completed++;
+            mainWindow?.webContents.send('update-progress', {
+                mode: 'determinate',
+                label: 'Deleting pages',
+                processed: completed,
+                total,
+                value: completed / total
+            });
+        };
+
+        const requests = items.map((it, idx) => ({
+            id: idx + 1,
+            request: async () => {
+                try {
+                    // Use URL or ID, prefer URL if available as per endpoint docs but typically ID works too or URL slug
+                    // The graphQL query returns _id (canvas id) and url (usually title-slug)
+                    // The REST endpoint takes url_or_id
+                    const pageIdentifier = it.page_url || it.page_id;
+                    const resp = await pages.deletePage({
+                        domain: it.domain,
+                        token: it.token,
+                        course_id: it.course_id,
+                        page_url: pageIdentifier
+                    });
+                    return resp;
+                } finally { update(); }
+            }
+        }));
+
+        const res = await batchHandler(requests, getBatchConfig());
+        return res;
+    });
+
     // ==================== SECTIONS ====================
 
     /**

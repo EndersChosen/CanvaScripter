@@ -571,7 +571,16 @@ const OPERATION_MAP = {
         handler: 'axios:createPages',
         description: 'Create pages in a course',
         requiredParams: ['domain', 'token', 'courseId', 'number', 'prefix'],
+        optionalParams: ['body', 'published'],
         needsFetch: false
+    },
+    'delete-pages': {
+        fetchHandler: 'axios:getPagesGraphQL',
+        deleteHandler: 'axios:deletePages',
+        description: 'Delete pages from a course',
+        requiredParams: ['domain', 'token', 'courseId'],
+        optionalParams: ['filter'], // 'all', 'unpublished', 'title_search', etc.
+        needsFetch: true
     },
 
     // ==================== Section Operations ====================
@@ -1228,6 +1237,45 @@ Module examples:
   -> operation: "relock-modules"
 - "Count modules in course 123"
   -> operation: "get-modules", queryType: "count"
+
+=== PAGE OPERATIONS PARSING ===
+
+For create-pages operation, extract these parameters:
+- prefix: The page title prefix/name (required). Look for phrases like:
+  * "titled X", "called X", "named X", 'page "X"', "title: X"
+  * Numbers are appended automatically (e.g., "Page 1", "Page 2")
+- number: How many pages to create (default 1)
+- body: The page content/HTML (optional). Look for:
+  * "with content X", "with body X", "saying X"
+- published: true/false - whether to publish immediately (default true)
+  * Look for "unpublished", "draft" -> false
+
+For delete-pages operation, extract specific filters into the "filter" parameter:
+- "unpublished": Use when user asks to delete "unpublished" or "draft" pages
+  -> filter: "unpublished"
+- "published": Use when user asks to delete "published" pages
+  -> filter: "published"
+- "all": Use when user asks to delete "all" pages (CAUTION)
+  -> filter: "all"
+- Date filters:
+  * "created before [date]" -> filter: "created_before:YYYY-MM-DD"
+  * "created after [date]" -> filter: "created_after:YYYY-MM-DD"
+- Title search:
+  * "title containing 'X'", "with title 'X'", "matching 'X'" -> filter: "title_search:X"
+
+Page operation examples:
+- "Create 5 pages in course 123"
+  -> operation: "create-pages", number: 5, prefix: "Page"
+- "Create a page called 'Welcome' with content '<h1>Hello</h1>'"
+  -> operation: "create-pages", number: 1, prefix: "Welcome", body: "<h1>Hello</h1>"
+- "Create 3 unpublished pages named 'Draft'"
+  -> operation: "create-pages", number: 3, prefix: "Draft", published: false
+- "Delete all unpublished pages in course 123"
+  -> operation: "delete-pages", filter: "unpublished"
+- "Delete pages created before 2024-01-01 in course 456"
+  -> operation: "delete-pages", filter: "created_before:2024-01-01"
+- "Delete pages with title containing 'Syllabus' in course 789"
+  -> operation: "delete-pages", filter: "title_search:Syllabus"
 
 Respond ONLY with valid JSON in this exact format:
 {
@@ -2175,6 +2223,44 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     console.log(`AI Assistant: After filtering: ${items.length} items`);
                 }
 
+                // Apply dynamic filter parameter (e.g. for delete-pages)
+                if (fullParams.filter && items.length > 0) {
+                    console.log(`AI Assistant: Applying dynamic filter '${fullParams.filter}' to ${items.length} items`);
+
+                    if (fullParams.filter === 'unpublished') {
+                        items = items.filter(i => i.published === false);
+                    } else if (fullParams.filter === 'published') {
+                        items = items.filter(i => i.published === true);
+                    } else if (fullParams.filter.startsWith('created_before:')) {
+                        const dateStr = fullParams.filter.split('created_before:')[1];
+                        const cutoff = new Date(dateStr);
+                        if (!isNaN(cutoff.getTime())) {
+                            // End of day for "before"
+                            cutoff.setHours(23, 59, 59, 999);
+                            items = items.filter(i => {
+                                const d = new Date(i.createdAt || i.created_at);
+                                return !isNaN(d.getTime()) && d < cutoff;
+                            });
+                        }
+                    } else if (fullParams.filter.startsWith('created_after:')) {
+                        const dateStr = fullParams.filter.split('created_after:')[1];
+                        const cutoff = new Date(dateStr);
+                        if (!isNaN(cutoff.getTime())) {
+                            // Start of day for "after"
+                            cutoff.setHours(0, 0, 0, 0);
+                            items = items.filter(i => {
+                                const d = new Date(i.createdAt || i.created_at);
+                                return !isNaN(d.getTime()) && d > cutoff;
+                            });
+                        }
+                    } else if (fullParams.filter.startsWith('title_search:')) {
+                        const searchStr = fullParams.filter.split('title_search:')[1].toLowerCase();
+                        items = items.filter(i => (i.title || i.name || '').toLowerCase().includes(searchStr));
+                    }
+
+                    console.log(`AI Assistant: After dynamic filtering: ${items.length} items`);
+                }
+
                 if (items.length === 0) {
                     return {
                         success: true,
@@ -2417,6 +2503,17 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                         course_id: fullParams.courseId || fullParams.course_id,
                         discussions: normalizedItems,
                         operationId: `ai-assistant-${Date.now()}`
+                    };
+                } else if (operation.includes('pages')) {
+                    // Pages format - construct requests for batch handler
+                    deleteParams = {
+                        requests: normalizedItems.map(item => ({
+                            domain: fullParams.domain,
+                            token: fullParams.token,
+                            course_id: fullParams.courseId || fullParams.course_id,
+                            page_url: item.url, // URL from GraphQL
+                            page_id: item.id || item._id
+                        }))
                     };
                 } else {
                     // Default assignments format
@@ -3066,6 +3163,24 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                                 published: fullParams.published !== undefined ? fullParams.published : true,
                                 threaded: fullParams.threaded !== undefined ? fullParams.threaded : true,
                                 delayed_post_at: fullParams.delayed_post_at || null
+                            });
+                        }
+
+                        handlerParams = { requests };
+                    } else if (operation === 'create-pages') {
+                        // Handle page-specific parameters - build requests array
+                        const number = fullParams.number || 1;
+                        const prefix = fullParams.prefix || fullParams.name || 'Page';
+                        const requests = [];
+
+                        for (let i = 1; i <= number; i++) {
+                            requests.push({
+                                domain: fullParams.domain,
+                                token: fullParams.token,
+                                course_id: fullParams.courseId || fullParams.course_id,
+                                title: `${prefix} ${i}`,
+                                body: fullParams.body || '',
+                                published: fullParams.published !== undefined ? fullParams.published : true
                             });
                         }
 

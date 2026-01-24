@@ -94,9 +94,10 @@ function registerCanvasApiHandlers(ipcMain, logDebug, canvasModules) {
     // axios:getAnnouncements, axios:deleteAnnouncementsGraphQL
 
     // =================================================================
-    // PAGE & SECTION HANDLERS (2 handlers)
+    // PAGE & SECTION HANDLERS (4 handlers)
     // =================================================================
-    // axios:createPages, axios:createSections
+    // axios:createPages, axios:createSections,
+    // axios:getPagesGraphQL, axios:deletePages
 
     // =================================================================
     // FILE & FOLDER HANDLERS (4 handlers)
