@@ -397,6 +397,18 @@ app.whenReady().then(() => {
         }
     });
 
+    // Shell openExternal handler (one-way send from preload)
+    ipcMain.on('shell:openExternal', (event, url) => {
+        logDebug('[shell:openExternal] Opening URL', { url });
+        try {
+            const validatedUrl = validateExternalUrl(url);
+            shell.openExternal(validatedUrl);
+        } catch (error) {
+            logDebug('[shell:openExternal] Error', { error: error.message });
+            console.error('Failed to open external URL:', error.message);
+        }
+    });
+
     ipcMain.handle('copy-to-clipboard', async (event, text) => {
         logDebug('[copy-to-clipboard] Copying text');
         clipboard.writeText(text);
