@@ -1305,10 +1305,11 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
             resultHtml += '</div>';
         } else if (res.course && res.course_id) {
             // Course creation result - show course link (check BEFORE batch results since course creation may include successful arrays)
-            const courseUrl = `https://${parsed.parameters?.domain || 'canvas.instructure.com'}/courses/${res.course_id}`;
+            const courseUrl = res.course_url || `https://${parsed.parameters?.domain || 'canvas.instructure.com'}/courses/${res.course_id}`;
             resultHtml += '<div class="mb-2">';
             resultHtml += `<p class="mb-2"><strong>Course Created:</strong> <a href="${courseUrl}" target="_blank" class="text-decoration-none">${res.course.name || 'New Course'} <i class="bi bi-box-arrow-up-right"></i></a></p>`;
             resultHtml += `<p class="mb-1"><strong>Course ID:</strong> ${res.course_id}</p>`;
+            resultHtml += `<p class="mb-1"><strong>Course URL:</strong> <a href="${courseUrl}" target="_blank" class="text-decoration-none">${courseUrl} <i class="bi bi-box-arrow-up-right"></i></a></p>`;
             if (res.message) {
                 resultHtml += `<p class="mb-1 text-muted">${res.message}</p>`;
             }
@@ -1321,6 +1322,12 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
             if (res.pages) resultHtml += `<p class="mb-1"><i class="bi bi-file-richtext"></i> Pages: ${res.pages}</p>`;
             if (res.modules) resultHtml += `<p class="mb-1"><i class="bi bi-collection"></i> Modules: ${res.modules}</p>`;
             if (res.sections) resultHtml += `<p class="mb-1"><i class="bi bi-diagram-3"></i> Sections: ${res.sections}</p>`;
+            if (res.quizzes) {
+                const quizText = res.quizQuestions
+                    ? `${res.quizzes} quizzes with ${res.quizQuestions} total questions`
+                    : `${res.quizzes} quizzes`;
+                resultHtml += `<p class="mb-1"><i class="bi bi-ui-checks"></i> ${quizText}</p>`;
+            }
             resultHtml += '</div>';
         } else if (res.successful !== undefined || res.failed !== undefined) {
             // Batch operation results (create operations)

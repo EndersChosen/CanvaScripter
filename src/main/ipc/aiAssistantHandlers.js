@@ -420,7 +420,7 @@ const OPERATION_MAP = {
     },
     'create-course': {
         handler: 'axios:createBasicCourse',
-        description: 'Create a new course with optional content (users, assignment groups, assignments, discussions, pages, modules, sections)',
+        description: 'Create a new course with optional content (users, assignment groups, assignments, discussions, pages, modules, sections, quizzes)',
         requiredParams: ['domain', 'token'],
         optionalParams: [
             'courseName', 'courseCode', 'publish',
@@ -430,7 +430,8 @@ const OPERATION_MAP = {
             'discussions', 'discussionTitle',
             'pages', 'pageTitle',
             'modules', 'modulePrefix',
-            'sections', 'sectionPrefix'
+            'sections', 'sectionPrefix',
+            'classicQuizzes', 'quizName', 'quizType', 'questionsPerQuiz', 'questionTypes'
         ],
         needsFetch: false
     },
@@ -485,8 +486,9 @@ const OPERATION_MAP = {
     },
     'create-classic-quizzes': {
         handler: 'axios:createClassicQuizzes',
-        description: 'Create classic quizzes in a course',
-        requiredParams: ['domain', 'token', 'courseId', 'number', 'prefix'],
+        description: 'Create classic quizzes in a course with optional questions',
+        requiredParams: ['domain', 'token', 'courseId'],
+        optionalParams: ['number', 'prefix', 'quizName', 'quizType', 'publish', 'questionsPerQuiz', 'questionTypes'],
         needsFetch: false
     },
     'delete-classic-quizzes': {
@@ -2670,6 +2672,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     const hasPages = fullParams.pages > 0;
                     const hasModules = fullParams.modules > 0;
                     const hasSections = fullParams.sections > 0;
+                    const hasQuizzes = fullParams.classicQuizzes > 0;
 
                     let totalSteps = 1; // Course creation
                     if (hasUsers) totalSteps += 2; // Create users + enroll
@@ -2679,6 +2682,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     if (hasPages) totalSteps += 1;
                     if (hasModules) totalSteps += 1;
                     if (hasSections) totalSteps += 1;
+                    if (hasQuizzes) totalSteps += 2; // Create quizzes + questions
 
                     let currentStep = 0;
                     const results = {};
@@ -3021,8 +3025,88 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                             currentStep++;
                         }
 
-                        // Build summary message
-                        const summaryParts = [`Created course "${course.name}" (ID: ${course.id})`];
+                        // Step 9: Create classic quizzes with questions
+                        if (hasQuizzes) {
+                            sendProgress(event, {
+                                mode: 'determinate',
+                                processed: currentStep,
+                                total: totalSteps,
+                                label: `Creating ${fullParams.classicQuizzes} classic quizzes...`
+                            });
+
+                            try {
+                                const { createQuiz } = require('../../shared/canvas-api/quizzes_classic');
+                                const { createQuestions } = require('../../shared/canvas-api/quizzes_classic');
+                                const quizzesCreated = [];
+
+                                for (let i = 1; i <= fullParams.classicQuizzes; i++) {
+                                    const quizData = {
+                                        domain: fullParams.domain,
+                                        token: fullParams.token,
+                                        course_id: courseId,
+                                        quiz_title: fullParams.quizName ? `${fullParams.quizName} ${i}` : `Quiz ${i}`,
+                                        quiz_type: fullParams.quizType || 'assignment',
+                                        publish: fullParams.publish || false
+                                    };
+                                    const quiz = await createQuiz(quizData);
+                                    quizzesCreated.push(quiz);
+                                }
+                                results.quizzes = quizzesCreated.length;
+                                currentStep++;
+
+                                // Step 10: Add questions to quizzes
+                                if (fullParams.questionsPerQuiz > 0) {
+                                    sendProgress(event, {
+                                        mode: 'determinate',
+                                        processed: currentStep,
+                                        total: totalSteps,
+                                        label: `Adding ${fullParams.questionsPerQuiz} questions to each quiz...`
+                                    });
+
+                                    // Parse question types if provided, default to multiple_choice
+                                    const questionTypes = fullParams.questionTypes
+                                        ? (Array.isArray(fullParams.questionTypes)
+                                            ? fullParams.questionTypes
+                                            : fullParams.questionTypes.split(',').map(t => t.trim()))
+                                        : ['multiple_choice_question'];
+
+                                    let totalQuestionsCreated = 0;
+                                    for (const quiz of quizzesCreated) {
+                                        // Build question data for this quiz
+                                        const questionData = questionTypes.map(type => ({
+                                            name: type,
+                                            enabled: true,
+                                            number: String(fullParams.questionsPerQuiz)
+                                        }));
+
+                                        try {
+                                            await createQuestions({
+                                                domain: fullParams.domain,
+                                                token: fullParams.token,
+                                                course_id: courseId,
+                                                quiz_id: quiz.id,
+                                                question_data: questionData
+                                            });
+                                            totalQuestionsCreated += fullParams.questionsPerQuiz;
+                                        } catch (e) {
+                                            console.error(`Failed to add questions to quiz ${quiz.id}:`, e);
+                                        }
+                                    }
+                                    results.quizQuestions = totalQuestionsCreated;
+                                }
+                                currentStep++;
+                            } catch (e) {
+                                console.error('Quiz creation failed:', e);
+                                results.quizzesError = e.message || String(e);
+                            }
+                        }
+
+                        // Build summary message with course link
+                        const courseUrl = `https://${fullParams.domain}/courses/${course.id}`;
+                        const summaryParts = [
+                            `Created course "${course.name}" (ID: ${course.id})`,
+                            `Link: ${courseUrl}`
+                        ];
                         if (results.users) summaryParts.push(`${results.users} users enrolled`);
                         if (results.assignmentGroups?.successful?.length) {
                             summaryParts.push(`${results.assignmentGroups.successful.length} assignment groups`);
@@ -3033,6 +3117,14 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                         if (results.pages) summaryParts.push(`${results.pages} pages`);
                         if (results.modules) summaryParts.push(`${results.modules} modules`);
                         if (results.sections) summaryParts.push(`${results.sections} sections`);
+                        if (results.quizzes) {
+                            const quizPart = `${results.quizzes} quizzes`;
+                            if (results.quizQuestions) {
+                                summaryParts.push(`${quizPart} with ${results.quizQuestions} total questions`);
+                            } else {
+                                summaryParts.push(quizPart);
+                            }
+                        }
 
                         sendProgress(event, {
                             mode: 'done',
@@ -3044,6 +3136,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                             result: {
                                 course: course,
                                 course_id: course.id,
+                                course_url: courseUrl,
                                 ...results,
                                 message: summaryParts.join(', ')
                             }
@@ -3185,6 +3278,45 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                         }
 
                         handlerParams = { requests };
+                    } else if (operation === 'create-classic-quizzes') {
+                        // Handle classic quiz creation with questions
+                        console.log('AI Assistant: Mapping create-classic-quizzes parameters');
+                        console.log('fullParams:', JSON.stringify(fullParams, null, 2));
+
+                        // Extract question info from nested structure or flat parameters
+                        const questionsPerQuiz = fullParams.questions?.number || fullParams.questionsPerQuiz || 0;
+                        const questionType = fullParams.questions?.type || fullParams.questionType || 'multiple_choice';
+
+                        // Map question type to Canvas API format
+                        const questionTypeMapping = {
+                            'multiple_choice': 'multiple_choice_question',
+                            'true_false': 'true_false_question',
+                            'short_answer': 'short_answer_question',
+                            'essay': 'essay_question',
+                            'fill_in_blank': 'short_answer_question',
+                            'matching': 'matching_question',
+                            'numerical': 'numerical_question',
+                            'calculated': 'calculated_question'
+                        };
+
+                        const mappedQuestionType = questionTypeMapping[questionType] || questionType + '_question';
+
+                        handlerParams = {
+                            domain: fullParams.domain,
+                            token: fullParams.token,
+                            course_id: fullParams.courseId || fullParams.course_id,
+                            courseId: fullParams.courseId || fullParams.course_id,
+                            number: fullParams.number || 1,
+                            quiz_name: fullParams.quizName || fullParams.name || fullParams.prefix,
+                            quizName: fullParams.quizName || fullParams.name || fullParams.prefix,
+                            quiz_type: fullParams.quizType || 'assignment',
+                            quizType: fullParams.quizType || 'assignment',
+                            publish: fullParams.publish !== undefined ? fullParams.publish : false,
+                            questionsPerQuiz: questionsPerQuiz,
+                            questionTypes: fullParams.questionTypes || [mappedQuestionType]
+                        };
+
+                        console.log('AI Assistant: Mapped handlerParams:', JSON.stringify(handlerParams, null, 2));
                     } else {
                         // Default create operation parameters (assignments, etc.)
                         const defaultName = operation === 'create-assignments' ? 'Assignment' : 'Assignment Group';

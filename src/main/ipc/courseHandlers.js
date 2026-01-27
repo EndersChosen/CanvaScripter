@@ -528,10 +528,108 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
      */
     ipcMain.handle('axios:createClassicQuizzes', async (event, data) => {
         console.log('courseHandlers.js > createClassicQuizzes');
+        console.log('Received data:', JSON.stringify(data, null, 2));
 
         try {
-            const quizzes = await quizzes_classic.createClassicQuizzes(data);
-            return quizzes;
+            const totalRequests = parseInt(data.num_quizzes || data.number) || 1;
+            let completedRequests = 0;
+
+            const updateProgress = () => {
+                completedRequests++;
+                mainWindow.webContents.send('update-progress', {
+                    mode: 'determinate',
+                    label: 'Creating quizzes',
+                    processed: completedRequests,
+                    total: totalRequests,
+                    value: completedRequests / totalRequests
+                });
+            };
+
+            const request = async (requestData) => {
+                try {
+                    return await quizzes_classic.createQuiz(requestData);
+                } catch (error) {
+                    throw error;
+                } finally {
+                    updateProgress();
+                }
+            };
+
+            const requests = [];
+            for (let i = 0; i < totalRequests; i++) {
+                const quizTitle = data.quiz_name || data.quizName || data.prefix
+                    ? (totalRequests > 1 ? `${data.quiz_name || data.quizName || data.prefix} ${i + 1}` : data.quiz_name || data.quizName || data.prefix)
+                    : `Quiz ${i + 1}`;
+
+                const requestData = {
+                    domain: data.domain,
+                    token: data.token,
+                    course_id: data.course_id || data.courseId,
+                    quiz_title: quizTitle,
+                    quiz_type: data.quiz_type || data.quizType || 'assignment',
+                    publish: data.publish !== undefined ? data.publish : false
+                };
+                requests.push({ id: i + 1, request: () => request(requestData) });
+            }
+
+            const batchResponse = await batchHandler(requests, getBatchConfig());
+
+            // If questions are requested, create them for each quiz
+            console.log('Checking if questions should be created:', {
+                questionsPerQuiz: data.questionsPerQuiz,
+                hasSuccessful: batchResponse.successful && batchResponse.successful.length > 0
+            });
+
+            if (data.questionsPerQuiz && data.questionsPerQuiz > 0 && batchResponse.successful && batchResponse.successful.length > 0) {
+                console.log('courseHandlers.js > Creating questions for quizzes');
+                console.log('Questions per quiz:', data.questionsPerQuiz);
+                console.log('Question types:', data.questionTypes);
+
+                const questionTypes = data.questionTypes
+                    ? (Array.isArray(data.questionTypes)
+                        ? data.questionTypes
+                        : data.questionTypes.split(',').map(t => t.trim()))
+                    : ['multiple_choice_question'];
+
+                console.log('Parsed question types:', questionTypes);
+
+                let questionsCompleted = 0;
+                const totalQuestionRequests = batchResponse.successful.length;
+
+                for (const quizResult of batchResponse.successful) {
+                    const quiz = quizResult.value;
+                    if (!quiz || !quiz.id) continue;
+
+                    try {
+                        const questionData = questionTypes.map(type => ({
+                            name: type,
+                            enabled: true,
+                            number: String(data.questionsPerQuiz)
+                        }));
+
+                        await quizzes_classic.createQuestions({
+                            domain: data.domain,
+                            token: data.token,
+                            course_id: data.course_id || data.courseId,
+                            quiz_id: quiz.id,
+                            question_data: questionData
+                        });
+
+                        questionsCompleted++;
+                        mainWindow.webContents.send('update-progress', {
+                            mode: 'determinate',
+                            label: 'Adding questions to quizzes',
+                            processed: questionsCompleted,
+                            total: totalQuestionRequests,
+                            value: questionsCompleted / totalQuestionRequests
+                        });
+                    } catch (error) {
+                        console.error(`Failed to add questions to quiz ${quiz.id}:`, error);
+                    }
+                }
+            }
+
+            return batchResponse;
         } catch (error) {
             throw error.message;
         }
