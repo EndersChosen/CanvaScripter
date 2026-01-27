@@ -383,9 +383,21 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
             id: idx + 1,
             request: async () => {
                 try {
-                    const resp = await sections.createSection({
-                        domain: it.domain, token: it.token, course_id: it.course_id, name: it.name
-                    });
+                    const sectionData = {
+                        domain: it.domain,
+                        token: it.token,
+                        course_id: it.course_id,
+                        name: it.name
+                    };
+
+                    // Pass through optional date and restriction fields if present
+                    if (it.start_at) sectionData.start_at = it.start_at;
+                    if (it.end_at) sectionData.end_at = it.end_at;
+                    if (it.restrict_enrollments_to_section_dates !== undefined) {
+                        sectionData.restrict_enrollments_to_section_dates = it.restrict_enrollments_to_section_dates;
+                    }
+
+                    const resp = await sections.createSection(sectionData);
                     return resp;
                 } finally { update(); }
             }

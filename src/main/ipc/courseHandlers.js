@@ -799,7 +799,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
         console.log('courseHandlers.js > createNewQuizzes');
 
         try {
-            const totalRequests = data.number;
+            const totalRequests = data.count || data.number || 1;
             let completedRequests = 0;
 
             const updateProgress = () => {
@@ -829,7 +829,8 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
                     domain: data.domain,
                     token: data.token,
                     course_id: data.course_id,
-                    title: data.title
+                    quiz_title: data.title,
+                    published: data.published
                 };
                 requests.push({ id: i + 1, request: () => request(requestData) });
             }

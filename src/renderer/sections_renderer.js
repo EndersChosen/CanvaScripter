@@ -69,6 +69,41 @@ function sectionsTemplate(e) {
                         </div>
                     </div>
                     
+                    <div class="row g-3 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="start-date">
+                                <i class="bi bi-calendar-event me-1"></i>Start Date <span class="text-muted fw-normal">(optional)</span>
+                            </label>
+                            <input type="datetime-local" class="form-control form-control-sm" id="start-date" />
+                            <div class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>When the section becomes active
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="end-date">
+                                <i class="bi bi-calendar-x me-1"></i>End Date <span class="text-muted fw-normal">(optional)</span>
+                            </label>
+                            <input type="datetime-local" class="form-control form-control-sm" id="end-date" />
+                            <div class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>When the section ends
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mb-2">
+                        <div class="col-md-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="restrict-enrollments" />
+                                <label class="form-check-label" for="restrict-enrollments">
+                                    <i class="bi bi-lock me-1"></i>Restrict enrollments to section dates
+                                </label>
+                                <div class="form-text text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>Users can only participate in the section during the specified dates
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="row mb-2">
                         <div class="col-md-6">
                             <div class="d-grid">
@@ -210,6 +245,9 @@ function sectionsTemplate(e) {
     const course_id = form.querySelector('#course-id').value.trim();
     const number = parseInt(form.querySelector('#num-items').value.trim(), 10) || 0;
     const name = form.querySelector('#name').value.trim() || 'Section';
+    const startDate = form.querySelector('#start-date').value.trim();
+    const endDate = form.querySelector('#end-date').value.trim();
+    const restrictEnrollments = form.querySelector('#restrict-enrollments').checked;
 
     if (!domain || !token) {
       showError('Please configure your Canvas domain and API token first.');
@@ -233,12 +271,25 @@ function sectionsTemplate(e) {
     try {
       const requests = [];
       for (let i = 1; i <= number; i++) {
-        requests.push({
+        const request = {
           domain,
           token,
           course_id,
           name: `${name} ${i}`
-        });
+        };
+
+        // Add optional date fields if provided
+        if (startDate) {
+          request.start_at = new Date(startDate).toISOString();
+        }
+        if (endDate) {
+          request.end_at = new Date(endDate).toISOString();
+        }
+        if (restrictEnrollments) {
+          request.restrict_enrollments_to_section_dates = true;
+        }
+
+        requests.push(request);
       }
 
       // Update progress
@@ -338,7 +389,8 @@ function sectionsTemplate(e) {
         if (index % columns === 0) {
           content += '<div class="col-md-4"><ul class="list-unstyled">';
         }
-        content += `<li><small><i class="bi bi-people me-1"></i>${section.name}</small></li>`;
+        const sectionData = section.value || section;
+        content += `<li><small><i class="bi bi-people me-1"></i>${sectionData.name}</small></li>`;
         if ((index + 1) % columns === 0 || index === successful - 1) {
           content += '</ul></div>';
         }

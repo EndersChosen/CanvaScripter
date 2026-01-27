@@ -5,6 +5,21 @@ const { errorCheck } = require('../utilities');
 
 async function createSection(data) {
     // POST /api/v1/courses/:course_id/sections
+    const courseSection = {
+        name: data.name,
+    };
+
+    // Add optional fields if provided
+    if (data.start_at) {
+        courseSection.start_at = data.start_at;
+    }
+    if (data.end_at) {
+        courseSection.end_at = data.end_at;
+    }
+    if (data.restrict_enrollments_to_section_dates !== undefined) {
+        courseSection.restrict_enrollments_to_section_dates = data.restrict_enrollments_to_section_dates;
+    }
+
     const axiosConfig = {
         method: 'post',
         url: `https://${data.domain}/api/v1/courses/${data.course_id}/sections`,
@@ -12,9 +27,7 @@ async function createSection(data) {
             Authorization: `Bearer ${data.token}`,
         },
         data: {
-            course_section: {
-                name: data.name,
-            },
+            course_section: courseSection,
         },
     };
 
