@@ -6,9 +6,10 @@
 const { searchUsers } = require('../../shared/canvas-api/users');
 const { searchAccounts } = require('../../shared/canvas-api/accounts');
 const { searchTerms } = require('../../shared/canvas-api/terms');
+const { searchCourses } = require('../../shared/canvas-api/courses');
 const sections = require('../../shared/canvas-api/sections');
 const { searchUserLogins } = require('../../shared/canvas-api/logins');
-const sisImports = require('../../shared/canvas-api/imports');
+const { searchEnrollments, searchEnrollmentsByUser } = require('../../shared/canvas-api/sis_imports');
 
 /**
  * Helper function to normalize quotes (convert curly/smart quotes to straight quotes)
@@ -127,17 +128,28 @@ function registerSearchHandlers(ipcMain, logDebug) {
 
             const accounts = await searchAccounts(searchTerm);
 
-            // Transform Canvas account data to SIS CSV format
-            const sisAccounts = accounts.map(account => ({
-                account_id: account.sis_account_id || '',
-                parent_account_id: account.parent_account_id || '',
-                name: account.name || '',
-                status: 'active'
-            }));
-
-            return { success: true, data: sisAccounts };
+            // Accounts are already in the correct SIS CSV format from searchAccounts
+            return { success: true, data: accounts };
         } catch (error) {
             logDebug('[accounts:search] Error', { error: error.message });
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Courses Search
+    ipcMain.handle('courses:search', async (event, domain, token, searchTerm) => {
+        logDebug('[courses:search] Searching courses', { domain, searchTerm });
+        try {
+            const axios = require('axios');
+            axios.defaults.baseURL = `https://${domain}/api/v1`;
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+            const courses = await searchCourses(searchTerm);
+
+            // Courses are already in the correct SIS CSV format from searchCourses
+            return { success: true, data: courses };
+        } catch (error) {
+            logDebug('[courses:search] Error', { error: error.message });
             return { success: false, error: error.message };
         }
     });
@@ -205,11 +217,11 @@ function registerSearchHandlers(ipcMain, logDebug) {
             // Route to the correct search function based on search type
             if (searchType === 'user') {
                 // User search fetches ALL enrollment types/states - filtering happens client-side
-                enrollments = await sisImports.searchEnrollmentsByUser(id);
+                enrollments = await searchEnrollmentsByUser(id);
                 logDebug('[enrollments:search] Found enrollments for user', { userId: id, count: enrollments.length });
             } else {
                 // Course search also fetches ALL enrollment types/states - filtering happens client-side
-                enrollments = await sisImports.searchEnrollments(id);
+                enrollments = await searchEnrollments(id);
                 logDebug('[enrollments:search] Found enrollments for course', { courseId: id, count: enrollments.length });
             }
 

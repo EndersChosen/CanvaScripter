@@ -185,6 +185,74 @@ async function syncBPCourses(data) {
     }
 }
 
+// Search courses using GraphQL query
+async function searchCourses(searchTerm) {
+    try {
+        const graphqlQuery = {
+            query: `
+                query MyQuery($course_id: ID!) {
+                    course(id: $course_id) {
+                        sisId
+                        name
+                        courseCode
+                        account {
+                            sisId
+                        }
+                        term {
+                            sisId
+                        }
+                        state
+                    }
+                }
+            `,
+            variables: {
+                course_id: searchTerm
+            }
+        };
+
+        const request = async () => {
+            // For GraphQL, we need to override the base URL since it uses /api/graphql instead of /api/v1
+            const graphqlUrl = axios.defaults.baseURL.replace('/api/v1', '/api/graphql');
+            return await axios.post(graphqlUrl, graphqlQuery, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+        };
+
+        const response = await errorCheck(request);
+
+        if (response.data.data && response.data.data.course) {
+            const course = response.data.data.course;
+
+            // Map state to status: anything not 'deleted' or 'completed' should be 'active'
+            let status = 'active';
+            if (course.state === 'deleted') {
+                status = 'deleted';
+            } else if (course.state === 'completed' || course.state === 'concluded') {
+                status = 'completed';
+            }
+
+            // Map GraphQL response to CSV format
+            const mappedCourse = {
+                course_id: course.sisId || '',
+                short_name: course.courseCode || '',
+                long_name: course.name || '',
+                account_id: course.account?.sisId || '',
+                term_id: course.term?.sisId || '',
+                status: status
+            };
+
+            return [mappedCourse]; // Return as array to match expected format
+        } else {
+            throw new Error('Course not found');
+        }
+    } catch (error) {
+        console.error('Error searching courses:', error);
+        throw error;
+    }
+}
+
 module.exports = {
-    resetCourse, createSupportCourse, editCourse, getCourseInfo, associateCourses, syncBPCourses, restoreContent
+    resetCourse, createSupportCourse, editCourse, getCourseInfo, associateCourses, syncBPCourses, restoreContent, searchCourses
 };

@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const JSZip = require('jszip');
-const sisImports = require('../../shared/canvas-api/imports');
+const sisImports = require('../../shared/canvas-api/sis_imports');
 
 /**
  * Register all SIS data generation IPC handlers

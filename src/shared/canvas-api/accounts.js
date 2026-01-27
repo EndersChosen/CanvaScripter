@@ -36,7 +36,17 @@ async function searchAccounts(searchTerm) {
         const response = await errorCheck(request);
 
         if (response.data.data && response.data.data.account) {
-            return [response.data.data.account]; // Return as array to match expected format
+            const account = response.data.data.account;
+
+            // Map GraphQL response to CSV format
+            const mappedAccount = {
+                account_id: account.sisId || '',
+                name: account.name || '',
+                parent_account_id: account.parentAccountsConnection?.nodes?.[0]?.sisId || '',
+                status: 'active' // Default status
+            };
+
+            return [mappedAccount]; // Return as array to match expected format
         } else {
             throw new Error('Account not found');
         }

@@ -600,6 +600,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
                 return await ipcRenderer.invoke('users:search', domain, token, searchParams.search_term);
             case 'accounts':
                 return await ipcRenderer.invoke('accounts:search', domain, token, searchParams.search_term);
+            case 'courses':
+                return await ipcRenderer.invoke('courses:search', domain, token, searchParams.search_term);
             case 'terms':
                 return await ipcRenderer.invoke('terms:search', domain, token, searchParams.search_term);
             case 'sections':

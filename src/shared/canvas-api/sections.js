@@ -53,9 +53,22 @@ async function searchSection(domain, token, sectionId) {
     try {
         const request = async () => axios(axiosConfig);
         const response = await errorCheck(request);
+
+        const section = response.data;
+
+        // Map REST API response to SIS CSV format
+        const mappedSection = {
+            section_id: section.sis_section_id || '',
+            course_id: section.sis_course_id || '',
+            name: section.name || '',
+            status: 'active', // Any returned section is active (deleted sections won't return)
+            start_date: section.start_at || '',
+            end_date: section.end_at || ''
+        };
+
         return {
             success: true,
-            section: response.data
+            data: [mappedSection] // Return as array to match expected format
         };
     } catch (error) {
         console.error('Section search error:', error);
