@@ -2693,7 +2693,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                             mode: 'determinate',
                             processed: currentStep,
                             total: totalSteps,
-                            label: 'Creating course...'
+                            label: 'Step 1: Creating course...'
                         });
 
                         const courseData = {
@@ -2707,6 +2707,18 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
 
                         const course = await createSupportCourse(courseData);
                         results.course = course;
+
+                        // Show Step 1 completion
+                        sendProgress(event, {
+                            mode: 'determinate',
+                            processed: 1,
+                            total: totalSteps,
+                            label: `Step 1: Course created successfully (ID: ${course.id})`
+                        });
+
+                        // Brief delay for UI update
+                        await new Promise(resolve => setTimeout(resolve, 300));
+
                         currentStep++;
 
                         const courseId = course.id;
@@ -2718,13 +2730,6 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
 
                         // Step 2: Create users and enroll them (if requested)
                         if (hasUsers) {
-                            sendProgress(event, {
-                                mode: 'determinate',
-                                processed: currentStep,
-                                total: totalSteps,
-                                label: `Creating ${(fullParams.students || 0) + (fullParams.teachers || 0)} users...`
-                            });
-
                             try {
                                 const { addUsers, enrollUser } = require('../../shared/canvas-api/users');
                                 const usersCreated = [];
@@ -2736,7 +2741,15 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                                 const randomSuffix = () => Math.floor(Math.random() * 10000);
 
                                 // Create student accounts
+                                const totalUsers = (fullParams.students || 0) + (fullParams.teachers || 0);
                                 for (let i = 1; i <= (fullParams.students || 0); i++) {
+                                    sendProgress(event, {
+                                        mode: 'determinate',
+                                        processed: usersCreated.length,
+                                        total: totalUsers,
+                                        label: `Step 2: Creating users...${usersCreated.length}/${totalUsers}`
+                                    });
+
                                     const uniqueId = `student${i}_${randomSuffix()}`;
                                     const studentData = {
                                         domain: fullParams.domain,
@@ -2767,6 +2780,13 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
 
                                 // Create teacher accounts
                                 for (let i = 1; i <= (fullParams.teachers || 0); i++) {
+                                    sendProgress(event, {
+                                        mode: 'determinate',
+                                        processed: usersCreated.length,
+                                        total: totalUsers,
+                                        label: `Step 2: Creating users...${usersCreated.length}/${totalUsers}`
+                                    });
+
                                     const uniqueId = `teacher${i}_${randomSuffix()}`;
                                     const teacherData = {
                                         domain: fullParams.domain,
@@ -2805,7 +2825,15 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                                     label: `Enrolling ${usersCreated.length} users...`
                                 });
 
+                                let enrolledCount = 0;
                                 for (const { userId, role } of usersCreated) {
+                                    sendProgress(event, {
+                                        mode: 'determinate',
+                                        processed: enrolledCount,
+                                        total: usersCreated.length,
+                                        label: `Step 3: Enrolling users...${enrolledCount}/${usersCreated.length}`
+                                    });
+
                                     try {
                                         await enrollUser({
                                             domain: fullParams.domain,
@@ -2814,10 +2842,19 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                                             user_id: userId,
                                             type: role
                                         });
+                                        enrolledCount++;
                                     } catch (e) {
                                         console.error(`Failed to enroll user:`, e);
                                     }
                                 }
+
+                                // Show enrollment completion
+                                sendProgress(event, {
+                                    mode: 'determinate',
+                                    processed: enrolledCount,
+                                    total: usersCreated.length,
+                                    label: `Step 3: Enrolled ${enrolledCount}/${usersCreated.length} users successfully`
+                                });
 
                                 results.users = usersCreated.length;
                                 currentStep++;
