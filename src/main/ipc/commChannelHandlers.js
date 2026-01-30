@@ -148,7 +148,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
 
     // Check communication channel
     ipcMain.handle('axios:checkCommChannel', async (event, data) => {
-        logDebug('[axios:checkCommChannel] Checking comm channel', { email: data.email });
+        logDebug('[axios:checkCommChannel] Checking comm channel', { email: data.pattern });
         try {
             const response = await emailCheck(data);
             return response;
@@ -755,10 +755,28 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
 
             const filePath = filePaths[0];
             const fileContent = fs.readFileSync(filePath, 'utf8');
-            const emails = parseEmailsFromCSV(fileContent);
+            const ext = path.extname(filePath).toLowerCase();
+
+            let emails = [];
+
+            // Parse based on file extension
+            if (ext === '.txt') {
+                // For .txt files, parse as plain text (one email per line or comma-separated)
+                emails = Array.from(new Set(
+                    removeBlanks(fileContent.split(/\r?\n|\r|,/))
+                        .map(e => e.trim())
+                        .filter(e => e.includes('@'))
+                ));
+            } else {
+                // For .csv and other files, use CSV parser
+                emails = parseEmailsFromCSV(fileContent);
+            }
 
             if (emails.length === 0) {
-                throw new Error('No valid email addresses found in the file. For bounced communication channels CSV, make sure the file has "Path" and "Type" columns with email addresses.');
+                const errorMsg = ext === '.txt'
+                    ? 'No valid email addresses found in the file. Please ensure the file contains email addresses (one per line or comma-separated).'
+                    : 'No valid email addresses found in the file. For bounced communication channels CSV, make sure the file has "Path" and "Type" columns with email addresses.';
+                throw new Error(errorMsg);
             }
 
             return {

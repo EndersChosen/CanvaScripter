@@ -17,7 +17,7 @@ function getNextPage(links) {
             rel: rel.split('=')[1].trim().replace(/\"/g, '')
         };
     });
-    
+
     for (let obj of json) {
         if (obj.rel === 'next') {
             console.log('Getting next page');
@@ -438,6 +438,17 @@ function createDownloadLink(data, filename, linkText = 'Download') {
     return link;
 }
 
+/**
+ * Remove blank/empty entries from an array
+ * @param {Array} arr - Array to filter
+ * @returns {Array} - Array with blank entries removed
+ */
+function removeBlanks(arr) {
+    if (!Array.isArray(arr)) return [];
+    return arr.map(v => (v == null ? '' : String(v).trim()))
+        .filter(v => v.length > 0);
+}
+
 module.exports = {
-    createRequester, deleteRequester, waitFunc, getRegion, errorCheck, getAPIData, getUTCTime, createDownloadLink, getNextPage
+    createRequester, deleteRequester, waitFunc, getRegion, errorCheck, getAPIData, getUTCTime, createDownloadLink, getNextPage, removeBlanks
 };

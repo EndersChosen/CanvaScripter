@@ -171,10 +171,10 @@ function checkComm(e) {
                             <label for="email-upload" class="form-label fw-bold">
                                 <i class="bi bi-filetype-csv me-1"></i>Upload File of Emails
                             </label>
-                            <input type="file" id="email-upload" accept=".csv,.xlsx,.xls" class="form-control form-control-sm" />
+                            <input type="file" id="email-upload" accept=".csv,.txt,.xlsx,.xls" class="form-control form-control-sm" />
                             <div class="form-text text-muted">
-                                <i class="bi bi-info-circle me-1"></i>Upload a CSV, Excel (.xlsx), or Excel 97-2003 (.xls) file containing email addresses to check
-                                <br><small>Supports Canvas bounce report format with columns: User ID, Name, Path, Date, Bounce reason</small>
+                                <i class="bi bi-info-circle me-1"></i>Upload a CSV, TXT, Excel (.xlsx), or Excel 97-2003 (.xls) file containing email addresses to check
+                                <br><small>TXT: One email per line. CSV: Supports Canvas bounce report format with columns: User ID, Name, Path, Date, Bounce reason</small>
                             </div>
                         </div>
                     </div>
@@ -268,11 +268,31 @@ function checkComm(e) {
                 const file = e.target.files[0];
                 const fileName = file.name.toLowerCase();
                 const fileExtension = fileName.split('.').pop();
-                
+
                 try {
                     selectedEmails = [];
-                    
-                    if (fileExtension === 'csv') {
+
+                    if (fileExtension === 'txt') {
+                        // Handle TXT files (one email per line or comma-separated)
+                        const reader = new FileReader();
+                        reader.onload = async function (event) {
+                            try {
+                                const txtContent = event.target.result;
+                                // Split by newlines or commas, trim, and filter for valid emails
+                                const lines = txtContent.split(/\r?\n|\r|,/);
+                                selectedEmails = Array.from(new Set(
+                                    lines
+                                        .map(line => line.trim())
+                                        .filter(line => line.length > 0 && line.includes('@'))
+                                ));
+
+                                updateFileParseUI(file, selectedEmails, fileUploadChkbx, dynamicBtn);
+                            } catch (error) {
+                                handleFileParseError(error, dynamicBtn);
+                            }
+                        };
+                        reader.readAsText(file);
+                    } else if (fileExtension === 'csv') {
                         // Handle CSV files
                         const reader = new FileReader();
                         reader.onload = async function (event) {
@@ -281,7 +301,7 @@ function checkComm(e) {
                                 // Use the parseEmailsFromCSV function via IPC
                                 const result = await window.ipcRenderer.invoke('parseEmailsFromCSV', csvContent);
                                 selectedEmails = result.emails || [];
-                                
+
                                 updateFileParseUI(file, selectedEmails, fileUploadChkbx, dynamicBtn);
                             } catch (error) {
                                 handleFileParseError(error, dynamicBtn);
@@ -296,14 +316,14 @@ function checkComm(e) {
                                 filePath: file.path || null,
                                 fileBuffer: await file.arrayBuffer()
                             });
-                            
+
                             selectedEmails = result.emails || [];
                             updateFileParseUI(file, selectedEmails, fileUploadChkbx, dynamicBtn);
                         } catch (error) {
                             handleFileParseError(error, dynamicBtn);
                         }
                     } else {
-                        throw new Error('Unsupported file format. Please upload a CSV (.csv), Excel (.xlsx), or Excel 97-2003 (.xls) file.');
+                        throw new Error('Unsupported file format. Please upload a TXT (.txt), CSV (.csv), Excel (.xlsx), or Excel 97-2003 (.xls) file.');
                     }
                 } catch (error) {
                     console.error('File upload error:', error);
@@ -318,14 +338,20 @@ function checkComm(e) {
         // Helper function to update UI after successful file parsing
         function updateFileParseUI(file, emails, checkbox, button) {
             const responseContainer = checkSuppressionListForm.querySelector('#response-container');
-            const fileType = file.name.toLowerCase().includes('.xlsx') || file.name.toLowerCase().includes('.xls') ? 'Excel' : 'CSV';
-            
+            const fileName = file.name.toLowerCase();
+            let fileType = 'CSV';
+            if (fileName.includes('.xlsx') || fileName.includes('.xls')) {
+                fileType = 'Excel';
+            } else if (fileName.includes('.txt')) {
+                fileType = 'TXT';
+            }
+
             responseContainer.innerHTML = `
                 <div class="alert alert-success">
                     <strong>✓ ${fileType} file parsed successfully!</strong><br>
                     Found ${emails.length} email address(es) in "${file.name}"
                     ${(file.name.includes('bounced_communication') || file.name.includes('bounce')) ?
-                        '<br><small class="text-muted">Detected Canvas bounce report format</small>' : ''}
+                    '<br><small class="text-muted">Detected Canvas bounce report format</small>' : ''}
                 </div>`;
 
             // Enable the button if checkbox is checked
@@ -477,7 +503,7 @@ function checkComm(e) {
                 hasError = true;
                 progresDiv.hidden = true;
                 responseContainerCard.hidden = false;
-                
+
                 responseContainer.innerHTML = `
                     <div class="alert alert-danger mb-0">
                         <h5 class="alert-heading">
@@ -640,7 +666,7 @@ function checkComm(e) {
                         <i class="bi bi-download me-1"></i>Save to File
                     </button>
                 `;
-                
+
                 const saveEmailsBtn = responseContainer.querySelector('#save-emails-to-file');
                 saveEmailsBtn.addEventListener('click', async (e) => {
                     e.preventDefault();
@@ -648,7 +674,7 @@ function checkComm(e) {
 
                     try {
                         const fileName = `suppressed_emails_${domainPattern.replace(/[@.]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
-                        
+
                         // Call backend to save the file directly (avoids passing large arrays through IPC)
                         const result = await window.axios.saveSuppressedEmails({
                             defaultPath: fileName,
@@ -658,7 +684,7 @@ function checkComm(e) {
                                 { name: 'All Files', extensions: ['*'] }
                             ]
                         });
-                        
+
                         if (result.success) {
                             alert(`File saved successfully!\n\nLocation: ${result.filePath}\nEmails saved: ${result.count.toLocaleString()}`);
                         } else if (result.cancelled) {
@@ -701,8 +727,8 @@ function checkComm(e) {
                 const progresDiv = checkSuppressionListForm.querySelector('#progress-div');
                 const progressBar = progresDiv.querySelector('.progress-bar');
                 const progressInfo = progresDiv.querySelector('#progress-info');
-                const progressBarWrapper = progresDiv.querySelector('.progress'); 
-                
+                const progressBarWrapper = progresDiv.querySelector('.progress');
+
                 progresDiv.hidden = false;
                 // Show progress bar for file upload
                 progressBarWrapper.hidden = false;
@@ -712,7 +738,7 @@ function checkComm(e) {
                 const responseContainerCard = checkSuppressionListForm.querySelector('#response-container-card');
                 responseContainer.innerHTML = '';
                 responseContainerCard.hidden = true;
-                
+
                 // Results array
                 const results = [];
                 const totalEmails = emails.length;
@@ -805,7 +831,7 @@ function checkComm(e) {
                                 return `${r.email},${r.suppressed ? 'Yes' : 'No'},${r.bounced ? 'Yes' : 'No'},${status}`;
                             })
                         ).join('\r\n');
-                        
+
                         const blob = new Blob([csv], { type: 'text/csv' });
                         const url = URL.createObjectURL(blob);
 
@@ -825,7 +851,7 @@ function checkComm(e) {
                             ).join('\r\n');
                             const suppressedBlob = new Blob([suppressedCSV], { type: 'text/csv' });
                             const suppressedUrl = URL.createObjectURL(suppressedBlob);
-                            
+
                             resultsHTML += `
                                             <a href="${suppressedUrl}" download="suppressed_emails_${new Date().toISOString().split('T')[0]}.csv" 
                                                class="btn btn-warning btn-sm">
@@ -840,7 +866,7 @@ function checkComm(e) {
                             ).join('\r\n');
                             const bouncedBlob = new Blob([bouncedCSV], { type: 'text/csv' });
                             const bouncedUrl = URL.createObjectURL(bouncedBlob);
-                            
+
                             resultsHTML += `
                                             <a href="${bouncedUrl}" download="bounced_emails_${new Date().toISOString().split('T')[0]}.csv" 
                                                class="btn btn-danger btn-sm">
@@ -1176,11 +1202,11 @@ function resetComm(e) {
 
                 // makes call to clear aws and schedule bounce reset
                 const response = await window.axios.resetCommChannel(requestData);
-                
+
                 // Hide progress, show results
                 progressCard.hidden = true;
                 resultsCard.hidden = false;
-                
+
                 // Build card-based UI for single email reset
                 let htmlContent = `
                     <div class="card mb-3">
@@ -1194,7 +1220,7 @@ function resetComm(e) {
                             <hr class="my-3">
                             <h6 class="mb-2"><i class="bi bi-envelope-dash me-2"></i>Bounce List Results</h6>
                 `;
-                
+
                 if (response.bounce.error != null) {
                     htmlContent += `<div class="alert alert-danger" role="alert">
                         <i class="bi bi-exclamation-triangle me-2"></i><strong>Error:</strong> ${response.bounce.error.message || JSON.stringify(response.bounce.error)}
@@ -1204,11 +1230,11 @@ function resetComm(e) {
                 } else {
                     htmlContent += `<p class="mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i>Successfully cleared email from bounce list.</p>`;
                 }
-                
+
                 htmlContent += `
                             <h6 class="mb-2"><i class="bi bi-shield-slash me-2"></i>Suppression List Results</h6>
                 `;
-                
+
                 if (response.suppression.error != null) {
                     htmlContent += `<div class="alert alert-danger mb-0" role="alert">
                         <i class="bi bi-exclamation-triangle me-2"></i><strong>Error:</strong> ${response.suppression.error.message || JSON.stringify(response.suppression.error)}
@@ -1218,19 +1244,19 @@ function resetComm(e) {
                 } else {
                     htmlContent += `<p class="mb-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Successfully cleared email from suppression list.</p>`;
                 }
-                
+
                 htmlContent += `
                         </div>
                     </div>
                 `;
-                
+
                 singleContainer.innerHTML = htmlContent;
             } catch (error) {
                 progressCard.hidden = true;
                 resultsCard.hidden = false;
                 errorHandler(error, singleContainer);
             }
-            
+
             // Restore button
             resetBtn.disabled = false;
         });
@@ -1322,24 +1348,24 @@ function resetComm(e) {
                             <hr class="my-3">
                             <h6 class="mb-2"><i class="bi bi-envelope-dash me-2"></i>Bounce List Results</h6>
                     `;
-                    
+
                     if (totalBounceReset > 0) {
                         htmlContent += `<p class="mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i>Successfully cleared <strong>${totalBounceReset}</strong> email(s) from bounce list.</p>`;
                     } else {
                         htmlContent += `<p class="mb-3"><i class="bi bi-info-circle me-2"></i>No emails were found on the bounce list.</p>`;
                     }
-                    
+
                     htmlContent += `
                             <h6 class="mb-2"><i class="bi bi-shield-slash me-2"></i>Suppression List Results</h6>
                     `;
-                    
+
                     if (totalSuppressionReset > 0) {
                         htmlContent += `<p class="mb-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Successfully cleared <strong>${totalSuppressionReset}</strong> email(s) from suppression list.</p>`;
                     } else {
                         htmlContent += `<p class="mb-0"><i class="bi bi-info-circle me-2"></i>No emails were found on the suppression list.</p>`;
                     }
                 }
-                
+
                 htmlContent += `
                         </div>
                     </div>
@@ -1369,7 +1395,7 @@ function resetComm(e) {
                             <div class="card-body">
                                 <p class="mb-2"><i class="bi bi-x-circle text-danger me-2"></i><strong>${failedEmails.length}</strong> email(s) failed to reset properly.</p>
                     `;
-                    
+
                     // Add download link if utility is available
                     if (window.utilities?.createDownloadLink) {
                         const failedCSV = ['Email Address,Errors'].concat(
@@ -1377,16 +1403,16 @@ function resetComm(e) {
                         );
                         htmlContent += `<div id="pattern-failed-download-placeholder"></div>`;
                     }
-                    
+
                     htmlContent += `
                             </div>
                         </div>
                     `;
                 }
-                
+
                 // Set all HTML at once
                 patternContainer.innerHTML = htmlContent;
-                
+
                 // Append download link as DOM element if failed emails exist
                 if (failedEmails.length > 0 && window.utilities?.createDownloadLink) {
                     const failedCSV = ['Email Address,Errors'].concat(
@@ -1467,7 +1493,7 @@ function resetComm(e) {
             uploadBtn.disabled = true;
             uploadContainer.innerHTML = '';
             resultsCard.hidden = true;
-            
+
             try {
                 const picked = await window.fileUpload.resetEmails();
                 if (!picked || picked === 'cancelled') {
@@ -1479,7 +1505,7 @@ function resetComm(e) {
                 selectedEmailsFile = picked; // { fileContents, filePath, ext }
                 const niceName = picked.filePath ? picked.filePath.split(/[/\\]/).pop() : 'selected file';
                 const parsedCount = computeParsedEmailsCount(picked);
-                
+
                 resultsCard.hidden = false;
                 uploadContainer.innerHTML = `
                     <div class="alert alert-success" role="alert">
@@ -1489,7 +1515,7 @@ function resetComm(e) {
                         <small class="text-muted">Click "Reset" to begin processing.</small>
                     </div>
                 `;
-                
+
                 // Enable the Reset button
                 uploadResetBtn.hidden = false;
                 uploadResetBtn.disabled = false;
@@ -1533,7 +1559,7 @@ function resetComm(e) {
             progressBar.setAttribute('aria-valuenow', '0');
             progressDetail.textContent = '';
             uploadContainer.innerHTML = '';
-            
+
             // Track current stage for progress updates
             let currentStage = 'bounce'; // 'bounce' or 'aws'
 
@@ -1543,18 +1569,18 @@ function resetComm(e) {
                 unsubscribeProgress = window.progressAPI.onUpdateProgress((payload) => {
                     if (!payload || typeof payload !== 'object') return;
                     const { mode, value, processed, total, label } = payload;
-                    
+
                     // Check if we're moving to AWS stage
                     if (label && label.toLowerCase().includes('aws')) {
                         currentStage = 'aws';
                         progressCardTitle.textContent = 'Resetting AWS Suppression';
                     }
-                    
+
                     if (mode === 'determinate' && typeof value === 'number') {
                         const pct = Math.round(value * 100);
                         progressBar.style.width = `${pct}%`;
                         progressBar.setAttribute('aria-valuenow', pct);
-                        
+
                         if (typeof processed === 'number' && typeof total === 'number') {
                             const stageLabel = currentStage === 'bounce' ? 'Processing bounce counts' : 'Resetting AWS suppression';
                             progressInfo.textContent = `${stageLabel}...`;
@@ -1572,33 +1598,103 @@ function resetComm(e) {
 
             try {
                 const response = await window.axios.resetEmails(requestData);
-                
+
+                // Check if there are emails that couldn't be removed and auto-retry once
+                let finalResponse = response;
+                let autoRetried = false;
+                const initialNotRemoved = response.combinedResults?.awsResetResponse?.data?.not_removed || [];
+
+                if (initialNotRemoved.length > 0) {
+                    // Show message about auto-retry
+                    progressCard.hidden = false;
+                    resultsCard.hidden = true;
+                    progressCardTitle.textContent = 'Auto-Retrying Failed Emails';
+                    progressInfo.innerHTML = `
+                        <p class="mb-2"><strong>${initialNotRemoved.length}</strong> email(s) failed to be removed from suppression list.</p>
+                        <p class="mb-0">Automatically retrying once...</p>
+                    `;
+                    progressBar.style.width = '50%';
+
+                    // Wait a moment for user to see the message
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+
+                    // Retry the failed emails
+                    const retryRequestData = {
+                        domain: requestData.domain,
+                        token: requestData.token,
+                        region: requestData.region,
+                        fileContents: initialNotRemoved
+                    };
+
+                    try {
+                        const retryResponse = await window.axios.resetEmails(retryRequestData);
+                        autoRetried = true;
+
+                        // Merge the results
+                        finalResponse = {
+                            combinedResults: {
+                                summary: {
+                                    totalEmailsProcessed: response.combinedResults.summary.totalEmailsProcessed,
+                                    bounceListResets: response.combinedResults.summary.bounceListResets + (retryResponse.combinedResults.summary.bounceListResets || 0),
+                                    bounceListFailed: response.combinedResults.summary.bounceListFailed + (retryResponse.combinedResults.summary.bounceListFailed || 0),
+                                    suppressionListRemoved: response.combinedResults.summary.suppressionListRemoved + (retryResponse.combinedResults.summary.suppressionListRemoved || 0),
+                                    suppressionListNotRemoved: retryResponse.combinedResults.summary.suppressionListNotRemoved || 0,
+                                    suppressionListNotFound: response.combinedResults.summary.suppressionListNotFound + (retryResponse.combinedResults.summary.suppressionListNotFound || 0),
+                                    suppressionListErrors: response.combinedResults.summary.suppressionListErrors + (retryResponse.combinedResults.summary.suppressionListErrors || 0)
+                                },
+                                batchResponse: response.combinedResults.batchResponse,
+                                awsResetResponse: {
+                                    removed: response.combinedResults.awsResetResponse.removed + (retryResponse.combinedResults.awsResetResponse.removed || 0),
+                                    not_removed: response.combinedResults.awsResetResponse.not_removed + (retryResponse.combinedResults.awsResetResponse.not_removed || 0),
+                                    not_found: response.combinedResults.awsResetResponse.not_found + (retryResponse.combinedResults.awsResetResponse.not_found || 0),
+                                    errors: response.combinedResults.awsResetResponse.errors + (retryResponse.combinedResults.awsResetResponse.errors || 0),
+                                    failed_messages: [...(response.combinedResults.awsResetResponse.failed_messages || []), ...(retryResponse.combinedResults.awsResetResponse.failed_messages || [])],
+                                    data: {
+                                        removed: [...(response.combinedResults.awsResetResponse.data?.removed || []), ...(retryResponse.combinedResults.awsResetResponse.data?.removed || [])],
+                                        not_removed: retryResponse.combinedResults.awsResetResponse.data?.not_removed || [],
+                                        not_found: [...(response.combinedResults.awsResetResponse.data?.not_found || []), ...(retryResponse.combinedResults.awsResetResponse.data?.not_found || [])]
+                                    }
+                                }
+                            },
+                            cancelled: response.cancelled
+                        };
+                    } catch (retryError) {
+                        console.error('Auto-retry failed:', retryError);
+                        // If retry fails, just continue with original response
+                    }
+                }
+
                 // Hide progress, show results
                 progressCard.hidden = true;
                 resultsCard.hidden = false;
 
-                const totalProcessed = response.combinedResults.summary.totalEmailsProcessed || 0;
-                let totalBounceReset = response.combinedResults.summary.bounceListResets || 0;
-                let totalAWSReset = response.combinedResults.summary.suppressionListRemoved || 0;
-                let suppressionNotFound = response.combinedResults.summary.suppressionListNotFound || 0;
-                let suppressionNotRemoved = response.combinedResults.summary.suppressionListNotRemoved || 0;
+                const totalProcessed = finalResponse.combinedResults.summary.totalEmailsProcessed || 0;
+                let totalBounceReset = finalResponse.combinedResults.summary.bounceListResets || 0;
+                let totalAWSReset = finalResponse.combinedResults.summary.suppressionListRemoved || 0;
+                let suppressionNotFound = finalResponse.combinedResults.summary.suppressionListNotFound || 0;
+                let suppressionNotRemoved = finalResponse.combinedResults.summary.suppressionListNotRemoved || 0;
                 // response.successful.forEach(success => {
                 //     totalBounceReset += success.value.bounce.reset;
                 //     totalAWSReset += success.value.suppression.reset;
                 // });
 
-                const errorBounce = response.combinedResults.details.bounceResults.failed.filter((email) => email.value.bounce.error != null);
-                
+                const errorBounce = finalResponse.combinedResults.batchResponse.failed.filter((email) => email.value?.bounce?.error != null);
+
                 // Display suppression errors if any exist
-                const suppressionErrors = response.combinedResults?.details?.suppressionResults?.failed_messages || [];
-                
+                const suppressionErrors = finalResponse.combinedResults?.awsResetResponse?.failed_messages || [];
+
                 // Build list of suppression results
                 const suppressionResults = [];
-                
+
+                // Add auto-retry message if it occurred
+                if (autoRetried) {
+                    suppressionResults.push(`<div class="alert alert-info mb-2"><i class="bi bi-arrow-repeat me-2"></i>Auto-retry completed for ${initialNotRemoved.length} failed email(s)</div>`);
+                }
+
                 if (totalAWSReset > 0) {
                     suppressionResults.push(`<i class="bi bi-check-circle-fill text-success me-2"></i>Successfully removed <strong>${totalAWSReset}</strong> email(s) from suppression list.`);
                 }
-                
+
                 if (suppressionNotFound > 0) {
                     if (suppressionNotFound === totalProcessed) {
                         suppressionResults.push(`<i class="bi bi-info-circle me-2"></i>No email(s) were found on the suppression list.`);
@@ -1607,10 +1703,32 @@ function resetComm(e) {
                     }
                 }
 
+                // Only show download/reprocess buttons if emails still failed after auto-retry
                 if (suppressionNotRemoved > 0) {
-                    suppressionResults.push(`<i class="bi bi-exclamation-circle text-warning me-2"></i><strong>${suppressionNotRemoved}</strong> email(s) could not be removed from the suppression list.`);
+                    suppressionResults.push(`<i class="bi bi-exclamation-circle text-warning me-2"></i><strong>${suppressionNotRemoved}</strong> email(s) could not be removed from the suppression list${autoRetried ? ' (after auto-retry)' : ''}.`);
+
+                    // Get the list of not removed emails
+                    const notRemovedEmails = finalResponse.combinedResults?.awsResetResponse?.data?.not_removed || [];
+                    if (notRemovedEmails.length > 0) {
+                        // Create CSV content
+                        const csvContent = 'email\n' + notRemovedEmails.join('\n');
+                        const blob = new Blob([csvContent], { type: 'text/csv' });
+                        const url = URL.createObjectURL(blob);
+                        const fileName = `not_removed_emails_${new Date().toISOString().split('T')[0]}.csv`;
+
+                        suppressionResults.push(`
+                            <div class="d-flex gap-2 mt-2">
+                                <a href="${url}" download="${fileName}" class="btn btn-sm btn-warning">
+                                    <i class="bi bi-download me-1"></i>Download Not Removed Emails (${notRemovedEmails.length})
+                                </a>
+                                <button id="reprocess-not-removed-btn" class="btn btn-sm btn-danger">
+                                    <i class="bi bi-arrow-repeat me-1"></i>Re-process Failed Emails
+                                </button>
+                            </div>
+                        `);
+                    }
                 }
-                
+
                 // Build summary with consolidated card-based UI
                 let htmlContent = `
                     <div class="card mb-3">
@@ -1624,7 +1742,7 @@ function resetComm(e) {
                             <hr class="my-3">
                             <h6 class="mb-2"><i class="bi bi-envelope-dash me-2"></i>Bounce List Results</h6>
                 `;
-                
+
                 // Add bounce errors
                 if (errorBounce.length > 0) {
                     htmlContent += `<div class="alert alert-danger" role="alert">
@@ -1637,17 +1755,17 @@ function resetComm(e) {
                     });
                     htmlContent += `</ul></div>`;
                 }
-                
+
                 if (totalBounceReset < 1 && errorBounce.length === 0) {
                     htmlContent += `<p class="mb-3"><i class="bi bi-info-circle me-2"></i>Didn't find any emails on the bounce list to reset.</p>`;
                 } else if (totalBounceReset > 0) {
                     htmlContent += `<p class="mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i>Successfully cleared <strong>${totalBounceReset}</strong> email(s) from bounce list.</p>`;
                 }
-                
+
                 htmlContent += `
                             <h6 class="mb-2"><i class="bi bi-shield-slash me-2"></i>Suppression List Results</h6>
                 `;
-                
+
                 if (suppressionErrors.length > 0) {
                     htmlContent += `<div class="alert alert-danger" role="alert">
                         <strong><i class="bi bi-exclamation-triangle me-2"></i>Suppression List Errors:</strong>
@@ -1656,7 +1774,7 @@ function resetComm(e) {
                         </ul>
                     </div>`;
                 }
-                
+
                 // Display all suppression results
                 if (suppressionResults.length > 0) {
                     suppressionResults.forEach((result, index) => {
@@ -1666,7 +1784,7 @@ function resetComm(e) {
                 } else {
                     htmlContent += `<p class="mb-0"><i class="bi bi-info-circle me-2"></i>No suppression list operations performed.</p>`;
                 }
-                
+
                 htmlContent += `
                         </div>
                     </div>
@@ -1674,6 +1792,101 @@ function resetComm(e) {
 
                 // Set all HTML content at once (only once!)
                 uploadContainer.innerHTML = htmlContent;
+
+                // Add event listener for reprocess button
+                const reprocessBtn = uploadContainer.querySelector('#reprocess-not-removed-btn');
+                if (reprocessBtn) {
+                    const notRemovedEmailsList = finalResponse.combinedResults?.awsResetResponse?.data?.not_removed || [];
+                    reprocessBtn.addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        if (notRemovedEmailsList.length === 0) {
+                            alert('No failed emails to reprocess.');
+                            return;
+                        }
+
+                        const confirmed = confirm(`Do you want to re-process ${notRemovedEmailsList.length} failed email(s)?`);
+                        if (!confirmed) return;
+
+                        // Disable the button during processing
+                        reprocessBtn.disabled = true;
+                        reprocessBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Processing...';
+
+                        try {
+                            // Get the current credentials
+                            const domain = document.querySelector('#domain').value.trim();
+                            const token = document.querySelector('#token').value.trim();
+                            const regionVal = resetCommForm.querySelector('#region').value;
+
+                            // Show progress
+                            progressCard.hidden = false;
+                            resultsCard.hidden = true;
+                            progressCardTitle.textContent = 'Re-processing Failed Emails';
+                            progressInfo.textContent = `Re-processing ${notRemovedEmailsList.length} email(s)...`;
+                            progressBar.style.width = '0%';
+
+                            // Prepare request data with the failed emails
+                            const reprocessRequestData = {
+                                domain: domain,
+                                token: token,
+                                region: regionVal,
+                                fileContents: notRemovedEmailsList
+                            };
+
+                            // Call the reset API again
+                            const reprocessResponse = await window.axios.resetEmails(reprocessRequestData);
+
+                            // Hide progress, show results
+                            progressCard.hidden = true;
+                            resultsCard.hidden = false;
+
+                            // Get stats from reprocess response
+                            const reprocessTotal = reprocessResponse.combinedResults.summary.totalEmailsProcessed || 0;
+                            const reprocessBounceReset = reprocessResponse.combinedResults.summary.bounceListResets || 0;
+                            const reprocessAWSReset = reprocessResponse.combinedResults.summary.suppressionListRemoved || 0;
+                            const reprocessStillNotRemoved = reprocessResponse.combinedResults.summary.suppressionListNotRemoved || 0;
+
+                            // Create results container for reprocess
+                            const reprocessContainer = document.createElement('div');
+                            reprocessContainer.className = 'card mt-3 border-info';
+                            reprocessContainer.innerHTML = `
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-arrow-repeat me-2"></i>Re-process Results
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-2"><strong>Re-processed:</strong> ${reprocessTotal} email(s)</p>
+                                    <p class="mb-2"><strong>✅ Bounce List:</strong> ${reprocessBounceReset} email(s) reset successfully</p>
+                                    <p class="mb-2"><strong>✅ Suppression List:</strong> ${reprocessAWSReset} email(s) removed successfully</p>
+                                    ${reprocessStillNotRemoved > 0 ?
+                                    `<p class="mb-0 text-danger"><strong>❌ Still Failed:</strong> ${reprocessStillNotRemoved} email(s) could not be removed</p>` :
+                                    `<p class="mb-0 text-success"><strong>🎉 Success!</strong> All emails were processed successfully</p>`
+                                }
+                                </div>
+                            `;
+
+                            uploadContainer.appendChild(reprocessContainer);
+
+                            // Re-enable button if there are still failures
+                            if (reprocessStillNotRemoved > 0) {
+                                reprocessBtn.disabled = false;
+                                reprocessBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Re-process Failed Emails';
+                            } else {
+                                reprocessBtn.remove();
+                            }
+
+                        } catch (error) {
+                            alert(`Error re-processing emails: ${error.message || error}`);
+                            reprocessBtn.disabled = false;
+                            reprocessBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Re-process Failed Emails';
+
+                            progressCard.hidden = true;
+                            resultsCard.hidden = false;
+                        }
+                    });
+                }
 
                 // Debug: Log the entire response structure
                 console.log('=== RESET RESPONSE DEBUG ===');
@@ -1707,7 +1920,7 @@ function resetComm(e) {
                 const notRemovedEmails = response.combinedResults?.details?.suppressionResults?.data?.not_removed;
                 console.log('notRemovedEmails array (data.not_removed):', notRemovedEmails);
                 console.log('Is notRemovedEmails an array?', Array.isArray(notRemovedEmails));
-                
+
                 if (notRemovedEmails && Array.isArray(notRemovedEmails) && notRemovedEmails.length > 0) {
                     console.log('Processing', notRemovedEmails.length, 'suppression failures');
                     notRemovedEmails.forEach(email => {
@@ -1721,7 +1934,7 @@ function resetComm(e) {
                 } else {
                     console.log('No suppression failures to process. notRemovedEmails is:', notRemovedEmails);
                 }
-                
+
                 // Note: Don't use innerHTML += here - it will destroy DOM elements appended later!
 
                 //                                    // Add download link for bounce failures if any exist
@@ -1742,7 +1955,7 @@ function resetComm(e) {
                 //     bounceFailedContainer.appendChild(bounceFailedLink);
                 //     uploadContainer.appendChild(bounceFailedContainer);
                 // }
-                
+
                 //                 // Add download link for emails not found (always show if count > 0)
                 // const notFoundEmails = response.combinedResults.details.suppressionResults.notFoundEmails || [];
                 // if (notFoundEmails.length > 0 && window.utilities?.createDownloadLink) {
@@ -1775,7 +1988,7 @@ function resetComm(e) {
                 // Create failed emails section with download and reprocess functionality
                 console.log('Failed emails map size:', failedEmailsMap.size);
                 console.log('Failed emails map entries:', Array.from(failedEmailsMap.entries()));
-                
+
                 if (failedEmailsMap.size > 0) {
                     console.log('Creating failed emails container...');
                     const failedContainer = document.createElement('div');
@@ -1814,7 +2027,7 @@ function resetComm(e) {
                         // Create download link
                         console.log('Checking window.utilities:', window.utilities);
                         console.log('Checking createDownloadLink:', window.utilities?.createDownloadLink);
-                        
+
                         if (window.utilities?.createDownloadLink) {
                             console.log('Creating download link...');
                             const csvData = generateFailedEmailsCSV();
@@ -1880,7 +2093,7 @@ function resetComm(e) {
                             progressDetail.textContent = `0/${failedEmailsToReprocess.length} emails`;
 
                             const reprocessResponse = await window.axios.resetEmails(reprocessRequestData);
-                            
+
                             // Hide progress card
                             progressCard.hidden = true;
 
@@ -1949,7 +2162,7 @@ function resetComm(e) {
                             for (const email of failedEmailsToReprocess) {
                                 const stillFailedBounce = reprocessBounceFailed.has(email);
                                 const stillFailedSuppression = reprocessSuppressionFailed.has(email);
-                                
+
                                 if (!stillFailedBounce && !stillFailedSuppression) {
                                     // Email succeeded in reprocessing - remove from failed list
                                     failedEmailsMap.delete(email);
@@ -2260,11 +2473,11 @@ function unconfirmed(e) {
                 responseContainer.querySelector('div').hidden = false; // showing the spinning wheel
                 const response = await window.axios.checkUnconfirmedEmails(requestData)
                 responseContainer.querySelector('div').hidden = true;
-                
+
                 if (response.success && response.data) {
                     // Create download link for the CSV data
                     responseDetails.innerHTML = '<p class="mb-2">Unconfirmed emails list ready:</p>';
-                    
+
                     if (window.utilities?.createDownloadLink) {
                         const downloadLink = window.utilities.createDownloadLink(
                             response.data,
@@ -2295,7 +2508,7 @@ function unconfirmed(e) {
 
             const responseContainer = unconfirmedEmailForm.querySelector('#response-container');
             const responseDiv = responseContainer.querySelector('#response');
-            
+
             responseDiv.innerHTML = '';
 
             try {
@@ -2416,16 +2629,16 @@ function unconfirmed(e) {
                                 <div class="card-body">
                                     <p><strong>Total Processed:</strong> <span class="badge bg-primary">${result.total}</span></p>
                                     <p><strong>Successfully Confirmed:</strong> <span class="badge bg-success">${result.confirmed}</span></p>
-                                    ${result.failed && result.failed.length > 0 ? 
-                                        `<p><strong>Failed:</strong> <span class="badge bg-danger">${result.failed.length}</span></p>` : 
-                                        '<p class="text-muted mb-0">All emails processed successfully!</p>'
-                                    }
+                                    ${result.failed && result.failed.length > 0 ?
+                                `<p><strong>Failed:</strong> <span class="badge bg-danger">${result.failed.length}</span></p>` :
+                                '<p class="text-muted mb-0">All emails processed successfully!</p>'
+                            }
                                     <div class="form-text mt-2">Note: The number of emails confirmed may differ from the number processed if some emails were already confirmed.</div>
-                                    ${result.failed && result.failed.length > 0 ? 
-                                        `<div class="alert alert-danger mt-2 mb-0">
+                                    ${result.failed && result.failed.length > 0 ?
+                                `<div class="alert alert-danger mt-2 mb-0">
                                             <strong>Error Details:</strong> ${result.failed[0].reason || 'Unknown error'}
                                         </div>` : ''
-                                    }
+                            }
                                 </div>
                             </div>
                         `;
@@ -2460,7 +2673,7 @@ function unconfirmed(e) {
             const token = document.querySelector('#token').value.trim();
             const responseContainer = unconfirmedEmailForm.querySelector('#response-container');
             const responseDiv = responseContainer.querySelector('#response');
-            
+
             const emails = emailBox.value.split(/\r?\n|\n|\,/)
                 .map((email) => email.trim())
                 .filter(email => email.length > 0);
@@ -2537,16 +2750,16 @@ function unconfirmed(e) {
                         <div class="card-body">
                             <p><strong>Total Processed:</strong> <span class="badge bg-primary">${result.total || count}</span></p>
                             <p><strong>Successfully Confirmed:</strong> <span class="badge bg-success">${result.confirmed}</span></p>
-                            ${result.failed && result.failed.length > 0 ? 
-                                `<p><strong>Failed:</strong> <span class="badge bg-danger">${result.failed.length}</span></p>` : 
-                                '<p class="text-muted mb-0">All emails processed successfully!</p>'
-                            }
+                            ${result.failed && result.failed.length > 0 ?
+                        `<p><strong>Failed:</strong> <span class="badge bg-danger">${result.failed.length}</span></p>` :
+                        '<p class="text-muted mb-0">All emails processed successfully!</p>'
+                    }
                             <div class="form-text mt-2">Note: The number of emails confirmed may differ from the number processed if some emails were already confirmed.</div>
-                            ${result.failed && result.failed.length > 0 ? 
-                                `<div class="alert alert-danger mt-2 mb-0">
+                            ${result.failed && result.failed.length > 0 ?
+                        `<div class="alert alert-danger mt-2 mb-0">
                                     <strong>Error Details:</strong> ${result.failed[0].reason || 'Unknown error'}
                                 </div>` : ''
-                            }
+                    }
                         </div>
                     </div>
                 `;

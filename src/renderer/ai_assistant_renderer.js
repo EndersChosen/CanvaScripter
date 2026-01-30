@@ -183,6 +183,18 @@ function setupAIAssistantListeners() {
         });
     }
 
+    // Handle external links (open in system browser)
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('.external-link');
+        if (link) {
+            e.preventDefault();
+            const url = link.getAttribute('data-external-url');
+            if (url && window.shell) {
+                window.shell.openExternal(url);
+            }
+        }
+    });
+
     parseBtn.addEventListener('click', async () => {
         const model = modelSelect.value;
         const prompt = promptInput.value.trim();
@@ -1307,9 +1319,9 @@ async function performOperation(parsed, token, resultsSection, previewSection, c
             // Course creation result - show course link (check BEFORE batch results since course creation may include successful arrays)
             const courseUrl = res.course_url || `https://${parsed.parameters?.domain || 'canvas.instructure.com'}/courses/${res.course_id}`;
             resultHtml += '<div class="mb-2">';
-            resultHtml += `<p class="mb-2"><strong>Course Created:</strong> <a href="${courseUrl}" target="_blank" class="text-decoration-none">${res.course.name || 'New Course'} <i class="bi bi-box-arrow-up-right"></i></a></p>`;
+            resultHtml += `<p class="mb-2"><strong>Course Created:</strong> <a href="#" data-external-url="${courseUrl}" class="text-decoration-none external-link">${res.course.name || 'New Course'} <i class="bi bi-box-arrow-up-right"></i></a></p>`;
             resultHtml += `<p class="mb-1"><strong>Course ID:</strong> ${res.course_id}</p>`;
-            resultHtml += `<p class="mb-1"><strong>Course URL:</strong> <a href="${courseUrl}" target="_blank" class="text-decoration-none">${courseUrl} <i class="bi bi-box-arrow-up-right"></i></a></p>`;
+            resultHtml += `<p class="mb-1"><strong>Course URL:</strong> <a href="#" data-external-url="${courseUrl}" class="text-decoration-none external-link">${courseUrl} <i class="bi bi-box-arrow-up-right"></i></a></p>`;
             if (res.message) {
                 resultHtml += `<p class="mb-1 text-muted">${res.message}</p>`;
             }
