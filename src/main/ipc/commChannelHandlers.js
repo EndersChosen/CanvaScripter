@@ -31,6 +31,7 @@ let suppressedEmails = [];
 // Per-renderer cancellation flags
 const resetEmailsCancelFlags = new Map();
 const resetPatternCancelFlags = new Map();
+const resetUploadSelections = new Map(); // senderId -> { selectionId, fileContents, filePath, ext, count }
 
 /**
  * Helper function to combine reset results for resetEmails operation
@@ -309,6 +310,13 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
         const isCancelled = () => resetEmailsCancelFlags.get(senderId) === true;
 
         let fileContents = data?.fileContents;
+        if (!fileContents && data?.selectionId) {
+            const selected = resetUploadSelections.get(senderId);
+            if (!selected || selected.selectionId !== data.selectionId) {
+                throw new Error('Selected file is no longer available. Please upload/select a file again.');
+            }
+            fileContents = selected.fileContents;
+        }
         if (!fileContents) {
             const result = await dialog.showOpenDialog(mainWindow, {
                 properties: ['openFile'],
@@ -385,65 +393,101 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
             isCancelled
         });
 
-        // Bulk AWS reset
+        // Bulk AWS reset (with one automatic retry for not_removed)
         const chunksize = 200;
-        const awsResetResponse = {
-            removed: 0,
-            not_removed: 0,
-            not_found: 0,
-            errors: 0,
-            failed_messages: [],
-            data: {
-                removed: [],
-                not_removed: [],
-                not_found: []
+        const runAwsResetPass = async (passEmails, labelPrefix = 'Resetting emails (AWS suppression list)...') => {
+            const passResponse = {
+                removed: 0,
+                not_removed: 0,
+                not_found: 0,
+                errors: 0,
+                failed_messages: [],
+                data: {
+                    removed: [],
+                    not_removed: [],
+                    not_found: []
+                }
+            };
+
+            let awsProcessed = 0;
+            const awsTotal = passEmails.length;
+
+            for (let i = 0; i < passEmails.length; i += chunksize) {
+                awsProcessed = i;
+                mainWindow.webContents.send('update-progress', {
+                    mode: 'determinate',
+                    label: labelPrefix,
+                    processed: awsProcessed,
+                    total: awsTotal,
+                    value: awsTotal > 0 ? awsProcessed / awsTotal : 0
+                });
+
+                const bulkArray = [{ value: passEmails.slice(i, i + chunksize) }];
+
+                if (isCancelled()) break;
+                await waitFunc(process.env.TIME_DELAY);
+
+                try {
+                    const awsRes = await bulkAWSReset({ region: data.region, token: data.token, emails: bulkArray });
+                    if (awsRes.status === 204) {
+                        passResponse.removed += bulkArray[0].value.length;
+                    } else {
+                        passResponse.removed += awsRes.removed || 0;
+                        passResponse.not_removed += awsRes.not_removed || 0;
+                        passResponse.not_found += awsRes.not_found || 0;
+                        passResponse.data.not_removed.push(...awsRes.data.not_removed);
+                        passResponse.data.not_found.push(...awsRes.data.not_found);
+                        passResponse.data.removed.push(...awsRes.data.removed);
+                    }
+                } catch (err) {
+                    passResponse.errors++;
+                    passResponse.failed_messages.push(err?.message || String(err));
+                    continue;
+                }
             }
-        };
 
-        let awsProcessed = 0;
-        const awsTotal = emails.length;
-
-        for (let i = 0; i < emails.length; i += chunksize) {
-            awsProcessed = i;
             mainWindow.webContents.send('update-progress', {
                 mode: 'determinate',
-                label: 'Resetting emails (AWS suppression list)...',
-                processed: awsProcessed,
+                label: labelPrefix,
+                processed: awsTotal,
                 total: awsTotal,
-                value: awsTotal > 0 ? awsProcessed / awsTotal : 0
+                value: 1
             });
 
-            const bulkArray = [{ value: emails.slice(i, i + chunksize) }];
+            return passResponse;
+        };
 
-            if (isCancelled()) break;
-            await waitFunc(process.env.TIME_DELAY);
+        const firstAwsPass = await runAwsResetPass(emails, 'Resetting emails (AWS suppression list)...');
+        const initialNotRemovedEmails = firstAwsPass.data.not_removed || [];
+        let awsResetResponse = firstAwsPass;
+        let autoRetried = false;
 
-            try {
-                const awsRes = await bulkAWSReset({ region: data.region, token: data.token, emails: bulkArray });
-                if (awsRes.status === 204) {
-                    awsResetResponse.removed += bulkArray[0].value.length;
-                } else {
-                    awsResetResponse.removed += awsRes.removed || 0;
-                    awsResetResponse.not_removed += awsRes.not_removed || 0;
-                    awsResetResponse.not_found += awsRes.not_found || 0;
-                    awsResetResponse.data.not_removed.push(...awsRes.data.not_removed);
-                    awsResetResponse.data.not_found.push(...awsRes.data.not_found);
-                    awsResetResponse.data.removed.push(...awsRes.data.removed);
+        if (!isCancelled() && initialNotRemovedEmails.length > 0) {
+            autoRetried = true;
+            const retryAwsPass = await runAwsResetPass(initialNotRemovedEmails, 'Auto-retrying failed AWS suppression resets...');
+
+            awsResetResponse = {
+                removed: (firstAwsPass.removed || 0) + (retryAwsPass.removed || 0),
+                not_removed: retryAwsPass.not_removed || 0,
+                not_found: (firstAwsPass.not_found || 0) + (retryAwsPass.not_found || 0),
+                errors: (firstAwsPass.errors || 0) + (retryAwsPass.errors || 0),
+                failed_messages: [
+                    ...(firstAwsPass.failed_messages || []),
+                    ...(retryAwsPass.failed_messages || [])
+                ],
+                data: {
+                    removed: [
+                        ...(firstAwsPass.data?.removed || []),
+                        ...(retryAwsPass.data?.removed || [])
+                    ],
+                    not_removed: retryAwsPass.data?.not_removed || [],
+                    not_found: [
+                        ...(firstAwsPass.data?.not_found || []),
+                        ...(retryAwsPass.data?.not_found || [])
+                    ]
                 }
-            } catch (err) {
-                awsResetResponse.errors++;
-                awsResetResponse.failed_messages.push(err?.message || String(err));
-                continue;
-            }
+            };
         }
-
-        mainWindow.webContents.send('update-progress', {
-            mode: 'determinate',
-            label: 'Resetting emails (AWS suppression list)...',
-            processed: awsTotal,
-            total: awsTotal,
-            value: 1
-        });
 
         const cancelled = isCancelled();
         resetEmailsCancelFlags.delete(senderId);
@@ -456,7 +500,12 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
             cancelled
         });
 
-        return { combinedResults, cancelled };
+        return {
+            combinedResults,
+            cancelled,
+            autoRetried,
+            initialNotRemovedCount: initialNotRemovedEmails.length
+        };
     });
 
     // Cancel reset emails operation
@@ -733,7 +782,26 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
                 .filter(e => e.length > 0);
         }
 
-        return { fileContents: normalized, filePath, ext };
+        const normalizedArray = Array.isArray(normalized)
+            ? normalized
+            : removeBlanks(String(normalized).split(/\r?\n|\r|,/));
+        const emailCount = Array.from(new Set(
+            normalizedArray
+                .map(e => String(e).trim())
+                .filter(e => e.includes('@'))
+        )).length;
+
+        const senderId = event.sender.id;
+        const selectionId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        resetUploadSelections.set(senderId, {
+            selectionId,
+            fileContents: normalized,
+            filePath,
+            ext,
+            count: emailCount
+        });
+
+        return { selectionId, filePath, ext, count: emailCount };
     });
 
     // File upload: Check emails from file
@@ -806,6 +874,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
 function cleanupCommChannelState(rendererId) {
     resetEmailsCancelFlags.delete(rendererId);
     resetPatternCancelFlags.delete(rendererId);
+    resetUploadSelections.delete(rendererId);
 }
 
 /**

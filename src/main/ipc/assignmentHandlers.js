@@ -291,7 +291,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
 
             throw new Error('Invalid data format: missing groupID or content array');
         } catch (error) {
-            console.error('Error in deleteEmptyAssignmentGroups handler:', error);
+            console.error('Error in deleteEmptyAssignmentGroups handler:', error?.message || String(error));
             throw error;
         } finally {
             // Clean up the cancellation flag if it was set for batch deletion
@@ -414,7 +414,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             const response = await assignments.deleteAssignmentGroupWithAssignments(data);
             return response.data;
         } catch (error) {
-            console.log(error);
+            console.error('deleteAssignmentGroupAssignments failed:', error?.message || String(error));
             throw error.message;
         }
     });
@@ -436,7 +436,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             );
             return result;
         } catch (error) {
-            console.log(error);
+            console.error('getNoSubmissionAssignments failed:', error?.message || String(error));
             throw error.message;
         }
     });
@@ -574,7 +574,11 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
      */
     ipcMain.handle('axios:deleteOldAssignments', async (event, data) => {
         console.log('assignmentHandlers.js > deleteOldAssignments');
-        console.log('The data in main: ', data);
+        console.log('deleteOldAssignments request received', {
+            hasDomain: !!data?.domain,
+            hasCourseId: !!(data?.course_id || data?.courseId),
+            hasToken: !!data?.token
+        });
         // Placeholder - implementation needed
         return;
     });

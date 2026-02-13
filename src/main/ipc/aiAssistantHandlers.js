@@ -8,6 +8,39 @@ const { getDecryptedKey } = require('./settingsHandlers');
 const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 
+const SENSITIVE_KEY_PATTERN = /(token|authorization|auth|password|secret|api[_-]?key|cookie|set-cookie)/i;
+
+function summarizeForLog(payload) {
+    if (!payload || typeof payload !== 'object') return payload;
+    const summary = { keys: Object.keys(payload).filter(k => !SENSITIVE_KEY_PATTERN.test(k)) };
+
+    if (payload.domain) summary.domain = payload.domain;
+    if (payload.course_id || payload.courseId || payload.course) {
+        summary.course = payload.course_id || payload.courseId || payload.course;
+    }
+
+    if (Array.isArray(payload.requests)) summary.requestCount = payload.requests.length;
+    if (Array.isArray(payload.assignments)) summary.assignmentCount = payload.assignments.length;
+    if (Array.isArray(payload.groups)) summary.groupCount = payload.groups.length;
+    if (Array.isArray(payload.modules)) summary.moduleCount = payload.modules.length;
+    if (Array.isArray(payload.discussions)) summary.discussionCount = payload.discussions.length;
+    if (typeof payload.number === 'number') summary.number = payload.number;
+    if (payload.operationId) summary.operationId = payload.operationId;
+
+    return summary;
+}
+
+function summarizeResultForLog(result) {
+    if (!result || typeof result !== 'object') return result;
+    return {
+        keys: Object.keys(result),
+        successful: Array.isArray(result.successful) ? result.successful.length : undefined,
+        failed: Array.isArray(result.failed) ? result.failed.length : undefined,
+        cancelled: result.cancelled === true,
+        count: typeof result.count === 'number' ? result.count : undefined
+    };
+}
+
 /**
  * Generate unique announcement titles using AI
  * @param {number} count - Number of titles to generate
@@ -1610,7 +1643,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 filters: opInfo.filters
             });
 
-            console.log('AI Assistant: Fetching items for confirmation:', fetchParams);
+            console.log('AI Assistant: Fetching items for confirmation:', summarizeForLog(fetchParams));
             const fetchResult = await fetchHandler(mockEvent, fetchParams);
 
             // Determine the data key
@@ -1901,7 +1934,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     };
                 }
 
-                console.log('AI Assistant: Fetching data with params:', queryParams);
+                console.log('AI Assistant: Fetching data with params:', summarizeForLog(queryParams));
                 const fetchResult = await handler(mockEvent, queryParams);
 
                 // Determine the data structure
@@ -2126,7 +2159,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     emptyModules: fullParams.filters?.empty
                 });
 
-                console.log('AI Assistant: Fetching items with params:', fetchParams);
+                console.log('AI Assistant: Fetching items with params:', summarizeForLog(fetchParams));
                 const fetchResult = await fetchHandler(mockEvent, fetchParams);
 
                 // Determine the data key - could be 'assignments', 'groups', 'content', 'conversations', 'modules', 'announcements', etc.
@@ -2530,9 +2563,9 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 }
 
                 console.log('AI Assistant: Deleting items:', normalizedItems.length);
-                console.log('AI Assistant: Delete params:', JSON.stringify(deleteParams, null, 2));
+                console.log('AI Assistant: Delete params:', summarizeForLog(deleteParams));
                 result = await deleteHandler(mockEvent, deleteParams);
-                console.log('AI Assistant: Delete result:', JSON.stringify(result, null, 2));
+                console.log('AI Assistant: Delete result:', summarizeResultForLog(result));
 
                 // Combine fetch and delete results
                 result = {
@@ -3318,7 +3351,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                     } else if (operation === 'create-classic-quizzes') {
                         // Handle classic quiz creation with questions
                         console.log('AI Assistant: Mapping create-classic-quizzes parameters');
-                        console.log('fullParams:', JSON.stringify(fullParams, null, 2));
+                        console.log('fullParams:', summarizeForLog(fullParams));
 
                         // Extract question info from nested structure or flat parameters
                         const questionsPerQuiz = fullParams.questions?.number || fullParams.questionsPerQuiz || 0;
@@ -3353,7 +3386,7 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                             questionTypes: fullParams.questionTypes || [mappedQuestionType]
                         };
 
-                        console.log('AI Assistant: Mapped handlerParams:', JSON.stringify(handlerParams, null, 2));
+                        console.log('AI Assistant: Mapped handlerParams:', summarizeForLog(handlerParams));
                     } else {
                         // Default create operation parameters (assignments, etc.)
                         const defaultName = operation === 'create-assignments' ? 'Assignment' : 'Assignment Group';

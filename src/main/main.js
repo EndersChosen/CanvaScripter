@@ -18,6 +18,7 @@ const { parseEmailsFromCSV, parseEmailsFromExcel } = require('../shared/emailPar
 const { HARAnalyzer } = require('../shared/harAnalyzer');
 const { analyzeHAR } = require('../shared/harAnalyzer');
 const os = require('os');
+const Store = require('electron-store');
 
 // Import modular IPC handlers
 const { registerFileHandlers } = require('./ipc/fileHandlers');
@@ -49,6 +50,156 @@ const StateManager = require('./state/stateManager');
 
 let debugLoggingEnabled = false;
 let logStream = null;
+const appStore = new Store();
+const MAX_LOG_FILES = 25;
+const LOG_RETENTION_DAYS = 30;
+const LOG_DIR_NAME = 'canvas-app-logs';
+const LOGGING_CONSENT_SHOWN_KEY = 'logging.consentShown';
+const LOGGING_ENABLED_KEY = 'logging.enabled';
+
+const SENSITIVE_KEY_PATTERN = /(token|authorization|auth|password|secret|api[_-]?key|cookie|set-cookie)/i;
+const PII_KEY_PATTERN = /(email|search.?term|subject|pattern|login_id)/i;
+const BEARER_TOKEN_PATTERN = /Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi;
+const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+
+function sanitizeLogString(value) {
+    if (typeof value !== 'string') return value;
+    const redacted = value
+        .replace(BEARER_TOKEN_PATTERN, 'Bearer [REDACTED]')
+        .replace(EMAIL_PATTERN, '[REDACTED_EMAIL]');
+    return redacted.length > 1000 ? `${redacted.slice(0, 1000)}...[truncated]` : redacted;
+}
+
+function sanitizeLogData(value, depth = 0, seen = new WeakSet()) {
+    if (value === null || value === undefined) return value;
+    if (typeof value === 'string') return sanitizeLogString(value);
+    if (typeof value !== 'object') return value;
+    if (value instanceof Date) return value.toISOString();
+    if (value instanceof Error) {
+        return {
+            name: value.name,
+            message: sanitizeLogString(value.message),
+            stack: sanitizeLogString(value.stack || '')
+        };
+    }
+    if (depth > 6) return '[MaxDepth]';
+    if (seen.has(value)) return '[Circular]';
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+        const limited = value.slice(0, 50).map(item => sanitizeLogData(item, depth + 1, seen));
+        if (value.length > 50) limited.push(`[${value.length - 50} more items omitted]`);
+        return limited;
+    }
+
+    const output = {};
+    for (const [key, val] of Object.entries(value)) {
+        if (SENSITIVE_KEY_PATTERN.test(key) || PII_KEY_PATTERN.test(key)) {
+            output[key] = '[REDACTED]';
+        } else {
+            output[key] = sanitizeLogData(val, depth + 1, seen);
+        }
+    }
+    return output;
+}
+
+function safeLogStringify(data) {
+    try {
+        return JSON.stringify(data);
+    } catch {
+        return '[Unserializable data]';
+    }
+}
+
+function cleanupOldDebugLogs(logDir) {
+    try {
+        const files = fs.readdirSync(logDir)
+            .filter(name => /^debug-.*\.log$/i.test(name))
+            .map(name => {
+                const fullPath = path.join(logDir, name);
+                const stat = fs.statSync(fullPath);
+                return { name, fullPath, mtimeMs: stat.mtimeMs };
+            })
+            .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+        const cutoff = Date.now() - (LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+        const filesToDelete = [];
+
+        for (const file of files) {
+            if (file.mtimeMs < cutoff) {
+                filesToDelete.push(file.fullPath);
+            }
+        }
+
+        if (files.length > MAX_LOG_FILES) {
+            files.slice(MAX_LOG_FILES).forEach(file => filesToDelete.push(file.fullPath));
+        }
+
+        const uniqueFiles = Array.from(new Set(filesToDelete));
+        uniqueFiles.forEach(filePath => {
+            try { fs.unlinkSync(filePath); } catch { }
+        });
+    } catch { }
+}
+
+function getLogDirectory() {
+    return path.join(os.homedir(), LOG_DIR_NAME);
+}
+
+function getSavedLoggingPreference() {
+    try {
+        const value = appStore.get(LOGGING_ENABLED_KEY);
+        return typeof value === 'boolean' ? value : null;
+    } catch {
+        return null;
+    }
+}
+
+function setSavedLoggingPreference(enabled) {
+    try {
+        appStore.set(LOGGING_ENABLED_KEY, !!enabled);
+    } catch { }
+}
+
+function hasShownLoggingConsentPrompt() {
+    try {
+        return !!appStore.get(LOGGING_CONSENT_SHOWN_KEY);
+    } catch {
+        return false;
+    }
+}
+
+function markLoggingConsentPromptShown() {
+    try {
+        appStore.set(LOGGING_CONSENT_SHOWN_KEY, true);
+    } catch { }
+}
+
+async function resolveInitialLoggingPreference() {
+    const saved = getSavedLoggingPreference();
+    if (saved !== null) return saved;
+
+    if (!hasShownLoggingConsentPrompt()) {
+        const logDir = getLogDirectory();
+        const result = await dialog.showMessageBox({
+            type: 'question',
+            buttons: ['Enable Logging', 'Disable Logging'],
+            defaultId: 0,
+            cancelId: 1,
+            noLink: true,
+            title: 'Logging Preference',
+            message: 'CanvaScripter includes built-in debug logging.',
+            detail: `Logs are saved locally on this machine at:\n${logDir}\n\nWould you like to enable debug logging?`
+        });
+
+        const enabled = result.response === 0;
+        setSavedLoggingPreference(enabled);
+        markLoggingConsentPromptShown();
+        return enabled;
+    }
+
+    return true;
+}
 
 // Helper function to get batch configuration from environment variables
 const getBatchConfig = (overrides = {}) => {
@@ -60,9 +211,11 @@ const getBatchConfig = (overrides = {}) => {
 // Debug logging functions
 function setDebugLogging(enabled) {
     debugLoggingEnabled = enabled;
+    setSavedLoggingPreference(enabled);
     if (enabled && !logStream) {
-        const logDir = path.join(os.homedir(), 'canvas-app-logs');
+        const logDir = getLogDirectory();
         if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+        cleanupOldDebugLogs(logDir);
         const logFile = path.join(logDir, `debug-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
         logStream = fs.createWriteStream(logFile, { flags: 'a' });
         console.log(`Debug logging enabled. Writing to: ${logFile}`);
@@ -76,9 +229,11 @@ function setDebugLogging(enabled) {
 function logDebug(message, data = {}) {
     if (!debugLoggingEnabled) return;
     const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] ${message} ${JSON.stringify(data)}\n`;
+    const safeMessage = sanitizeLogString(String(message));
+    const safeData = sanitizeLogData(data);
+    const logEntry = `[${timestamp}] ${safeMessage} ${safeLogStringify(safeData)}\n`;
     if (logStream) logStream.write(logEntry);
-    console.log(`[DEBUG] ${message}`, data);
+    console.log(`[DEBUG] ${safeMessage}`, safeData);
 }
 
 // Application state
@@ -240,7 +395,7 @@ function createMenu() {
                 {
                     label: 'Open Logs Folder',
                     click: () => {
-                        const logDir = path.join(os.homedir(), 'canvas-app-logs');
+                        const logDir = getLogDirectory();
                         shell.openPath(logDir);
                     }
                 }
@@ -263,8 +418,9 @@ function createMenu() {
     Menu.setApplicationMenu(menu);
 }
 
-app.whenReady().then(() => {
-    setDebugLogging(true); // Enable debug logging by default; user can toggle via menu
+app.whenReady().then(async () => {
+    const initialLoggingEnabled = await resolveInitialLoggingPreference();
+    setDebugLogging(initialLoggingEnabled);
     console.log('BATCH_CONCURRENCY (env):', process.env.BATCH_CONCURRENCY);
     console.log('TIME_DELAY (env):', process.env.TIME_DELAY);
 

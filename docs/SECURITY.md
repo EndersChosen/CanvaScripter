@@ -7,6 +7,10 @@
 
 # Security Hardening Summary
 
+## Related Standards
+
+- Logging and redaction requirements: [LOGGING_SECURITY_GUIDELINES.md](./LOGGING_SECURITY_GUIDELINES.md)
+
 ## High Priority Items (✅ Completed)
 
 ### 1. IPC Channel Allowlisting

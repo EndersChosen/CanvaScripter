@@ -472,7 +472,6 @@ async function bulkDelete(userID, messageFilter) {
 
 async function bulkDeleteNew(messages, url, token) {
     console.log('Inside bulkDeleteNew');
-    console.log('the token is ', token);
 
     return await deleteRequester(messages, url, 'delete_for_all', token);
 

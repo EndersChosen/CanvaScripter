@@ -425,7 +425,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
                     const course = await createBasicCourse(courseData);
                     createdCourses.push(course);
                 } catch (error) {
-                    console.error(`Failed to create course ${i + 1}:`, error);
+                    console.error(`Failed to create course ${i + 1}:`, error?.message || String(error));
                 }
             }
 
@@ -528,7 +528,13 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
      */
     ipcMain.handle('axios:createClassicQuizzes', async (event, data) => {
         console.log('courseHandlers.js > createClassicQuizzes');
-        console.log('Received data:', JSON.stringify(data, null, 2));
+        console.log('createClassicQuizzes request received', {
+            hasDomain: !!data?.domain,
+            hasCourseId: !!(data?.course_id || data?.courseId),
+            hasToken: !!data?.token,
+            quizCount: parseInt(data?.num_quizzes || data?.number) || 1,
+            hasQuestionConfig: !!data?.questionsPerQuiz
+        });
 
         try {
             const totalRequests = parseInt(data.num_quizzes || data.number) || 1;
@@ -575,9 +581,9 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
             const batchResponse = await batchHandler(requests, getBatchConfig());
 
             // If questions are requested, create them for each quiz
-            console.log('Checking if questions should be created:', {
+            console.log('Checking if questions should be created', {
                 questionsPerQuiz: data.questionsPerQuiz,
-                hasSuccessful: batchResponse.successful && batchResponse.successful.length > 0
+                successfulQuizzes: batchResponse.successful ? batchResponse.successful.length : 0
             });
 
             if (data.questionsPerQuiz && data.questionsPerQuiz > 0 && batchResponse.successful && batchResponse.successful.length > 0) {
@@ -624,7 +630,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
                             value: questionsCompleted / totalQuestionRequests
                         });
                     } catch (error) {
-                        console.error(`Failed to add questions to quiz ${quiz.id}:`, error);
+                        console.error(`Failed to add questions to quiz ${quiz.id}:`, error?.message || String(error));
                     }
                 }
             }
@@ -942,7 +948,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
                 const response = await modules.deleteModule(requestData);
                 return response;
             } catch (error) {
-                console.error('Error: ', error);
+                console.error('deleteModules request failed:', error?.message || String(error));
                 throw error;
             } finally {
                 updateProgress();

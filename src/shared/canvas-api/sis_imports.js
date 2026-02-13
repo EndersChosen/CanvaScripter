@@ -39,14 +39,14 @@ function generateDate(daysFromNow = 0) {
 function escapeCSVValue(value) {
     // Convert to string and handle empty values
     const strValue = value == null ? '' : String(value);
-    
+
     // If value contains comma, quote, or newline, wrap in quotes and escape any quotes inside
     if (strValue.includes(',') || strValue.includes('"') || strValue.includes('\n') || strValue.includes('\r')) {
         // Escape double quotes by doubling them
         const escaped = strValue.replace(/"/g, '""');
         return `"${escaped}"`;
     }
-    
+
     return strValue;
 }
 
@@ -57,7 +57,7 @@ function generateUsersCSV(rowCount, emailDomain = '@school.edu', authProviderId 
     // If search data is available, use it instead of generating random data
     if (userOptions.searchData && Array.isArray(userOptions.searchData)) {
         console.log('Using search data for users CSV generation');
-        
+
         userOptions.searchData.forEach(user => {
             // Map from the search API response format to SIS CSV format
             // Ensure ALL columns are included, even if empty
@@ -96,7 +96,7 @@ function generateUsersCSV(rowCount, emailDomain = '@school.edu', authProviderId 
             }
             return userOptions[fieldName] || userOptions[`specific${fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_([a-z])/g, (m, p1) => p1.toUpperCase())}`] || defaultValue;
         };
-        
+
         // Use specific values if provided, otherwise generate random ones
         const { firstName, lastName } = generateRandomName();
 
@@ -136,7 +136,7 @@ function generateAccountsCSV(rowCount, accountOptions = {}) {
     // If search data is available, use it instead of generating random data
     if (accountOptions.searchData && Array.isArray(accountOptions.searchData)) {
         console.log('Using search data for accounts CSV generation');
-        
+
         accountOptions.searchData.forEach(account => {
             // Map from the search API response format to SIS CSV format
             // Ensure ALL columns are included, even if empty
@@ -184,7 +184,7 @@ function generateTermsCSV(rowCount, termOptions = {}) {
     // If search data is available, use it instead of generating random data
     if (termOptions.searchData && Array.isArray(termOptions.searchData)) {
         console.log('Using search data for terms CSV generation');
-        
+
         termOptions.searchData.forEach(term => {
             // Map from the search API response format to SIS CSV format
             // Ensure ALL columns are included, even if empty
@@ -278,7 +278,7 @@ function generateCoursesCSV(rowCount, courseOptions = {}) {
     // If search data is available, use it instead of generating random data
     if (courseOptions.searchData && Array.isArray(courseOptions.searchData)) {
         console.log('Using search data for courses CSV generation');
-        
+
         courseOptions.searchData.forEach(course => {
             // Map from the search API response format to SIS CSV format
             // Ensure ALL columns are included, even if empty
@@ -630,7 +630,7 @@ function generateLoginsCSV(rowCount, emailDomain = '@school.edu', authProviderId
     // If search data is available, use it instead of generating random data
     if (loginOptions.searchData && Array.isArray(loginOptions.searchData)) {
         console.log('Using search data for logins CSV generation');
-        
+
         loginOptions.searchData.forEach(login => {
             // Map from the search API response format to SIS CSV format
             const userId = escapeCSVValue(login.sis_user_id || '');
@@ -677,8 +677,8 @@ function generateChangeSisIdCSV(rowCount, changeSisIdOptions = {}) {
     // If search data is available, use it instead of generating random data
     if (changeSisIdOptions.searchData && Array.isArray(changeSisIdOptions.searchData)) {
         console.log('Using search data for change_sis_ids CSV generation');
-        console.log('Search data:', JSON.stringify(changeSisIdOptions.searchData, null, 2));
-        
+        console.log('Search data size:', changeSisIdOptions.searchData.length);
+
         changeSisIdOptions.searchData.forEach(item => {
             const oldId = escapeCSVValue(item.old_id || '');
             const newId = escapeCSVValue(item.new_id || '');
@@ -686,8 +686,8 @@ function generateChangeSisIdCSV(rowCount, changeSisIdOptions = {}) {
             const newIntegrationId = escapeCSVValue(item.new_integration_id || '');
             const type = escapeCSVValue(item.type || 'user');
 
-            console.log(`Processing item: old_id=${oldId}, new_id=${newId}, old_integration_id=${oldIntegrationId}, new_integration_id=${newIntegrationId}, type=${type}`);
-            
+            console.log('Processing change_sis_ids item');
+
             const row = `${oldId},${newId},${oldIntegrationId},${newIntegrationId},${type}`;
             rows.push(row);
         });
@@ -754,7 +754,7 @@ async function createSISImportFile(fileType, rowCount, outputPath, emailDomain =
     // For large row counts (>=1000), use streaming to avoid memory issues
     const STREAMING_THRESHOLD = 1000;
     const useStreaming = rowCount >= STREAMING_THRESHOLD;
-    
+
     console.log(`=== createSISImportFile called ===`);
     console.log(`fileType: ${fileType}, rowCount: ${rowCount}`);
     console.log(`useStreaming: ${useStreaming} (threshold: ${STREAMING_THRESHOLD})`);
@@ -844,12 +844,12 @@ async function createSISImportFileStreaming(fileType, rowCount, filePath, emailD
     console.log('=== createSISImportFileStreaming called ===');
     console.log(`fileType: ${fileType}, rowCount: ${rowCount}, filePath: ${filePath}`);
     console.log(`userOptions:`, userOptions);
-    
+
     return new Promise((resolve, reject) => {
         console.log('Creating write stream...');
         const writeStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
         const BATCH_SIZE = 1000; // Process 1000 rows at a time
-        
+
         writeStream.on('error', (err) => {
             console.error('Write stream error:', err);
             reject(err);
@@ -921,7 +921,7 @@ async function createSISImportFileStreaming(fileType, rowCount, filePath, emailD
             console.log(`processBatch called, currentRow=${currentRow}, rowCount=${rowCount}`);
             const batchEnd = Math.min(currentRow + BATCH_SIZE, rowCount);
             const batchCount = batchEnd - currentRow;
-            
+
             console.log(`batchEnd=${batchEnd}, batchCount=${batchCount}`);
             if (batchCount <= 0) {
                 console.log('No more batches, ending stream');
@@ -1002,7 +1002,7 @@ async function createSISImportFileStreaming(fileType, rowCount, filePath, emailD
 // Helper functions to generate single rows (extracted from the loop bodies of existing generators)
 function generateUserRow(emailDomain, authProviderId, userOptions = {}, rowIndex = 0) {
     console.log('generateUserRow called with userOptions:', JSON.stringify(userOptions));
-    
+
     // Helper to get field value (checks file import first, then options, then default)
     const getFieldValue = (fieldName, defaultValue) => {
         if (userOptions.fileImport && userOptions.fileImport.field === fieldName && userOptions.fileImport.values) {
@@ -1010,7 +1010,7 @@ function generateUserRow(emailDomain, authProviderId, userOptions = {}, rowIndex
         }
         return userOptions[fieldName] || userOptions[`specific${fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_([a-z])/g, (m, p1) => p1.toUpperCase())}`] || defaultValue;
     };
-    
+
     const { firstName, lastName } = generateRandomName();
     const userId = getFieldValue('user_id', generateRandomId('U', 6));
     const loginId = getFieldValue('login_id', `${firstName.toLowerCase()}${lastName.toLowerCase()}${Math.floor(Math.random() * 100)}`);
@@ -1029,7 +1029,7 @@ function generateUserRow(emailDomain, authProviderId, userOptions = {}, rowIndex
     const declaredUserType = getFieldValue('declared_user_type', '');
     const canvasPasswordNotification = getFieldValue('canvas_password_notification', '');
     const homeAccount = getFieldValue('home_account', '');
-    
+
     return `${escapeCSVValue(userId)},${escapeCSVValue(loginId)},${escapeCSVValue(authProviderIdToUse)},${escapeCSVValue(password)},${escapeCSVValue(sshaPassword)},${escapeCSVValue(firstNameToUse)},${escapeCSVValue(lastNameToUse)},${escapeCSVValue(fullName)},${escapeCSVValue(sortableName)},${escapeCSVValue(shortName)},${escapeCSVValue(email)},${escapeCSVValue(status)},${escapeCSVValue(integrationId)},${escapeCSVValue(pronouns)},${escapeCSVValue(declaredUserType)},${escapeCSVValue(canvasPasswordNotification)},${escapeCSVValue(homeAccount)}`;
 }
 
@@ -1086,7 +1086,7 @@ function generateSectionRow(index, options) {
 
 function generateEnrollmentRow(index, options) {
     const roles = ['student', 'teacher', 'ta', 'observer', 'designer'];
-    
+
     // Check for file import data
     const getFieldValue = (fieldName, defaultValue) => {
         if (options.fileImport && options.fileImport.field === fieldName && options.fileImport.values) {
@@ -1094,7 +1094,7 @@ function generateEnrollmentRow(index, options) {
         }
         return options[fieldName] || options[`specific${fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_([a-z])/g, (m, p1) => p1.toUpperCase())}`] || defaultValue;
     };
-    
+
     const courseId = getFieldValue('course_id', generateRandomId('C', 6));
     const userId = getFieldValue('user_id', generateRandomId('U', 6));
     const role = getFieldValue('role', roles[index % roles.length]);
@@ -1105,7 +1105,7 @@ function generateEnrollmentRow(index, options) {
     const startDate = getFieldValue('start_date', '');
     const endDate = getFieldValue('end_date', '');
     const limitSectionPrivileges = getFieldValue('limit_section_privileges', '');
-    
+
     return `${escapeCSVValue(courseId)},${escapeCSVValue(userId)},${escapeCSVValue(role)},${escapeCSVValue(roleId)},${escapeCSVValue(sectionId)},${escapeCSVValue(status)},${escapeCSVValue(associatedUserId)},${escapeCSVValue(startDate)},${escapeCSVValue(endDate)},${escapeCSVValue(limitSectionPrivileges)}`;
 }
 

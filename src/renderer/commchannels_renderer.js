@@ -1447,7 +1447,7 @@ function resetComm(e) {
 
         // listener for uploading emails
         // State for two-step upload flow
-        let selectedEmailsFile = null; // { fileContents, filePath, ext }
+        let selectedEmailsFile = null; // { selectionId, filePath, ext, count }
 
         // Helper: compute how many unique emails are present in the picked file
         function computeParsedEmailsCount(picked) {
@@ -1502,9 +1502,9 @@ function resetComm(e) {
                     selectedEmailsFile = null;
                     return;
                 }
-                selectedEmailsFile = picked; // { fileContents, filePath, ext }
+                selectedEmailsFile = picked; // { selectionId, filePath, ext, count }
                 const niceName = picked.filePath ? picked.filePath.split(/[/\\]/).pop() : 'selected file';
-                const parsedCount = computeParsedEmailsCount(picked);
+                const parsedCount = Number.isFinite(picked.count) ? picked.count : computeParsedEmailsCount(picked);
 
                 resultsCard.hidden = false;
                 uploadContainer.innerHTML = `
@@ -1546,7 +1546,7 @@ function resetComm(e) {
                 domain,
                 token,
                 region: regionVal,
-                fileContents: selectedEmailsFile.fileContents,
+                selectionId: selectedEmailsFile.selectionId,
                 ext: selectedEmailsFile.ext
             };
 
@@ -1598,71 +1598,9 @@ function resetComm(e) {
 
             try {
                 const response = await window.axios.resetEmails(requestData);
-
-                // Check if there are emails that couldn't be removed and auto-retry once
-                let finalResponse = response;
-                let autoRetried = false;
-                const initialNotRemoved = response.combinedResults?.awsResetResponse?.data?.not_removed || [];
-
-                if (initialNotRemoved.length > 0) {
-                    // Show message about auto-retry
-                    progressCard.hidden = false;
-                    resultsCard.hidden = true;
-                    progressCardTitle.textContent = 'Auto-Retrying Failed Emails';
-                    progressInfo.innerHTML = `
-                        <p class="mb-2"><strong>${initialNotRemoved.length}</strong> email(s) failed to be removed from suppression list.</p>
-                        <p class="mb-0">Automatically retrying once...</p>
-                    `;
-                    progressBar.style.width = '50%';
-
-                    // Wait a moment for user to see the message
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-
-                    // Retry the failed emails
-                    const retryRequestData = {
-                        domain: requestData.domain,
-                        token: requestData.token,
-                        region: requestData.region,
-                        fileContents: initialNotRemoved
-                    };
-
-                    try {
-                        const retryResponse = await window.axios.resetEmails(retryRequestData);
-                        autoRetried = true;
-
-                        // Merge the results
-                        finalResponse = {
-                            combinedResults: {
-                                summary: {
-                                    totalEmailsProcessed: response.combinedResults.summary.totalEmailsProcessed,
-                                    bounceListResets: response.combinedResults.summary.bounceListResets + (retryResponse.combinedResults.summary.bounceListResets || 0),
-                                    bounceListFailed: response.combinedResults.summary.bounceListFailed + (retryResponse.combinedResults.summary.bounceListFailed || 0),
-                                    suppressionListRemoved: response.combinedResults.summary.suppressionListRemoved + (retryResponse.combinedResults.summary.suppressionListRemoved || 0),
-                                    suppressionListNotRemoved: retryResponse.combinedResults.summary.suppressionListNotRemoved || 0,
-                                    suppressionListNotFound: response.combinedResults.summary.suppressionListNotFound + (retryResponse.combinedResults.summary.suppressionListNotFound || 0),
-                                    suppressionListErrors: response.combinedResults.summary.suppressionListErrors + (retryResponse.combinedResults.summary.suppressionListErrors || 0)
-                                },
-                                batchResponse: response.combinedResults.batchResponse,
-                                awsResetResponse: {
-                                    removed: response.combinedResults.awsResetResponse.removed + (retryResponse.combinedResults.awsResetResponse.removed || 0),
-                                    not_removed: response.combinedResults.awsResetResponse.not_removed + (retryResponse.combinedResults.awsResetResponse.not_removed || 0),
-                                    not_found: response.combinedResults.awsResetResponse.not_found + (retryResponse.combinedResults.awsResetResponse.not_found || 0),
-                                    errors: response.combinedResults.awsResetResponse.errors + (retryResponse.combinedResults.awsResetResponse.errors || 0),
-                                    failed_messages: [...(response.combinedResults.awsResetResponse.failed_messages || []), ...(retryResponse.combinedResults.awsResetResponse.failed_messages || [])],
-                                    data: {
-                                        removed: [...(response.combinedResults.awsResetResponse.data?.removed || []), ...(retryResponse.combinedResults.awsResetResponse.data?.removed || [])],
-                                        not_removed: retryResponse.combinedResults.awsResetResponse.data?.not_removed || [],
-                                        not_found: [...(response.combinedResults.awsResetResponse.data?.not_found || []), ...(retryResponse.combinedResults.awsResetResponse.data?.not_found || [])]
-                                    }
-                                }
-                            },
-                            cancelled: response.cancelled
-                        };
-                    } catch (retryError) {
-                        console.error('Auto-retry failed:', retryError);
-                        // If retry fails, just continue with original response
-                    }
-                }
+                const finalResponse = response;
+                const autoRetried = Boolean(response.autoRetried);
+                const initialNotRemovedCount = Number(response.initialNotRemovedCount) || 0;
 
                 // Hide progress, show results
                 progressCard.hidden = true;
@@ -1688,7 +1626,7 @@ function resetComm(e) {
 
                 // Add auto-retry message if it occurred
                 if (autoRetried) {
-                    suppressionResults.push(`<div class="alert alert-info mb-2"><i class="bi bi-arrow-repeat me-2"></i>Auto-retry completed for ${initialNotRemoved.length} failed email(s)</div>`);
+                    suppressionResults.push(`<div class="alert alert-info mb-2"><i class="bi bi-arrow-repeat me-2"></i>Auto-retry completed for ${initialNotRemovedCount} failed email(s)</div>`);
                 }
 
                 if (totalAWSReset > 0) {
@@ -1884,329 +1822,6 @@ function resetComm(e) {
 
                             progressCard.hidden = true;
                             resultsCard.hidden = false;
-                        }
-                    });
-                }
-
-                // Debug: Log the entire response structure
-                console.log('=== RESET RESPONSE DEBUG ===');
-                console.log('Full response:', response);
-                console.log('combinedResults:', response.combinedResults);
-                console.log('suppressionResults:', response.combinedResults?.details?.suppressionResults);
-                console.log('suppressionResults.data:', response.combinedResults?.details?.suppressionResults?.data);
-                console.log('data.not_removed:', response.combinedResults?.details?.suppressionResults?.data?.not_removed);
-                console.log('data.not_removed length:', response.combinedResults?.details?.suppressionResults?.data?.not_removed?.length);
-
-                // Track failed emails with proper structure: Map<email, {bounceFailed: boolean, suppressionFailed: boolean}>
-                const failedEmailsMap = new Map();
-
-                // Add bounce failures
-                let bounceFailedCount = 0;
-                if (response.combinedResults?.details?.bounceResults?.failed) {
-                    console.log('Bounce failed count:', response.combinedResults.details.bounceResults.failed.length);
-                    response.combinedResults.details.bounceResults.failed.forEach(item => {
-                        const email = item?.value?.email || item?.email || 'unknown';
-                        console.log('Adding bounce failure for:', email);
-                        if (!failedEmailsMap.has(email)) {
-                            failedEmailsMap.set(email, { bounceFailed: false, suppressionFailed: false });
-                        }
-                        failedEmailsMap.get(email).bounceFailed = true;
-                        bounceFailedCount++;
-                    });
-                }
-
-                // Add suppression failures (not removed) - Updated to use new structure
-                let suppressionFailedCount = 0;
-                const notRemovedEmails = response.combinedResults?.details?.suppressionResults?.data?.not_removed;
-                console.log('notRemovedEmails array (data.not_removed):', notRemovedEmails);
-                console.log('Is notRemovedEmails an array?', Array.isArray(notRemovedEmails));
-
-                if (notRemovedEmails && Array.isArray(notRemovedEmails) && notRemovedEmails.length > 0) {
-                    console.log('Processing', notRemovedEmails.length, 'suppression failures');
-                    notRemovedEmails.forEach(email => {
-                        console.log('Adding suppression failure for:', email);
-                        if (!failedEmailsMap.has(email)) {
-                            failedEmailsMap.set(email, { bounceFailed: false, suppressionFailed: false });
-                        }
-                        failedEmailsMap.get(email).suppressionFailed = true;
-                        suppressionFailedCount++;
-                    });
-                } else {
-                    console.log('No suppression failures to process. notRemovedEmails is:', notRemovedEmails);
-                }
-
-                // Note: Don't use innerHTML += here - it will destroy DOM elements appended later!
-
-                //                                    // Add download link for bounce failures if any exist
-                // if (errorBounce.length > 0 && window.utilities?.createDownloadLink) {
-                //     const bounceFailedEmails = errorBounce.map(item => {
-                //         const email = item?.value?.email || item?.email || 'unknown';
-                //         const error = item?.value?.bounce?.error ? JSON.stringify(item.value.bounce.error) : 'Unknown bounce error';
-                //         return `${email},"Bounce: ${error}"`;
-                //     });
-                //     const bounceFailedCSV = ['Email Address,Errors'].concat(bounceFailedEmails);
-                //     const bounceFailedLink = window.utilities.createDownloadLink(
-                //         bounceFailedCSV,
-                //         'bounce_reset_failed_emails.csv',
-                //         '📥 Download Bounce Reset Failures'
-                //     );
-                //     const bounceFailedContainer = document.createElement('div');
-                //     bounceFailedContainer.style.marginTop = '10px';
-                //     bounceFailedContainer.appendChild(bounceFailedLink);
-                //     uploadContainer.appendChild(bounceFailedContainer);
-                // }
-
-                //                 // Add download link for emails not found (always show if count > 0)
-                // const notFoundEmails = response.combinedResults.details.suppressionResults.notFoundEmails || [];
-                // if (notFoundEmails.length > 0 && window.utilities?.createDownloadLink) {
-                //     const notFoundCSV = ['Email Address'].concat(notFoundEmails);
-                //     const notFoundLink = window.utilities.createDownloadLink(
-                //         notFoundCSV,                            
-                //         'emails_not_found.csv',
-                //         '📥 Download Not Found Emails'
-                //     );
-                //     const notFoundContainer = document.createElement('div');
-                //     notFoundContainer.style.marginTop = '10px';
-                //     notFoundContainer.appendChild(notFoundLink);
-                //     uploadContainer.appendChild(notFoundContainer);
-                // }
-                //     // Add download link for emails not removed
-                //     const notRemovedEmails = response.combinedResults.details.suppressionResults.notRemovedEmails || [];
-                //     if (notRemovedEmails.length > 0 && window.utilities?.createDownloadLink) {
-                //         const notRemovedCSV = ['Email Address'].concat(notRemovedEmails);
-                //         const notRemovedLink = window.utilities.createDownloadLink(
-                //             notRemovedCSV,
-                //             'emails_not_removed.csv',
-                //             '📥 Download Not Removed Emails'
-                //         );
-                //         const notRemovedContainer = document.createElement('div');
-                //         notRemovedContainer.style.marginTop = '10px';
-                //         notRemovedContainer.appendChild(notRemovedLink);
-                //         uploadContainer.appendChild(notRemovedContainer);
-                //     }
-
-                // Create failed emails section with download and reprocess functionality
-                console.log('Failed emails map size:', failedEmailsMap.size);
-                console.log('Failed emails map entries:', Array.from(failedEmailsMap.entries()));
-
-                if (failedEmailsMap.size > 0) {
-                    console.log('Creating failed emails container...');
-                    const failedContainer = document.createElement('div');
-                    failedContainer.style.marginTop = '15px';
-                    failedContainer.style.padding = '15px';
-                    failedContainer.style.border = '2px solid #dc3545';
-                    failedContainer.style.borderRadius = '5px';
-                    failedContainer.style.backgroundColor = '#f8d7da';
-
-                    // Helper function to generate CSV
-                    const generateFailedEmailsCSV = () => {
-                        const csvRows = ['Email,Bounce Failed,Suppression Failed'];
-                        for (const [email, status] of failedEmailsMap.entries()) {
-                            csvRows.push(`${email},${status.bounceFailed ? 'yes' : 'no'},${status.suppressionFailed ? 'yes' : 'no'}`);
-                        }
-                        return csvRows;
-                    };
-
-                    // Helper function to update the display
-                    const updateFailedDisplay = () => {
-                        const totalFailed = failedEmailsMap.size;
-                        let bounceCount = 0;
-                        let suppressionCount = 0;
-                        for (const status of failedEmailsMap.values()) {
-                            if (status.bounceFailed) bounceCount++;
-                            if (status.suppressionFailed) suppressionCount++;
-                        }
-
-                        failedContainer.innerHTML = `
-                            <h6 style="color: #721c24;">Failed Email Resets</h6>
-                            <p><strong>Total Failed:</strong> ${totalFailed} unique email(s)</p>
-                            <p><strong>Bounce Failures:</strong> ${bounceCount} email(s)</p>
-                            <p><strong>Suppression Failures:</strong> ${suppressionCount} email(s)</p>
-                        `;
-
-                        // Create download link
-                        console.log('Checking window.utilities:', window.utilities);
-                        console.log('Checking createDownloadLink:', window.utilities?.createDownloadLink);
-
-                        if (window.utilities?.createDownloadLink) {
-                            console.log('Creating download link...');
-                            const csvData = generateFailedEmailsCSV();
-                            console.log('CSV data:', csvData);
-                            const downloadLink = window.utilities.createDownloadLink(
-                                csvData,
-                                'failed_reset_emails.csv',
-                                '📥 Download Failed Emails'
-                            );
-                            console.log('Download link created:', downloadLink);
-                            failedContainer.appendChild(downloadLink);
-                            console.log('Download link appended to container');
-                        } else {
-                            console.error('window.utilities.createDownloadLink is not available!');
-                        }
-
-                        // Add reprocess button
-                        const reprocessBtn = document.createElement('button');
-                        reprocessBtn.className = 'btn btn-warning ms-2';
-                        reprocessBtn.textContent = '🔄 Reprocess Failed Emails';
-                        reprocessBtn.title = 'Attempt to reset the failed emails again';
-                        failedContainer.appendChild(reprocessBtn);
-
-                        return reprocessBtn;
-                    };
-
-                    // Initial display
-                    const reprocessBtn = updateFailedDisplay();
-                    console.log('Appending failedContainer to uploadContainer...');
-                    uploadContainer.appendChild(failedContainer);
-                    console.log('failedContainer appended successfully. Children count:', uploadContainer.children.length);
-
-                    reprocessBtn.addEventListener('click', async (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-
-                        const confirmReprocess = confirm(`Are you sure you want to reprocess ${failedEmailsMap.size} failed email(s)? This will attempt to reset them again.`);
-                        if (!confirmReprocess) return;
-
-                        // Disable the reprocess button during operation
-                        reprocessBtn.disabled = true;
-                        reprocessBtn.textContent = '🔄 Processing...';
-
-                        // Create array of failed emails for reprocessing
-                        const failedEmailsToReprocess = Array.from(failedEmailsMap.keys());
-
-                        const reprocessRequestData = {
-                            domain,
-                            token,
-                            region: regionVal,
-                            fileContents: failedEmailsToReprocess,
-                            ext: 'array' // Indicate this is an array of emails
-                        };
-
-                        try {
-                            // Show progress card for reprocessing
-                            progressCard.hidden = false;
-                            resultsCard.hidden = false; // Keep results visible
-                            progressCardTitle.textContent = 'Reprocessing Failed Emails';
-                            progressInfo.textContent = 'Processing bounce counts...';
-                            progressBar.style.width = '0%';
-                            progressBar.setAttribute('aria-valuenow', '0');
-                            progressDetail.textContent = `0/${failedEmailsToReprocess.length} emails`;
-
-                            const reprocessResponse = await window.axios.resetEmails(reprocessRequestData);
-
-                            // Hide progress card
-                            progressCard.hidden = true;
-
-                            // Create a new container for reprocess results
-                            const reprocessContainer = document.createElement('div');
-                            reprocessContainer.style.marginTop = '15px';
-                            reprocessContainer.style.padding = '10px';
-                            reprocessContainer.style.border = '2px solid #ffc107';
-                            reprocessContainer.style.borderRadius = '5px';
-                            reprocessContainer.style.backgroundColor = '#fff3cd';
-
-                            const reprocessTotalProcessed = reprocessResponse.combinedResults.summary.totalEmailsProcessed || 0;
-                            const reprocessBounceReset = reprocessResponse.combinedResults.summary.bounceListResets || 0;
-                            const reprocessAWSReset = reprocessResponse.combinedResults.summary.suppressionListRemoved || 0;
-                            const reprocessSuppressionNotFound = reprocessResponse.combinedResults.summary.suppressionListNotFound || 0;
-                            const reprocessSuppressionNotRemoved = reprocessResponse.combinedResults.summary.suppressionListNotRemoved || 0;
-
-                            reprocessContainer.innerHTML = `<h6 style="color: #856404;">Reprocess Results</h6>`;
-                            reprocessContainer.innerHTML += `<p><strong>Reprocessed:</strong> ${reprocessTotalProcessed} email(s)</p>`;
-
-                            // Display suppression errors if any exist
-                            const reprocessSuppressionErrors = reprocessResponse.combinedResults?.details?.suppressionResults?.failed_messages || [];
-                            if (reprocessSuppressionErrors.length > 0) {
-                                reprocessContainer.innerHTML += `<div class="alert alert-danger mt-2" role="alert" style="background-color: #f8d7da; border-color: #f5c2c7; color: #842029;">
-                                    <strong>Suppression List Errors:</strong>
-                                    <ul class="mb-0 mt-2">
-                                        ${reprocessSuppressionErrors.map(msg => `<li>${msg}</li>`).join('')}
-                                    </ul>
-                                </div>`;
-                            }
-
-                            if (reprocessBounceReset > 0) {
-                                reprocessContainer.innerHTML += `<p><strong>✅ Bounce List:</strong> Successfully cleared ${reprocessBounceReset} email(s)</p>`;
-                            }
-                            if (reprocessAWSReset > 0) {
-                                reprocessContainer.innerHTML += `<p><strong>✅ Suppression List:</strong> Successfully removed ${reprocessAWSReset} email(s)</p>`;
-                            }
-                            if (reprocessSuppressionNotFound > 0) {
-                                reprocessContainer.innerHTML += `<p><strong>ℹ️ Suppression List:</strong> ${reprocessSuppressionNotFound} email(s) not found (may have been removed in previous attempt)</p>`;
-                            }
-                            if (reprocessSuppressionNotRemoved > 0) {
-                                reprocessContainer.innerHTML += `<p><strong>❌ Suppression List:</strong> ${reprocessSuppressionNotRemoved} email(s) still could not be removed</p>`;
-                            }
-
-                            // Update failedEmailsMap based on reprocessing results
-                            // Remove emails that succeeded in reprocessing
-                            const reprocessBounceFailed = new Set();
-                            const reprocessSuppressionFailed = new Set();
-
-                            // Track new bounce failures from reprocessing
-                            if (reprocessResponse.combinedResults?.details?.bounceResults?.failed) {
-                                reprocessResponse.combinedResults.details.bounceResults.failed.forEach(item => {
-                                    const email = item?.value?.email || item?.email || 'unknown';
-                                    reprocessBounceFailed.add(email);
-                                });
-                            }
-
-                            // Track new suppression failures from reprocessing - Updated to use new structure
-                            if (reprocessResponse.combinedResults?.details?.suppressionResults?.data?.not_removed) {
-                                reprocessResponse.combinedResults.details.suppressionResults.data.not_removed.forEach(email => {
-                                    reprocessSuppressionFailed.add(email);
-                                });
-                            }
-
-                            // Update the map: remove successful resets, keep/update failures
-                            for (const email of failedEmailsToReprocess) {
-                                const stillFailedBounce = reprocessBounceFailed.has(email);
-                                const stillFailedSuppression = reprocessSuppressionFailed.has(email);
-
-                                if (!stillFailedBounce && !stillFailedSuppression) {
-                                    // Email succeeded in reprocessing - remove from failed list
-                                    failedEmailsMap.delete(email);
-                                } else {
-                                    // Update failure status
-                                    failedEmailsMap.set(email, {
-                                        bounceFailed: stillFailedBounce,
-                                        suppressionFailed: stillFailedSuppression
-                                    });
-                                }
-                            }
-
-                            // Calculate final statistics
-                            const stillFailedCount = failedEmailsMap.size;
-                            const successfulCount = failedEmailsToReprocess.length - stillFailedCount;
-
-                            if (stillFailedCount > 0) {
-                                reprocessContainer.innerHTML += `<p><strong>⚠️ Still Failed:</strong> ${stillFailedCount} email(s) continue to fail after reprocessing</p>`;
-                                reprocessContainer.innerHTML += `<p><strong>✅ Successfully Reset:</strong> ${successfulCount} email(s) were successfully reset during reprocessing</p>`;
-                            } else {
-                                reprocessContainer.innerHTML += `<p><strong>🎉 Success:</strong> All ${successfulCount} previously failed emails have been successfully processed!</p>`;
-                            }
-
-                            // Update the main failed display with new counts
-                            updateFailedDisplay();
-
-                            uploadContainer.appendChild(reprocessContainer);
-
-                        } catch (reprocessError) {
-                            progressCard.hidden = true;
-                            const errorContainer = document.createElement('div');
-                            errorContainer.style.marginTop = '15px';
-                            errorContainer.style.color = 'red';
-                            errorContainer.innerHTML = `<p><strong>Error during reprocessing:</strong> ${reprocessError.message}</p>`;
-                            uploadContainer.appendChild(errorContainer);
-                        } finally {
-                            // Re-enable the reprocess button if there are still failures
-                            if (failedEmailsMap.size > 0) {
-                                reprocessBtn.disabled = false;
-                                reprocessBtn.textContent = '🔄 Reprocess Failed Emails';
-                            } else {
-                                // Hide reprocess button if all emails succeeded
-                                reprocessBtn.remove();
-                            }
                         }
                     });
                 }

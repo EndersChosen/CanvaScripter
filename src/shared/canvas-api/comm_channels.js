@@ -60,7 +60,10 @@ async function emailCheck(data) {
 
     emailStatus.suppressed = await awsCheck(region, token, email);
     emailStatus.bounced = await bounceCheck(domain, token, email);
-    console.log('emailStatus:', email, emailStatus);
+    console.log('emailStatus computed', {
+        suppressed: emailStatus.suppressed,
+        bounced: emailStatus.bounced
+    });
 
     return emailStatus;
 }
@@ -154,7 +157,7 @@ async function checkCommDomain(data) {
     // looping through the list while there is a next_token
     while (next) {
         console.log('searching...');
-        console.log(next);
+        console.log('searching next suppression-list page');
         try {
             const request = async () => {
                 return await axios(axiosConfig);
@@ -192,7 +195,7 @@ async function checkCommDomain(data) {
                     await waitFunc(60000);
                 }
             } else {
-                console.log('An unexpected error: ', error);
+                console.log('An unexpected error occurred while checking suppression domain:', error?.message || String(error));
                 throw error;
             }
         }
@@ -210,7 +213,10 @@ async function resetEmail(data) {
         // Preserve original email case for proper matching with external systems
         const normalized = { ...data, email: String(data.email || '').trim() };
         resetStatus.bounce = await bounceReset(normalized);
-        console.log(`Bounce reset response for email ${normalized.email}:`, resetStatus.bounce);
+        console.log('Bounce reset response received', {
+            status: resetStatus.bounce?.status,
+            reset: resetStatus.bounce?.reset
+        });
     } catch (error) {
         resetStatus.bounce = error;
     }
@@ -218,7 +224,10 @@ async function resetEmail(data) {
     try {
         const normalized = { ...data, email: String(data.email || '').trim() };
         resetStatus.suppression = await awsReset(normalized);
-        console.log(`Suppression reset response for email ${normalized.email}:`, resetStatus.suppression);
+        console.log('Suppression reset response received', {
+            status: resetStatus.suppression?.status,
+            reset: resetStatus.suppression?.reset
+        });
     } catch (error) {
         throw error;
     }
