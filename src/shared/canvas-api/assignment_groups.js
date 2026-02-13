@@ -118,7 +118,7 @@ async function getEmptyAssignmentGroups(data) {
                                     state
                                     _id
                                     name
-                                    assignmentsConnection {
+                                    assignmentsConnection(filter: {gradingPeriodId: null}) {
                                         nodes {
                                             _id
                                         }

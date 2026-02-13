@@ -231,6 +231,12 @@ function deleteAssignmentsCombined(e) {
                         <div class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></div>
                         <p id="combined-progress-info" class="mb-0">Preparing...</p>
                     </div>
+                    <div id="combined-steps" class="d-flex flex-wrap gap-2 mb-2">
+                        <span id="combined-step-delete" class="badge bg-secondary">1. Deleting</span>
+                        <span id="combined-step-groups" class="badge bg-secondary">2. Group Check</span>
+                        <span id="combined-step-refresh" class="badge bg-secondary">3. Refreshing</span>
+                        <span id="combined-step-complete" class="badge bg-secondary">4. Complete</span>
+                    </div>
                     <div class="progress mb-2" style="height: 12px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" 
                              role="progressbar" style="width: 0%" 
@@ -240,6 +246,7 @@ function deleteAssignmentsCombined(e) {
                     <button id="cancel-delete-assignments-btn" type="button" class="btn btn-sm btn-warning mt-2" hidden>
                         <i class="bi bi-x-circle me-1"></i>Cancel Deletion
                     </button>
+                    <div id="combined-inline-groups-container" class="mt-3" hidden></div>
                 </div>
             </div>
 
@@ -385,6 +392,54 @@ function deleteAssignmentsCombined(e) {
         const progressInfo = form.querySelector('#combined-progress-info');
         const responseDiv = form.querySelector('#combined-response-container');
         const cancelDeleteBtn = form.querySelector('#cancel-delete-assignments-btn');
+        const inlineGroupsContainer = form.querySelector('#combined-inline-groups-container');
+        const stepDelete = form.querySelector('#combined-step-delete');
+        const stepGroups = form.querySelector('#combined-step-groups');
+        const stepRefresh = form.querySelector('#combined-step-refresh');
+        const stepComplete = form.querySelector('#combined-step-complete');
+
+        function setCombinedStep(stage) {
+            const steps = [stepDelete, stepGroups, stepRefresh, stepComplete];
+            steps.forEach(step => {
+                step.classList.remove('bg-primary', 'bg-success');
+                step.classList.add('bg-secondary');
+            });
+
+            if (stage === 'deleting') {
+                stepDelete.classList.remove('bg-secondary');
+                stepDelete.classList.add('bg-primary');
+                return;
+            }
+
+            if (stage === 'groups') {
+                stepDelete.classList.remove('bg-secondary');
+                stepDelete.classList.add('bg-success');
+                stepGroups.classList.remove('bg-secondary');
+                stepGroups.classList.add('bg-primary');
+                return;
+            }
+
+            if (stage === 'refresh') {
+                stepDelete.classList.remove('bg-secondary');
+                stepDelete.classList.add('bg-success');
+                stepGroups.classList.remove('bg-secondary');
+                stepGroups.classList.add('bg-success');
+                stepRefresh.classList.remove('bg-secondary');
+                stepRefresh.classList.add('bg-primary');
+                return;
+            }
+
+            if (stage === 'complete') {
+                stepDelete.classList.remove('bg-secondary');
+                stepDelete.classList.add('bg-success');
+                stepGroups.classList.remove('bg-secondary');
+                stepGroups.classList.add('bg-success');
+                stepRefresh.classList.remove('bg-secondary');
+                stepRefresh.classList.add('bg-success');
+                stepComplete.classList.remove('bg-secondary');
+                stepComplete.classList.add('bg-success');
+            }
+        }
 
         // Track current delete operation
         let currentDeleteOperationId = null;
@@ -733,6 +788,9 @@ function deleteAssignmentsCombined(e) {
                 progressBar.style.width = '0%';
                 if (spinner) spinner.hidden = false;
                 progressInfo.innerHTML = `Deleting ${finalAssignments.length} assignments...`;
+                inlineGroupsContainer.innerHTML = '';
+                inlineGroupsContainer.hidden = true;
+                setCombinedStep('deleting');
 
                 // Show cancel button
                 cancelDeleteBtn.hidden = false;
@@ -778,6 +836,7 @@ function deleteAssignmentsCombined(e) {
                             <i class="bi bi-exclamation-circle me-2"></i>
                             <strong>Cancelled:</strong> Deleted ${successful.length} ${successText} before cancellation.
                         </div>`;
+                        setCombinedStep('complete');
 
                         // Hide processing card
                         progressDiv.hidden = true;
@@ -808,9 +867,10 @@ function deleteAssignmentsCombined(e) {
 
                     // Check for empty assignment groups after successful deletion
                     if (successful.length > 0) {
+                        setCombinedStep('groups');
                         progressInfo.innerHTML = 'Checking for empty assignment groups...';
                         try {
-                            const groupResult = await checkAndDeleteEmptyAssignmentGroups(domain, cid, token, progressInfo, details);
+                            const groupResult = await checkAndDeleteEmptyAssignmentGroups(domain, cid, token, progressInfo, inlineGroupsContainer);
 
                             if (groupResult.deletedCount > 0 || groupResult.failedCount > 0) {
                                 progressInfo.innerHTML += `<br>Deleted ${groupResult.deletedCount} empty assignment group(s)${groupResult.failedCount > 0 ? `, failed to delete ${groupResult.failedCount}` : ''}.`;
@@ -822,6 +882,7 @@ function deleteAssignmentsCombined(e) {
                         }
 
                         // Refresh assignments from the course to get updated state
+                        setCombinedStep('refresh');
                         progressInfo.innerHTML = 'Refreshing assignment data...';
                         try {
                             console.log('Refreshing assignments after deletion...');
@@ -883,6 +944,8 @@ function deleteAssignmentsCombined(e) {
                         }
                     }
 
+                    setCombinedStep('complete');
+
                     // Hide processing card after completion
                     progressDiv.hidden = true;
                     if (spinner) spinner.hidden = true;
@@ -895,6 +958,7 @@ function deleteAssignmentsCombined(e) {
                     cancelDeleteBtn.hidden = true;
                     progressDiv.hidden = true;
                     if (spinner) spinner.hidden = true;
+                    setCombinedStep('complete');
                     errorHandler(err, progressInfo, responseDiv);
                 } finally {
                     isDeleting = false;
@@ -1453,7 +1517,7 @@ function deleteAssignmentsCombined(e) {
     }
 
     // Helper function to check and optionally delete empty assignment groups
-    async function checkAndDeleteEmptyAssignmentGroups(domain, courseId, token, progressInfo, parentContainer) {
+    async function checkAndDeleteEmptyAssignmentGroups(domain, courseId, token, progressInfo, mountContainer) {
         try {
             progressInfo.innerHTML += `<br>Checking for empty assignment groups...`;
             const emptyGroups = await window.axios.getEmptyAssignmentGroups({
@@ -1464,6 +1528,8 @@ function deleteAssignmentsCombined(e) {
 
             if (emptyGroups && emptyGroups.length > 0) {
                 progressInfo.innerHTML += `<br>Found ${emptyGroups.length} empty assignment group${emptyGroups.length === 1 ? '' : 's'}.`;
+                mountContainer.innerHTML = '';
+                mountContainer.hidden = false;
 
                 // Create assignment groups management card
                 const groupsCard = document.createElement('div');
@@ -1510,8 +1576,8 @@ function deleteAssignmentsCombined(e) {
                     </div>
                 `;
 
-                // Insert after the parent container
-                parentContainer.parentNode.insertBefore(groupsCard, parentContainer.nextSibling);
+                // Render inside the Processing Assignments card for a single, continuous flow
+                mountContainer.appendChild(groupsCard);
 
                 // Set up toggle functionality for the header
                 const cardHeader = groupsCard.querySelector('#empty-groups-header');
@@ -1560,6 +1626,7 @@ function deleteAssignmentsCombined(e) {
                 return new Promise((resolve) => {
                     cancelBtn.addEventListener('click', () => {
                         groupsCard.remove();
+                        mountContainer.hidden = true;
                         resolve({ deletedCount: 0, failedCount: 0 });
                     });
 
@@ -1570,6 +1637,7 @@ function deleteAssignmentsCombined(e) {
 
                         if (selectedIds.length === 0) {
                             groupsCard.remove();
+                            mountContainer.hidden = true;
                             resolve({ deletedCount: 0, failedCount: 0 });
                             return;
                         }
@@ -1635,10 +1703,14 @@ function deleteAssignmentsCombined(e) {
                     });
                 });
             }
+            mountContainer.innerHTML = '';
+            mountContainer.hidden = true;
             return { deletedCount: 0, failedCount: 0 };
         } catch (error) {
             console.error('Error checking for empty assignment groups:', error);
             progressInfo.innerHTML += `<br><span class="text-warning">Error checking for empty assignment groups.</span>`;
+            mountContainer.innerHTML = '';
+            mountContainer.hidden = true;
             return { deletedCount: 0, failedCount: 0 };
         }
     }
