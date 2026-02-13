@@ -25,7 +25,12 @@ contextBridge.exposeInMainWorld('axios', {
             return false;
         }
 
-        console.log('in preload total result ', result.length);
+        if (Array.isArray(result)) {
+            console.log('in preload total result ', result.length);
+        } else {
+            const count = Array.isArray(result.messages) ? result.messages.length : 0;
+            console.log('in preload total result ', count);
+        }
 
         return result;
     },

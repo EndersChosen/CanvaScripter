@@ -69,6 +69,7 @@ async function getConversationsGraphQL(data) {
     const token = data.token;
     const subject = data.subject;
     const user = data.user_id;
+    const sentOnOrAfter = data.sent_on_or_after;
     const signal = data.signal;
     const onProgress = data.onProgress; // Progress callback
 
@@ -89,13 +90,6 @@ async function getConversationsGraphQL(data) {
                                     subject
                                     _id
                                     updatedAt
-                                    conversationParticipantsConnection {
-                                        edges {
-                                            node {
-                                                userId
-                                            }
-                                        }
-                                    }
                                 }
                                 messages(first: 5) {
                                     nodes {
@@ -138,6 +132,63 @@ async function getConversationsGraphQL(data) {
     let sentMessages = [];
     let nextPage = true;
     let pageNumber = 0;
+    let filteredOutCount = 0;
+    const sentOnOrAfterDate = sentOnOrAfter ? new Date(`${sentOnOrAfter}T00:00:00.000Z`) : null;
+    const hasDateFilter = sentOnOrAfterDate instanceof Date && !isNaN(sentOnOrAfterDate.getTime());
+
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const maxRetries = 4;
+    const baseRetryMs = 500;
+
+    const fetchPageWithRetry = async () => {
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            if (signal?.aborted) {
+                const e = new Error('Aborted');
+                e.name = 'AbortError';
+                throw e;
+            }
+
+            try {
+                const response = await axios(axiosConfig);
+                if (response?.data?.errors?.length) {
+                    const err = new Error(response.data.errors.map(e => e?.message || 'GraphQL error').join('; '));
+                    err.status = response.status || 0;
+                    throw err;
+                }
+                return response;
+            } catch (error) {
+                const cancelled = signal?.aborted || error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED';
+                if (cancelled) {
+                    const e = new Error('Aborted');
+                    e.name = 'AbortError';
+                    throw e;
+                }
+
+                const status = Number(error?.response?.status || error?.status || 0);
+                const retryAfterHeader = error?.response?.headers?.['retry-after'] || error?.response?.headers?.['Retry-After'];
+                const retryAfterMs = Number.isFinite(Number(retryAfterHeader)) ? Number(retryAfterHeader) * 1000 : null;
+
+                const apiMessage = Array.isArray(error?.response?.data?.errors)
+                    ? error.response.data.errors.map(e => e?.message || '').join(' ')
+                    : (error?.response?.data?.message || error?.message || '');
+
+                const throttled403 = status === 403 && /throttl|rate.?limit|too many|try again later|exceed/i.test(String(apiMessage));
+                const nonRetryableNetwork = error?.code === 'ERR_TLS_CERT_ALTNAME_INVALID' || error?.code === 'ENOTFOUND';
+                const isRetryableStatus = [429, 500, 502, 503, 504].includes(status) || throttled403;
+                const shouldRetry = !nonRetryableNetwork && (isRetryableStatus || (!status && attempt < maxRetries));
+
+                if (!shouldRetry || attempt >= maxRetries) {
+                    throw error;
+                }
+
+                const backoff = retryAfterMs ?? (baseRetryMs * Math.pow(2, attempt) + Math.floor(Math.random() * 250));
+                if (onProgress && typeof onProgress === 'function') {
+                    onProgress({ page: pageNumber, retrying: true, attempt: attempt + 1, delayMs: backoff });
+                }
+                await sleep(backoff);
+            }
+        }
+    };
 
     while (nextPage) {
         pageNumber++;
@@ -148,12 +199,11 @@ async function getConversationsGraphQL(data) {
         }
 
         try {
-            const request = async () => {
-                return await axios(axiosConfig);
-            };
-
-            const response = await errorCheck(request);
-            const data = response.data.data.legacyNode.conversationsConnection;
+            const response = await fetchPageWithRetry();
+            const data = response?.data?.data?.legacyNode?.conversationsConnection;
+            if (!data) {
+                throw new Error('Unexpected GraphQL response format while fetching conversations.');
+            }
 
             sentMessages.push(...data.nodes.map((node) => {
                 // Extract attachments from messages
@@ -172,11 +222,19 @@ async function getConversationsGraphQL(data) {
                 return {
                     subject: node.conversation.subject,
                     id: node.conversation._id,
-                    users: node.conversation.conversationParticipantsConnection.edges.map(edge => edge.node.userId),
+                    updatedAt: node.conversation.updatedAt,
+                    users: [],
                     attachments: attachments
                 };
             }).filter((message) => {
-                return message.subject === subject;
+                if (message.subject !== subject) return false;
+                if (!hasDateFilter) return true;
+
+                const updatedAtDate = message.updatedAt ? new Date(message.updatedAt) : null;
+                const validUpdatedAt = updatedAtDate instanceof Date && !isNaN(updatedAtDate.getTime());
+                const keep = validUpdatedAt && updatedAtDate >= sentOnOrAfterDate;
+                if (!keep) filteredOutCount++;
+                return keep;
             }));
 
             if (!data.pageInfo.hasNextPage) {
@@ -197,7 +255,7 @@ async function getConversationsGraphQL(data) {
     //     return { subject: message.node.conversation.subject, id: message.node.conversation._id };
     // });
 
-    return sentMessages;
+    return { messages: sentMessages, filteredOutCount };
 
     // const url = url;
     // const query = query;

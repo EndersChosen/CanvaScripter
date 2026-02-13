@@ -1085,17 +1085,27 @@ async function deleteConvos(e) {
                     <small class="text-muted">Provide a Canvas user ID and an exact subject. This will search sent conversations for that subject and delete them for all recipients.</small>
                 </div>
                 <div class="card-body">
-                    <div class="row align-items-center">
+                    <div class="row ">
                         <div class="col-auto"><label for="dcs-user-id" class="form-label">User ID</label></div>
-                        <div class="col-2"><input id="dcs-user-id" type="text" class="form-control form-control-sm"></div>
-                        <div class="col-auto"><span id="dcs-user-help" class="form-text" style="display:none;">Must be a number</span></div>
+                        <div class="col-2">
+                            <input id="dcs-user-id" type="text" class="form-control form-control-sm">
+                            <div class="col-auto"><span id="dcs-user-help" class="form-text" style="display:none;">Must be a number</span></div>
+                        </div>
                     </div>
-                    <div class="row align-items-center mt-2">
+                    <div class="row  mt-2">
                         <div class="col-auto"><label for="dcs-subject" class="form-label">Subject</label></div>
                         <div class="col-4">
                             <input id="dcs-subject" type="text" class="form-control form-control-sm" placeholder="Exact subject text">
                             <div class="form-text">Exact match; case-sensitive.</div>
                         </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-auto"><label for="dcs-sent-on-or-after" class="form-label">Message sent on/after</label></div>
+                        <div class="col-auto">
+                            <input id="dcs-sent-on-or-after" type="date" class="form-control form-control-sm">
+                        <div class="form-text">Optional.</div>
+                        <div class="form-text">Only includes conversations updated on or after this date.</div>
+                        <div class="form-text">Use the same date shown on the message in the user's inbox.</div>
                     </div>
                     <div class="row mt-2">
                         <div class="col-auto"><button id="dcs-search" type="button" class="btn btn-sm btn-primary" disabled>Search</button></div>
@@ -1124,6 +1134,7 @@ async function deleteConvos(e) {
 
     const userInput = form.querySelector('#dcs-user-id');
     const subjectInput = form.querySelector('#dcs-subject');
+    const sentOnOrAfterInput = form.querySelector('#dcs-sent-on-or-after');
     const searchBtn = form.querySelector('#dcs-search');
     const cancelSearchBtn = form.querySelector('#dcs-cancel-search');
     const searchProgressDiv = form.querySelector('#dcs-search-progress-div');
@@ -1146,6 +1157,7 @@ async function deleteConvos(e) {
     if (form.dataset.bound !== 'true') {
         userInput.addEventListener('input', toggleSearchEnabled);
         subjectInput.addEventListener('input', toggleSearchEnabled);
+        sentOnOrAfterInput.addEventListener('input', toggleSearchEnabled);
         toggleSearchEnabled();
         searchBtn.addEventListener('click', async (evt) => {
             evt.preventDefault(); evt.stopPropagation();
@@ -1177,6 +1189,8 @@ async function deleteConvos(e) {
             const token = document.querySelector('#token').value.trim();
             const user_id = userInput.value.trim();
             const subject = subjectInput.value;
+            const sent_on_or_after = sentOnOrAfterInput.value.trim();
+            const searchStartedAt = performance.now();
             let cancelled = false;
             const onCancel = async () => { currentCancelBtn.disabled = true; try { await window.axios.cancelGetConvos(); } catch { } cancelled = true; searchProgressInfo.textContent = 'Cancelling search...'; };
             currentCancelBtn.addEventListener('click', onCancel, { once: true });
@@ -1195,8 +1209,16 @@ async function deleteConvos(e) {
             }
 
             try {
-                foundMessages = await window.axios.getConvos({ domain, token, user_id, subject });
+                const convoSearchResult = await window.axios.getConvos({ domain, token, user_id, subject, sent_on_or_after });
+                let filteredOutCount = 0;
+                if (Array.isArray(convoSearchResult)) {
+                    foundMessages = convoSearchResult;
+                } else {
+                    foundMessages = Array.isArray(convoSearchResult?.messages) ? convoSearchResult.messages : [];
+                    filteredOutCount = Number(convoSearchResult?.filteredOutCount) || 0;
+                }
                 const count = Array.isArray(foundMessages) ? foundMessages.length : 0;
+                const elapsedSeconds = ((performance.now() - searchStartedAt) / 1000).toFixed(2);
 
                 // Count unique attachments (deduplicate by file ID)
                 let totalAttachments = 0;
@@ -1218,7 +1240,7 @@ async function deleteConvos(e) {
                 if (cancelled) {
                     const cancelCard = document.createElement('div');
                     cancelCard.className = 'alert alert-info';
-                    cancelCard.innerHTML = '<i class="bi bi-info-circle me-1"></i>Search cancelled.';
+                    cancelCard.innerHTML = `<i class="bi bi-info-circle me-1"></i>Search cancelled after ${elapsedSeconds} seconds.`;
                     resultDiv.appendChild(cancelCard);
                 } else if (count > 0) {
                     const resultCard = document.createElement('div');
@@ -1275,7 +1297,8 @@ async function deleteConvos(e) {
                             </h5>
                         </div>
                         <div class="card-body">
-                            <p class="mb-0">Found <strong>${count}</strong> conversation(s) with subject: "<em>${subject}</em>"</p>
+                            <p class="mb-0">Found <strong>${count}</strong> conversation(s) with subject: "<em>${subject}</em>" in <strong>${elapsedSeconds}</strong> seconds.</p>
+                            ${filteredOutCount > 0 ? `<p class="mb-0 mt-1 text-muted" style="font-size: 0.85rem;"><i class="bi bi-funnel me-1"></i>Filtered out <strong>${filteredOutCount}</strong> conversation(s) sent prior to the selected date.</p>` : ''}
                             ${totalAttachments > 0 ? `<p class="mb-0 mt-1 text-muted" style="font-size: 0.85rem;"><i class="bi bi-paperclip me-1"></i>${totalAttachments} unique file attachment(s) found</p>` : ''}
                             ${attachmentsHTML}
                             <div class="form-text mt-2">Click "Delete Found" below to delete these conversations for all recipients.</div>
@@ -1382,7 +1405,7 @@ async function deleteConvos(e) {
                 } else {
                     const noResultCard = document.createElement('div');
                     noResultCard.className = 'alert alert-warning';
-                    noResultCard.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>No conversations found with that subject.';
+                    noResultCard.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>No conversations found with that subject after ${elapsedSeconds} seconds.${filteredOutCount > 0 ? ` Filtered out ${filteredOutCount} conversation(s) sent prior to the selected date.` : ''}`;
                     resultDiv.appendChild(noResultCard);
 
                     // Hide delete section

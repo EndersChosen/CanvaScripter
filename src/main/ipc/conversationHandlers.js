@@ -92,8 +92,9 @@ async function canvasRateLimitedHandler(requests, options = {}, mainWindow) {
  * @param {Electron.IpcMain} ipcMain - The Electron IPC main instance
  * @param {Function} logDebug - Debug logging function
  * @param {Electron.BrowserWindow} mainWindow - Main window for progress updates
+ * @param {Function} getBatchConfig - Batch configuration provider
  */
-function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
+function registerConversationHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
     // Get conversations with GraphQL - cancellable operation with progress tracking
     ipcMain.handle('axios:getConvos', async (event, data) => {
         logDebug('[axios:getConvos] Fetching conversations', { domain: data.domain });
@@ -299,73 +300,39 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
         const senderId = event.sender.id;
         deleteConvosCancelFlags.set(senderId, false);
 
-        let completedRequests = 0;
-        const totalRequests = data.messages.length;
-        const updateProgress = () => {
-            completedRequests++;
-            try {
-                mainWindow.webContents.send('update-progress', {
-                    mode: 'determinate',
-                    label: 'Deleting conversations',
-                    processed: completedRequests,
-                    total: totalRequests,
-                    value: totalRequests ? (completedRequests / totalRequests) : 0
-                });
-            } catch { }
-        };
+        const batchConfig = typeof getBatchConfig === 'function'
+            ? getBatchConfig()
+            : { batchSize: 35, timeDelay: 2000 };
 
-        const requests = data.messages.map((msg, i) => ({
-            id: i + 1,
-            requestData: { domain: data.domain, token: data.token, message: msg.id }
+        const maxConcurrent = Math.max(1, Number(batchConfig.batchSize) || 35);
+        const baseDelayMs = Math.max(50, Number(batchConfig.timeDelay) || 2000);
+        const jitterMs = Math.max(50, Number(process.env.CANVAS_DELETE_JITTER_MS) || 200);
+        const maxRetries = Math.max(0, Number(process.env.CANVAS_DELETE_MAX_RETRIES) || 3);
+
+        const messages = Array.isArray(data.messages) ? data.messages : [];
+        const requests = messages.map((msg, i) => ({
+            id: msg?.id || i + 1,
+            request: async () => convos.deleteForAll({ domain: data.domain, token: data.token, message: msg.id })
         }));
 
-        const successful = [];
-        const failed = [];
-        const batchSize = 35;
-        const timeDelay = 2000;
-
-        for (let i = 0; i < requests.length; i += batchSize) {
-            // Check cancellation before starting batch
-            if (deleteConvosCancelFlags.get(senderId)) break;
-
-            const batch = requests.slice(i, i + batchSize);
-            const results = await Promise.allSettled(batch.map(r =>
-                convos.deleteForAll(r.requestData)
-                    .then(res => ({ ok: true, res, id: r.id }))
-                    .catch(err => ({ ok: false, err, id: r.id }))
-                    .finally(() => updateProgress())
-            ));
-
-            for (const r of results) {
-                const val = r.value || r.reason;
-                if (r.status === 'fulfilled' && val?.ok) {
-                    successful.push({ id: val.id, value: val.res });
-                } else {
-                    const vv = r.status === 'fulfilled' ? r.value : r.reason;
-                    failed.push({
-                        id: vv?.id,
-                        reason: (vv?.err?.message || vv?.err || 'Unknown error'),
-                        status: vv?.err?.status
-                    });
-                }
-            }
-
-            // Delay between batches if not cancelled
-            if (i + batchSize < requests.length && !deleteConvosCancelFlags.get(senderId)) {
-                await new Promise(r => setTimeout(r, timeDelay));
-            }
-        }
+        const response = await canvasRateLimitedHandler(requests, {
+            maxConcurrent,
+            baseDelayMs,
+            jitterMs,
+            maxRetries,
+            isCancelled: () => deleteConvosCancelFlags.get(senderId) === true
+        }, mainWindow);
 
         const cancelled = deleteConvosCancelFlags.get(senderId) === true;
         deleteConvosCancelFlags.delete(senderId);
 
         logDebug('[axios:deleteConvos] Complete', {
-            successful: successful.length,
-            failed: failed.length,
+            successful: response.successful.length,
+            failed: response.failed.length,
             cancelled
         });
 
-        return { successful, failed, cancelled };
+        return { ...response, cancelled };
     });
 
     // Cancel conversation deletion

@@ -304,7 +304,7 @@ app.whenReady().then(() => {
     registerAIAssistantHandlers();
 
     // Conversation handlers
-    registerConversationHandlers(ipcMain, logDebug, mainWindow);
+    registerConversationHandlers(ipcMain, logDebug, mainWindow, getBatchConfig);
 
     // Communication channel handlers
     registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConfig);
