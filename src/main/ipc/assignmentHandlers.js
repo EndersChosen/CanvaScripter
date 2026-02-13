@@ -651,8 +651,20 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
     ipcMain.handle('axios:moveAssignmentsToSingleGroup', async (event, data) => {
         console.log('assignmentHandlers.js > moveAssignmentsToSingleGroup');
 
+        const operationId = data.operationId || null;
+        if (operationId) {
+            operationCancelFlags.set(operationId, false);
+        }
+
         let completedRequests = 0;
-        let totalRequests = data.number;
+        let totalRequests = Number(data.number) || 0;
+
+        if (totalRequests <= 0 || !Array.isArray(data.assignments) || data.assignments.length === 0) {
+            if (operationId) {
+                operationCancelFlags.delete(operationId);
+            }
+            return { successful: [], failed: [] };
+        }
 
         const updateProgress = () => {
             completedRequests++;
@@ -664,7 +676,12 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
                 const response = await assignments.moveAssignmentToGroup(requestData);
                 return response;
             } catch (error) {
-                throw `status code ${error.status} - ${error.message}`;
+                const status = error?.status || error?.response?.status || null;
+                const message = error?.message || 'Unknown error';
+                const wrappedError = new Error(`status code ${status || 'unknown'} - ${message}`);
+                if (status) wrappedError.status = status;
+                if (error?.code) wrappedError.code = error.code;
+                throw wrappedError;
             } finally {
                 updateProgress();
             }
@@ -683,8 +700,26 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             requestCounter++;
         }
 
-        const batchResponse = await batchHandler(requests, getBatchConfig());
-        return batchResponse;
+        const isCancelled = operationId ? () => operationCancelFlags.get(operationId) === true : null;
+
+        try {
+            const batchResponse = await batchHandler(requests, {
+                ...getBatchConfig(),
+                isCancelled,
+                operationId
+            });
+
+            const wasCancelled = operationId && operationCancelFlags.get(operationId) === true;
+            return {
+                ...batchResponse,
+                cancelled: !!wasCancelled,
+                operationId
+            };
+        } finally {
+            if (operationId) {
+                operationCancelFlags.delete(operationId);
+            }
+        }
     });
 
     /**

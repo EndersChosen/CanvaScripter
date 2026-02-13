@@ -3383,6 +3383,9 @@ function moveAssignmentsToSingleGroup(e) {
                              aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                         </div>
                     </div>
+                    <button id="cancel-move-assignments-btn" type="button" class="btn btn-sm btn-warning mt-2" hidden>
+                        <i class="bi bi-x-circle me-1"></i>Cancel Move
+                    </button>
                 </div>
             </div>
             
@@ -3412,11 +3415,36 @@ function moveAssignmentsToSingleGroup(e) {
         // Simple numeric validation for optional group input
         const groupIdInput = moveAssignmentsForm.querySelector('#move-group-id');
         const groupChecker = moveAssignmentsForm.querySelector('#group-checker');
+        const courseChecker = moveAssignmentsForm.querySelector('#input-checker');
         const moveBtnRef = moveAssignmentsForm.querySelector('#action-btn');
+        const cancelMoveBtn = moveAssignmentsForm.querySelector('#cancel-move-assignments-btn');
+        const isWholeNumber = (value) => /^\d+$/.test(value);
+        let moveOperationId = null;
+        let unsubscribeMoveProgress = null;
+
+        cancelMoveBtn.addEventListener('click', async () => {
+            if (!moveOperationId || cancelMoveBtn.disabled) {
+                return;
+            }
+
+            const magProgressInfo = moveAssignmentsForm.querySelector('#mag-progress-info');
+            cancelMoveBtn.disabled = true;
+            cancelMoveBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Cancelling...';
+            magProgressInfo.innerHTML = 'Cancelling move operation...';
+
+            try {
+                await window.axios.cancelOperation(moveOperationId);
+            } catch (cancelErr) {
+                console.error('Error cancelling move operation:', cancelErr);
+                cancelMoveBtn.disabled = false;
+                cancelMoveBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel Move';
+            }
+        });
+
         groupIdInput.addEventListener('input', (ev) => {
             const val = groupIdInput.value.trim();
             const hasVal = val !== '';
-            const isNum = !isNaN(Number(val));
+            const isNum = isWholeNumber(val);
             if (hasVal && !isNum) {
                 groupChecker.style.display = 'inline';
                 moveBtnRef.disabled = true;
@@ -3441,6 +3469,29 @@ function moveAssignmentsToSingleGroup(e) {
             const magProgressDiv = moveAssignmentsForm.querySelector('#mag-progress-div');
             const magProgressBar = magProgressDiv.querySelector('.progress-bar');
             const magProgressInfo = moveAssignmentsForm.querySelector('#mag-progress-info');
+            const courseValue = courseID.value.trim();
+            const manualGroup = groupIdInput.value.trim();
+
+            if (!isWholeNumber(courseValue)) {
+                if (courseChecker) {
+                    courseChecker.classList.remove('d-none');
+                    courseChecker.style.display = 'inline';
+                }
+                checkBtn.disabled = false;
+                return;
+            }
+
+            if (manualGroup !== '' && !isWholeNumber(manualGroup)) {
+                groupChecker.style.display = 'inline';
+                checkBtn.disabled = false;
+                return;
+            }
+
+            if (courseChecker) {
+                courseChecker.classList.add('d-none');
+                courseChecker.style.display = 'none';
+            }
+            groupChecker.style.display = 'none';
 
             // clean environment
             magResponseContainer.innerHTML = '';
@@ -3453,7 +3504,7 @@ function moveAssignmentsToSingleGroup(e) {
             const data = {
                 domain: domain,
                 token: apiToken,
-                course: courseID.value.trim()
+                course: courseValue
             }
 
             let assignments = [];
@@ -3480,8 +3531,7 @@ function moveAssignmentsToSingleGroup(e) {
                 }
 
                 // Use manual group id if provided and numeric, otherwise default to first assignment's group
-                const manualGroup = groupIdInput.value.trim();
-                const isManualOverride = !isNaN(Number(manualGroup)) && manualGroup !== '';
+                const isManualOverride = manualGroup !== '';
                 let assignmentGroupId = isManualOverride
                     ? manualGroup
                     : assignments[0].assignmentGroupId;
@@ -3507,7 +3557,7 @@ function moveAssignmentsToSingleGroup(e) {
                     const groupData = {
                         domain: domain,
                         token: apiToken,
-                        course: courseID.value.trim(),
+                        course: courseValue,
                         groupId: assignmentGroupId
                     };
                     assignmentGroupDetails = await window.axios.getAssignmentGroupById(groupData);
@@ -3532,7 +3582,7 @@ function moveAssignmentsToSingleGroup(e) {
                             Could not find assignment group with ID <strong>${assignmentGroupId}</strong> in this course.
                         </p>
                         ${isManualOverride ?
-                            `<hr><p class="mb-0 small"><i class="bi bi-info-circle me-1"></i>Please check that the assignment group ID is correct and belongs to course ${courseID.value.trim()}.</p>`
+                            `<hr><p class="mb-0 small"><i class="bi bi-info-circle me-1"></i>Please check that the assignment group ID is correct and belongs to course ${courseValue}.</p>`
                             : `<hr><p class="mb-0 small"><i class="bi bi-info-circle me-1"></i>The first assignment references a group that doesn't exist. Please manually specify a valid assignment group ID.</p>`
                         }
                     </div>
@@ -3672,8 +3722,13 @@ function moveAssignmentsToSingleGroup(e) {
                     // Show progress card
                     magProgressDiv.hidden = false;
                     magProgressBar.parentElement.hidden = false;
+                    cancelMoveBtn.hidden = false;
+                    cancelMoveBtn.disabled = false;
+                    cancelMoveBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel Move';
                     updateProgressWithPercent(magProgressBar, 0);
                     magProgressInfo.innerHTML = `Moving ${assignmentsToMove.length} assignment${assignmentsToMove.length !== 1 ? 's' : ''} to ${assignmentGroupName}...`;
+
+                    moveOperationId = `move-assignments-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
                     // const messageData = {
                     //     url: `https://${domain}/api/v1/courses/${courseID}/assignments`,
@@ -3682,28 +3737,189 @@ function moveAssignmentsToSingleGroup(e) {
                     // }
 
                     const messageData = {
-                        url: `https://${domain}/api/v1/courses/${courseID.value.trim()}/assignments`,
+                        url: `https://${domain}/api/v1/courses/${courseValue}/assignments`,
                         token: apiToken,
                         number: assignmentsToMove.length,
                         assignments: assignmentsToMove,
-                        groupID: assignmentGroupId
+                        groupID: assignmentGroupId,
+                        operationId: moveOperationId
                     }
 
-                    window.progressAPI.onUpdateProgress((progress) => {
+                    if (typeof unsubscribeMoveProgress === 'function') {
+                        try { unsubscribeMoveProgress(); } catch { }
+                    }
+
+                    unsubscribeMoveProgress = window.progressAPI.onUpdateProgress((progress) => {
                         updateProgressWithPercent(magProgressBar, progress);
                     });
 
+                    const runEmptyGroupCleanupPrompt = async () => {
+                        try {
+                            const emptyGroups = await window.axios.getEmptyAssignmentGroups({
+                                domain,
+                                course: courseValue,
+                                token: apiToken
+                            });
+
+                            if (!Array.isArray(emptyGroups) || emptyGroups.length === 0) {
+                                return;
+                            }
+
+                            const promptId = `mag-empty-groups-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                            const groupCount = emptyGroups.length;
+                            const groupLabel = groupCount === 1 ? 'group' : 'groups';
+
+                            const promptCard = document.createElement('div');
+                            promptCard.className = 'card mt-3 border-warning';
+                            promptCard.innerHTML = `
+                                <div class="card-header bg-warning-subtle">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-exclamation-triangle me-2"></i>Empty Assignment Groups Found
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-2">
+                                        Found <strong>${groupCount}</strong> empty assignment ${groupLabel} after moving assignments.
+                                    </p>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="${promptId}-select-all" checked>
+                                            <label class="form-check-label" for="${promptId}-select-all">
+                                                <strong>Select all empty groups for deletion</strong>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="border rounded p-3 small text-muted mb-3" style="max-height: 220px; overflow-y: auto; background-color: #f8f9fa;">
+                                        ${emptyGroups.map((group, index) => `
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input ${promptId}-group-checkbox" type="checkbox" value="${group._id}" id="${promptId}-group-${index}" checked>
+                                                <label class="form-check-label" for="${promptId}-group-${index}">
+                                                    <strong>${group.name || 'Unnamed Group'}</strong>
+                                                    <span class="text-muted">(ID: ${group._id})</span>
+                                                </label>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                    <div id="${promptId}-selection" class="small text-muted mb-3"></div>
+                                    <div class="d-flex gap-2 justify-content-end">
+                                        <button id="${promptId}-keep" type="button" class="btn btn-sm btn-secondary">Keep Groups</button>
+                                        <button id="${promptId}-delete" type="button" class="btn btn-sm btn-danger">Delete Selected</button>
+                                    </div>
+                                    <div id="${promptId}-status" class="mt-2"></div>
+                                </div>
+                            `;
+
+                            magResponseContainer.appendChild(promptCard);
+
+                            const keepBtn = promptCard.querySelector(`#${promptId}-keep`);
+                            const deleteBtn = promptCard.querySelector(`#${promptId}-delete`);
+                            const statusDiv = promptCard.querySelector(`#${promptId}-status`);
+                            const selectAllCheckbox = promptCard.querySelector(`#${promptId}-select-all`);
+                            const selectionText = promptCard.querySelector(`#${promptId}-selection`);
+                            const groupCheckboxes = promptCard.querySelectorAll(`.${promptId}-group-checkbox`);
+
+                            const updateSelectionState = () => {
+                                const checkedBoxes = Array.from(groupCheckboxes).filter(cb => cb.checked);
+                                const totalBoxes = groupCheckboxes.length;
+
+                                selectAllCheckbox.indeterminate = checkedBoxes.length > 0 && checkedBoxes.length < totalBoxes;
+                                selectAllCheckbox.checked = checkedBoxes.length === totalBoxes;
+
+                                if (checkedBoxes.length === 0) {
+                                    selectionText.textContent = 'No groups selected';
+                                    deleteBtn.disabled = true;
+                                    deleteBtn.textContent = 'Delete Selected';
+                                } else {
+                                    selectionText.textContent = `${checkedBoxes.length} of ${totalBoxes} groups selected`;
+                                    deleteBtn.disabled = false;
+                                    deleteBtn.textContent = `Delete ${checkedBoxes.length} Group${checkedBoxes.length === 1 ? '' : 's'}`;
+                                }
+                            };
+
+                            selectAllCheckbox.addEventListener('change', () => {
+                                const isChecked = selectAllCheckbox.checked;
+                                groupCheckboxes.forEach(cb => cb.checked = isChecked);
+                                updateSelectionState();
+                            });
+
+                            groupCheckboxes.forEach(cb => {
+                                cb.addEventListener('change', updateSelectionState);
+                            });
+
+                            updateSelectionState();
+
+                            keepBtn.addEventListener('click', () => {
+                                promptCard.remove();
+                                const keptNotice = document.createElement('div');
+                                keptNotice.className = 'alert alert-secondary mt-3 mb-0';
+                                keptNotice.innerHTML = '<i class="bi bi-info-circle me-2"></i>Empty assignment groups were kept.';
+                                magResponseContainer.appendChild(keptNotice);
+                            });
+
+                            deleteBtn.addEventListener('click', async () => {
+                                const selectedIds = Array.from(groupCheckboxes)
+                                    .filter(cb => cb.checked)
+                                    .map(cb => cb.value);
+
+                                if (selectedIds.length === 0) {
+                                    return;
+                                }
+
+                                keepBtn.disabled = true;
+                                deleteBtn.disabled = true;
+                                selectAllCheckbox.disabled = true;
+                                groupCheckboxes.forEach(cb => cb.disabled = true);
+                                statusDiv.innerHTML = `<small class="text-muted">Deleting ${selectedIds.length} selected empty assignment group${selectedIds.length === 1 ? '' : 's'}...</small>`;
+
+                                let deletedCount = 0;
+                                let failedCount = 0;
+
+                                for (const groupId of selectedIds) {
+                                    try {
+                                        await window.axios.deleteEmptyAssignmentGroups({
+                                            domain: `https://${domain}/api/v1/courses/${courseValue}/assignment_groups`,
+                                            groupID: groupId,
+                                            token: apiToken
+                                        });
+                                        deletedCount++;
+                                    } catch (deleteErr) {
+                                        console.error(`Failed to delete empty assignment group ${groupId}:`, deleteErr);
+                                        failedCount++;
+                                    }
+                                }
+
+                                promptCard.remove();
+
+                                const resultNotice = document.createElement('div');
+                                resultNotice.className = `alert mt-3 mb-0 ${failedCount > 0 ? 'alert-warning' : 'alert-success'}`;
+                                resultNotice.innerHTML = failedCount > 0
+                                    ? `<i class="bi bi-exclamation-triangle me-2"></i>Deleted ${deletedCount} empty assignment ${deletedCount === 1 ? 'group' : 'groups'}, failed to delete ${failedCount}.`
+                                    : `<i class="bi bi-check-circle me-2"></i>Deleted ${deletedCount} empty assignment ${deletedCount === 1 ? 'group' : 'groups'}.`;
+                                magResponseContainer.appendChild(resultNotice);
+                            });
+                        } catch (emptyGroupErr) {
+                            console.error('Error checking for empty assignment groups after move:', emptyGroupErr);
+                            const warn = document.createElement('div');
+                            warn.className = 'alert alert-warning mt-3 mb-0';
+                            warn.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>Move completed, but checking for empty assignment groups failed.';
+                            magResponseContainer.appendChild(warn);
+                        }
+                    };
+
                     try {
                         const moveAssignmentsToSingleGroup = await window.axios.moveAssignmentsToSingleGroup(messageData);
-                        const { successful, failed } = moveAssignmentsToSingleGroup;
+                        const { successful, failed, cancelled } = moveAssignmentsToSingleGroup;
 
                         magProgressDiv.hidden = true;
+                        cancelMoveBtn.hidden = true;
                         magProgressInfo.innerHTML = '';
                         const resultCard = createResultCard(
                             'Move Assignments Results',
-                            `Successfully moved ${successful.length} assignment${successful.length !== 1 ? 's' : ''}${failed.length > 0 ? `, failed to move ${failed.length} assignment${failed.length !== 1 ? 's' : ''}` : ''}`,
+                            cancelled
+                                ? `Move cancelled. Successfully moved ${successful.length} assignment${successful.length !== 1 ? 's' : ''}${failed.length > 0 ? `, failed to move ${failed.length} assignment${failed.length !== 1 ? 's' : ''}` : ''}`
+                                : `Successfully moved ${successful.length} assignment${successful.length !== 1 ? 's' : ''}${failed.length > 0 ? `, failed to move ${failed.length} assignment${failed.length !== 1 ? 's' : ''}` : ''}`,
                             failed,
-                            failed.length > 0 ? 'danger' : 'success'
+                            cancelled ? 'warning' : (failed.length > 0 ? 'danger' : 'success')
                         );
 
                         // Clear and update the response container
@@ -3711,13 +3927,23 @@ function moveAssignmentsToSingleGroup(e) {
                         magResponseContainer.appendChild(resultCard);
                         magResponseContainerCard.hidden = false;
 
+                        if (successful.length > 0) {
+                            await runEmptyGroupCleanupPrompt();
+                        }
+
                         checkBtn.disabled = false;
                     } catch (err) {
                         magProgressDiv.hidden = true;
+                        cancelMoveBtn.hidden = true;
                         magResponseContainer.innerHTML = '';
                         magResponseContainerCard.hidden = false;
                         errorHandler(err, magProgressInfo, magResponseContainer)
                     } finally {
+                        if (typeof unsubscribeMoveProgress === 'function') {
+                            try { unsubscribeMoveProgress(); } catch { }
+                            unsubscribeMoveProgress = null;
+                        }
+                        moveOperationId = null;
                         checkBtn.disabled = false;
                     }
                 });
