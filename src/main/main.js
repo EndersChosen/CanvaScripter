@@ -31,6 +31,8 @@ const { registerCourseHandlers, cleanupCourseState } = require('./ipc/courseHand
 const { registerContentHandlers, cleanupContentState } = require('./ipc/contentHandlers');
 const { registerSettingsHandlers } = require('./ipc/settingsHandlers');
 const { registerAIAssistantHandlers } = require('./ipc/aiAssistantHandlers');
+const { registerEnrollmentHandlers, cleanupEnrollmentState } = require('./ipc/enrollmentHandlers');
+const { registerPermissionsHandlers, cleanupPermissionsState } = require('./ipc/permissionsHandlers');
 
 // Import security and state management
 const {
@@ -107,6 +109,8 @@ function createWindow() {
         cleanupAssignmentState(rendererId);
         cleanupCourseState(rendererId);
         cleanupContentState(rendererId);
+        cleanupEnrollmentState(rendererId);
+        cleanupPermissionsState(rendererId);
         StateManager.cleanupRenderer(rendererId);
     });
 
@@ -314,8 +318,14 @@ app.whenReady().then(() => {
     // Content handlers (discussions, pages, etc.)
     registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig);
 
+    // Enrollment handlers
+    registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig);
+
+    // Permissions handlers
+    registerPermissionsHandlers(ipcMain, logDebug, getBatchConfig);
+
     logDebug('All IPC handlers registered successfully');
-    console.log('✓ Phase 2 Migration Complete: All 86 handlers registered via modular system');
+    console.log('✓ Phase 2 Migration Complete: All 88 handlers registered via modular system');
 
     // Open external URL handler
     ipcMain.on('open-external-url', (event, url) => {

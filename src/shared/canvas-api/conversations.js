@@ -70,6 +70,7 @@ async function getConversationsGraphQL(data) {
     const subject = data.subject;
     const user = data.user_id;
     const signal = data.signal;
+    const onProgress = data.onProgress; // Progress callback
 
     const query = `
             query getMessages($userID: ID!, $nextPage: String) {
@@ -94,6 +95,19 @@ async function getConversationsGraphQL(data) {
                                                 userId
                                             }
                                         }
+                                    }
+                                }
+                                messages(first: 5) {
+                                    nodes {
+                                        attachments {
+                                            _id
+                                            displayName
+                                        }
+                                    }
+                                    pageInfo {
+                                        hasNextPage
+                                        endCursor
+                                        startCursor
                                     }
                                 }
                             }
@@ -123,7 +137,16 @@ async function getConversationsGraphQL(data) {
 
     let sentMessages = [];
     let nextPage = true;
+    let pageNumber = 0;
+
     while (nextPage) {
+        pageNumber++;
+
+        // Send progress update with current page number
+        if (onProgress && typeof onProgress === 'function') {
+            onProgress({ page: pageNumber });
+        }
+
         try {
             const request = async () => {
                 return await axios(axiosConfig);
@@ -132,11 +155,25 @@ async function getConversationsGraphQL(data) {
             const response = await errorCheck(request);
             const data = response.data.data.legacyNode.conversationsConnection;
 
-            sentMessages.push(...data.nodes.map((conversation) => {
+            sentMessages.push(...data.nodes.map((node) => {
+                // Extract attachments from messages
+                const attachments = [];
+                if (node.messages && node.messages.nodes) {
+                    for (const message of node.messages.nodes) {
+                        if (message.attachments) {
+                            attachments.push(...message.attachments.map(att => ({
+                                id: att._id,
+                                displayName: att.displayName
+                            })));
+                        }
+                    }
+                }
+
                 return {
-                    subject: conversation.conversation.subject,
-                    id: conversation.conversation._id,
-                    users: conversation.conversation.conversationParticipantsConnection.edges.map(edge => edge.node.userId)
+                    subject: node.conversation.subject,
+                    id: node.conversation._id,
+                    users: node.conversation.conversationParticipantsConnection.edges.map(edge => edge.node.userId),
+                    attachments: attachments
                 };
             }).filter((message) => {
                 return message.subject === subject;
@@ -565,7 +602,7 @@ async function getDeletedConversations(data) {
                 throw e;
             }
             // Check for SSL certificate mismatch (common typo in domain)
-            if (err?.code === 'ERR_TLS_CERT_ALTNAME_INVALID' || 
+            if (err?.code === 'ERR_TLS_CERT_ALTNAME_INVALID' ||
                 (err?.message && err.message.includes("does not match certificate's altnames"))) {
                 throw new Error(`Domain name error: The domain "${domain}" appears to be incorrect or contains a typo. Please verify the spelling (common mistake: "instructuer.com" instead of "instructure.com").`);
             }
@@ -714,7 +751,7 @@ async function restoreConversation({ domain, token, user_id, message_id, convers
         return response.data;
     } catch (err) {
         // Check for SSL certificate mismatch (common typo in domain)
-        if (err?.code === 'ERR_TLS_CERT_ALTNAME_INVALID' || 
+        if (err?.code === 'ERR_TLS_CERT_ALTNAME_INVALID' ||
             (err?.message && err.message.includes("does not match certificate's altnames"))) {
             throw new Error(`Domain name error: The domain "${domain}" appears to be incorrect or contains a typo. Please verify the spelling (common mistake: "instructuer.com" instead of "instructure.com").`);
         }

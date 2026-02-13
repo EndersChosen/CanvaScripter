@@ -106,7 +106,20 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
             const controller = new AbortController();
             getConvosControllers.set(senderId, controller);
 
-            const sentMessages = await convos.getConversationsGraphQL({ ...data, signal: controller.signal });
+            // Progress callback to send updates to renderer
+            const onProgress = (progressData) => {
+                try {
+                    event.sender.send('update-progress', progressData);
+                } catch (err) {
+                    logDebug('[axios:getConvos] Progress send error', { error: err.message });
+                }
+            };
+
+            const sentMessages = await convos.getConversationsGraphQL({
+                ...data,
+                signal: controller.signal,
+                onProgress
+            });
 
             // Clean up if still the active controller
             if (getConvosControllers.get(senderId) === controller) {
@@ -367,7 +380,48 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow) {
         }
     });
 
-    logDebug('[conversationHandlers] 9 conversation handlers registered');
+    // Delete files
+    ipcMain.handle('axios:deleteFiles', async (event, data) => {
+        logDebug('[axios:deleteFiles] Starting file deletion', { count: data.files?.length });
+        const senderId = event.sender.id;
+
+        const axios = require('axios');
+        const files = Array.isArray(data.files) ? data.files : [];
+
+        const deleteFile = async (fileId) => {
+            const url = `https://${data.domain}/api/v1/files/${fileId}?replace=true`;
+            const response = await axios.delete(url, {
+                headers: { 'Authorization': `Bearer ${data.token}` }
+            });
+            return response.data;
+        };
+
+        const successful = [];
+        const failed = [];
+
+        for (const file of files) {
+            try {
+                const result = await deleteFile(file.id);
+                successful.push({ id: file.id, name: file.name, value: result });
+            } catch (err) {
+                failed.push({
+                    id: file.id,
+                    name: file.name,
+                    reason: err?.response?.data?.message || err?.message || 'Unknown error',
+                    status: err?.response?.status
+                });
+            }
+        }
+
+        logDebug('[axios:deleteFiles] Complete', {
+            successful: successful.length,
+            failed: failed.length
+        });
+
+        return { successful, failed };
+    });
+
+    logDebug('[conversationHandlers] 10 conversation handlers registered');
 }
 
 /**

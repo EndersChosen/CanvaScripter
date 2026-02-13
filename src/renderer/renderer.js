@@ -314,6 +314,16 @@ function routeEndpointRequest(e, category) {
                 sectionsTemplate(e);
             }
             break;
+        case 'enrollments':
+            if (typeof enrollmentTemplate === 'function') {
+                enrollmentTemplate(e);
+            }
+            break;
+        case 'permissions':
+            if (typeof permissionsTemplate === 'function') {
+                permissionsTemplate(e);
+            }
+            break;
         case 'sis-imports':
             if (typeof sisImportsTemplate === 'function') {
                 sisImportsTemplate(e);

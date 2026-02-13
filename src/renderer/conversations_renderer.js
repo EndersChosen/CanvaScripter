@@ -1108,7 +1108,6 @@ async function deleteConvos(e) {
                     <hr class="my-3" />
                     <div class="row mt-2" id="dcs-delete-section" hidden>
                         <div class="col-auto"><button id="dcs-delete" type="button" class="btn btn-sm btn-danger" disabled>Delete Found</button></div>
-                        <div class="col-auto"><button id="dcs-cancel-delete" type="button" class="btn btn-sm btn-outline-secondary" disabled>Cancel</button></div>
                     </div>
                     <div hidden id="dcs-delete-progress-div" class="mt-2">
                         <p id="dcs-delete-progress-info"></p>
@@ -1131,7 +1130,6 @@ async function deleteConvos(e) {
     const searchProgressInfo = form.querySelector('#dcs-search-progress-info');
     const resultDiv = form.querySelector('#dcs-search-result');
     const deleteBtn = form.querySelector('#dcs-delete');
-    const cancelDeleteBtn = form.querySelector('#dcs-cancel-delete');
     const deleteProgressDiv = form.querySelector('#dcs-delete-progress-div');
     const deleteProgressBar = deleteProgressDiv.querySelector('.progress-bar');
     const deleteProgressInfo = form.querySelector('#dcs-delete-progress-info');
@@ -1152,7 +1150,27 @@ async function deleteConvos(e) {
         searchBtn.addEventListener('click', async (evt) => {
             evt.preventDefault(); evt.stopPropagation();
 
-            searchBtn.disabled = true; cancelSearchBtn.disabled = false; deleteBtn.disabled = true; resultDiv.innerHTML = '';
+            // Re-query cancel button (in case it was replaced by Clear functionality)
+            const currentCancelBtn = form.querySelector('#dcs-cancel-search');
+
+            // Reset cancel button to cancel-search state
+            currentCancelBtn.disabled = false;
+            currentCancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
+            currentCancelBtn.classList.remove('btn-outline-secondary');
+            currentCancelBtn.classList.add('btn-outline-danger');
+
+            searchBtn.disabled = true; deleteBtn.disabled = true; resultDiv.innerHTML = '';
+
+            // Clear any existing deletion summary cards from previous operations
+            const deletionSummary = deleteProgressDiv.nextElementSibling;
+            if (deletionSummary && (deletionSummary.classList.contains('card') || deletionSummary.classList.contains('alert'))) {
+                deletionSummary.remove();
+            }
+
+            // Hide delete section for new search
+            const deleteSection = document.getElementById('dcs-delete-section');
+            if (deleteSection) deleteSection.hidden = true;
+
             searchProgressDiv.hidden = false; searchProgressInfo.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Searching for conversations...';
 
             const domain = document.querySelector('#domain').value.trim();
@@ -1160,12 +1178,39 @@ async function deleteConvos(e) {
             const user_id = userInput.value.trim();
             const subject = subjectInput.value;
             let cancelled = false;
-            const onCancel = async () => { cancelSearchBtn.disabled = true; try { await window.axios.cancelGetConvos(); } catch { } cancelled = true; searchProgressInfo.textContent = 'Cancelling search...'; };
-            cancelSearchBtn.addEventListener('click', onCancel, { once: true });
+            const onCancel = async () => { currentCancelBtn.disabled = true; try { await window.axios.cancelGetConvos(); } catch { } cancelled = true; searchProgressInfo.textContent = 'Cancelling search...'; };
+            currentCancelBtn.addEventListener('click', onCancel, { once: true });
+
+            // Set up progress listener for page-by-page updates
+            if (window.progressAPI) {
+                window.progressAPI.onUpdateProgress((progress) => {
+                    if (progress && progress.page) {
+                        searchProgressInfo.innerHTML = `<i class="bi bi-arrow-repeat spin"></i> Searching for conversations... (page ${progress.page}${progress.total ? ` of ${progress.total}` : ''})`;
+                    } else if (progress && typeof progress === 'object' && progress.message) {
+                        searchProgressInfo.innerHTML = `<i class="bi bi-arrow-repeat spin"></i> ${progress.message}`;
+                    } else if (progress && typeof progress === 'string') {
+                        searchProgressInfo.innerHTML = `<i class="bi bi-arrow-repeat spin"></i> ${progress}`;
+                    }
+                });
+            }
 
             try {
                 foundMessages = await window.axios.getConvos({ domain, token, user_id, subject });
                 const count = Array.isArray(foundMessages) ? foundMessages.length : 0;
+
+                // Count unique attachments (deduplicate by file ID)
+                let totalAttachments = 0;
+                const uniqueFileIds = new Set();
+                if (Array.isArray(foundMessages)) {
+                    foundMessages.forEach(msg => {
+                        if (msg.attachments && Array.isArray(msg.attachments)) {
+                            msg.attachments.forEach(att => {
+                                uniqueFileIds.add(att.id);
+                            });
+                        }
+                    });
+                    totalAttachments = uniqueFileIds.size;
+                }
 
                 // Clear previous results
                 resultDiv.innerHTML = '';
@@ -1178,6 +1223,51 @@ async function deleteConvos(e) {
                 } else if (count > 0) {
                     const resultCard = document.createElement('div');
                     resultCard.className = 'card border-primary';
+
+                    let attachmentsHTML = '';
+                    if (totalAttachments > 0) {
+                        // Build deduplicated list of attachments for display
+                        const uniqueAttachments = new Map();
+                        foundMessages.forEach(msg => {
+                            if (msg.attachments && Array.isArray(msg.attachments)) {
+                                msg.attachments.forEach(att => {
+                                    if (!uniqueAttachments.has(att.id)) {
+                                        uniqueAttachments.set(att.id, { id: att.id, displayName: att.displayName });
+                                    }
+                                });
+                            }
+                        });
+                        const attachmentsList = Array.from(uniqueAttachments.values());
+
+                        attachmentsHTML = `
+                            <div class="mt-3">
+                                <h6 class="text-primary" style="font-size: 0.95rem;"><i class="bi bi-paperclip me-1"></i>File Attachments (${totalAttachments} unique)</h6>
+                                <div class="form-text mb-2">Select files to delete along with conversations:</div>
+                                <div class="border rounded p-2" style="max-height: 300px; overflow-y: auto; background-color: #f8f9fa;">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="select-all-attachments">
+                                        <label class="form-check-label fw-bold" for="select-all-attachments" style="font-size: 0.85rem;">
+                                            Select All
+                                        </label>
+                                    </div>
+                                    <hr class="my-2">
+                                    ${attachmentsList.map((att, attIdx) => `
+                                        <div class="form-check ms-3">
+                                            <input class="form-check-input attachment-checkbox" type="checkbox" 
+                                                id="att-${attIdx}" 
+                                                data-file-id="${att.id}" 
+                                                data-file-name="${att.displayName}">
+                                            <label class="form-check-label" for="att-${attIdx}" style="font-size: 0.8rem;">
+                                                <i class="bi bi-file-earmark me-1"></i>${att.displayName} 
+                                                <span class="text-muted">(ID: ${att.id})</span>
+                                            </label>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+
                     resultCard.innerHTML = `
                         <div class="card-header bg-primary text-white">
                             <h5 class="card-title mb-0" style="font-size: 1rem;">
@@ -1186,10 +1276,105 @@ async function deleteConvos(e) {
                         </div>
                         <div class="card-body">
                             <p class="mb-0">Found <strong>${count}</strong> conversation(s) with subject: "<em>${subject}</em>"</p>
-                            <div class="form-text mt-1">Click "Delete Found" below to delete these conversations for all recipients.</div>
+                            ${totalAttachments > 0 ? `<p class="mb-0 mt-1 text-muted" style="font-size: 0.85rem;"><i class="bi bi-paperclip me-1"></i>${totalAttachments} unique file attachment(s) found</p>` : ''}
+                            ${attachmentsHTML}
+                            <div class="form-text mt-2">Click "Delete Found" below to delete these conversations for all recipients.</div>
+                            <div class="mt-2 d-flex gap-2">
+                                <button id="dcs-download-csv" type="button" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-download me-1"></i>Download Conversation IDs (CSV)
+                                </button>
+                                ${totalAttachments > 0 ? `
+                                <button id="dcs-download-files-csv" type="button" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-file-earmark-arrow-down me-1"></i>Download File IDs (CSV)
+                                </button>
+                                ` : ''}
+                            </div>
                         </div>
                     `;
                     resultDiv.appendChild(resultCard);
+
+                    // Set up select-all checkbox handler
+                    const selectAllCheckbox = resultCard.querySelector('#select-all-attachments');
+                    const attachmentCheckboxes = resultCard.querySelectorAll('.attachment-checkbox');
+
+                    if (selectAllCheckbox) {
+                        selectAllCheckbox.addEventListener('change', (e) => {
+                            attachmentCheckboxes.forEach(cb => cb.checked = e.target.checked);
+                        });
+
+                        attachmentCheckboxes.forEach(cb => {
+                            cb.addEventListener('change', () => {
+                                const allChecked = Array.from(attachmentCheckboxes).every(c => c.checked);
+                                const anyChecked = Array.from(attachmentCheckboxes).some(c => c.checked);
+                                selectAllCheckbox.checked = allChecked;
+                                selectAllCheckbox.indeterminate = anyChecked && !allChecked;
+                            });
+                        });
+                    }
+
+                    // Set up CSV download button
+                    const csvDownloadBtn = resultCard.querySelector('#dcs-download-csv');
+                    if (csvDownloadBtn) {
+                        csvDownloadBtn.addEventListener('click', async (e) => {
+                            e.preventDefault();
+                            try {
+                                // Create CSV content with conversation IDs
+                                const csvContent = 'conversation_id\n' + foundMessages.map(msg => msg.id).join('\n');
+                                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                const url = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = `conversation_ids_${subject.replace(/[^a-z0-9]/gi, '_').substring(0, 30)}_${Date.now()}.csv`;
+                                link.click();
+                                URL.revokeObjectURL(url);
+                            } catch (err) {
+                                alert('Error downloading CSV: ' + err.message);
+                            }
+                        });
+                    }
+
+                    // Set up File IDs CSV download button
+                    const filesCsvDownloadBtn = resultCard.querySelector('#dcs-download-files-csv');
+                    if (filesCsvDownloadBtn && totalAttachments > 0) {
+                        filesCsvDownloadBtn.addEventListener('click', async (e) => {
+                            e.preventDefault();
+                            try {
+                                // Collect all file attachments and deduplicate by file ID
+                                const fileMap = new Map();
+                                foundMessages.forEach(msg => {
+                                    if (msg.attachments && Array.isArray(msg.attachments)) {
+                                        msg.attachments.forEach(att => {
+                                            // Only add if we haven't seen this file ID before
+                                            if (!fileMap.has(att.id)) {
+                                                fileMap.set(att.id, { id: att.id, name: att.displayName });
+                                            }
+                                        });
+                                    }
+                                });
+
+                                const allFiles = Array.from(fileMap.values());
+
+                                // Create CSV content with file IDs and names
+                                const rows = allFiles.map(file => {
+                                    // Escape quotes in file name and wrap in quotes if needed
+                                    const fileName = String(file.name || '').replace(/"/g, '""');
+                                    const needsQuotes = fileName.includes(',') || fileName.includes('\n') || fileName.includes('"');
+                                    return `${file.id},${needsQuotes || fileName.includes(' ') ? `"${fileName}"` : fileName}`;
+                                });
+                                const csvContent = 'file_id,file_name\n' + rows.join('\n');
+
+                                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                const url = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = `file_ids_${subject.replace(/[^a-z0-9]/gi, '_').substring(0, 30)}_${Date.now()}.csv`;
+                                link.click();
+                                URL.revokeObjectURL(url);
+                            } catch (err) {
+                                alert('Error downloading file IDs CSV: ' + err.message);
+                            }
+                        });
+                    }
 
                     // Show delete section
                     const deleteSection = document.getElementById('dcs-delete-section');
@@ -1213,7 +1398,51 @@ async function deleteConvos(e) {
                 errorCard.innerHTML = `<strong>Error:</strong> ${err.message || 'An error occurred during search'}`;
                 resultDiv.appendChild(errorCard);
             } finally {
-                cancelSearchBtn.disabled = true; searchBtn.disabled = false; searchProgressDiv.hidden = true;
+                // Clean up progress listener
+                if (window.progressAPI?.removeAllProgressListeners) {
+                    window.progressAPI.removeAllProgressListeners();
+                }
+                searchBtn.disabled = false; searchProgressDiv.hidden = true;
+
+                // Keep cancel button enabled and repurpose it to clear results
+                const currentCancelBtn = form.querySelector('#dcs-cancel-search');
+                currentCancelBtn.disabled = false;
+                currentCancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Clear';
+                currentCancelBtn.classList.remove('btn-outline-danger');
+                currentCancelBtn.classList.add('btn-outline-secondary');
+
+                // Remove all event listeners by replacing the button
+                const newCancelBtn = currentCancelBtn.cloneNode(true);
+                currentCancelBtn.replaceWith(newCancelBtn);
+
+                // Add clear-results listener to the new button
+                newCancelBtn.addEventListener('click', () => {
+                    // Clear search results
+                    resultDiv.innerHTML = '';
+                    deleteBtn.disabled = true;
+
+                    // Hide delete section and progress
+                    const deleteSection = document.getElementById('dcs-delete-section');
+                    if (deleteSection) deleteSection.hidden = true;
+                    deleteProgressDiv.hidden = true;
+
+                    // Clear any deletion summary
+                    const deletionSummary = deleteProgressDiv.nextElementSibling;
+                    if (deletionSummary && (deletionSummary.classList.contains('card') || deletionSummary.classList.contains('alert'))) {
+                        deletionSummary.remove();
+                    }
+
+                    // Reset cancel button to default state
+                    newCancelBtn.disabled = true;
+                    newCancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
+                    newCancelBtn.classList.remove('btn-outline-secondary');
+                    newCancelBtn.classList.add('btn-outline-danger');
+
+                    // Reset foundMessages
+                    foundMessages = [];
+
+                    // Note: We intentionally DO NOT clear user ID and subject values
+                });
             }
         });
 
@@ -1223,8 +1452,19 @@ async function deleteConvos(e) {
             const domain = document.querySelector('#domain').value.trim();
             const token = document.querySelector('#token').value.trim();
 
-            deleteBtn.disabled = true; cancelDeleteBtn.disabled = false;
-            deleteProgressDiv.hidden = false; deleteProgressBar.style.width = '0%'; deleteProgressInfo.textContent = `Deleting ${foundMessages.length} conversation(s)...`;
+            // Collect selected file attachments
+            const selectedFiles = [];
+            const attachmentCheckboxes = resultDiv.querySelectorAll('.attachment-checkbox:checked');
+            attachmentCheckboxes.forEach(cb => {
+                selectedFiles.push({
+                    id: cb.dataset.fileId,
+                    name: cb.dataset.fileName
+                });
+            });
+
+            deleteBtn.disabled = true;
+            deleteProgressDiv.hidden = false; deleteProgressBar.style.width = '0%';
+            deleteProgressInfo.textContent = `Deleting ${foundMessages.length} conversation(s)${selectedFiles.length > 0 ? ` and ${selectedFiles.length} file(s)` : ''}...`;
 
             // progress listener
             if (window.progressAPI) {
@@ -1237,14 +1477,26 @@ async function deleteConvos(e) {
                 });
             }
 
-            let cancelled = false;
-            const onCancelDelete = async () => { cancelDeleteBtn.disabled = true; try { await window.axios.cancelDeleteConvos(); } catch { } cancelled = true; deleteProgressInfo.textContent = 'Cancelling deletion...'; };
-            cancelDeleteBtn.addEventListener('click', onCancelDelete, { once: true });
-
             try {
+                // Delete conversations first
                 const res = await window.axios.deleteConvos({ domain, token, messages: foundMessages });
-                const success = res?.successful?.length || 0;
-                const failed = res?.failed?.length || 0;
+                const convoSuccess = res?.successful?.length || 0;
+                const convoFailed = res?.failed?.length || 0;
+
+                // Delete selected files if any
+                let fileSuccess = 0;
+                let fileFailed = 0;
+                if (selectedFiles.length > 0) {
+                    deleteProgressInfo.textContent = `Deleting ${selectedFiles.length} file(s)...`;
+                    try {
+                        const fileRes = await window.axios.deleteFiles({ domain, token, files: selectedFiles });
+                        fileSuccess = fileRes?.successful?.length || 0;
+                        fileFailed = fileRes?.failed?.length || 0;
+                    } catch (err) {
+                        console.error('Error deleting files:', err);
+                        fileFailed = selectedFiles.length;
+                    }
+                }
 
                 // Hide progress, show summary card
                 deleteProgressDiv.hidden = true;
@@ -1252,19 +1504,27 @@ async function deleteConvos(e) {
                 const summaryCard = document.createElement('div');
                 summaryCard.className = 'card mt-2 border-success';
                 summaryCard.innerHTML = `
-                    <div class="card-header ${failed > 0 ? 'bg-warning' : 'bg-success'} text-white">
+                    <div class="card-header ${(convoFailed > 0 || fileFailed > 0) ? 'bg-warning' : 'bg-success'} text-white">
                         <h5 class="card-title mb-0" style="font-size: 1rem;">
-                            <i class="bi bi-${failed > 0 ? 'exclamation-triangle' : 'check-circle'} me-1"></i>Deletion ${cancelled ? 'Cancelled' : 'Complete'}
+                            <i class="bi bi-${(convoFailed > 0 || fileFailed > 0) ? 'exclamation-triangle' : 'check-circle'} me-1"></i>Deletion Complete
                         </h5>
                     </div>
                     <div class="card-body">
-                        <p><strong>Total Processed:</strong> <span class="badge bg-primary">${foundMessages.length}</span></p>
-                        <p><strong>Successfully Deleted:</strong> <span class="badge bg-success">${success}</span></p>
-                        ${failed > 0 ?
-                        `<p><strong>Failed:</strong> <span class="badge bg-danger">${failed}</span></p>` :
-                        '<p class="text-muted mb-0">All conversations deleted successfully!</p>'
-                    }
-                        ${cancelled ? '<p class="text-warning mb-0"><i class="bi bi-info-circle me-1"></i>Operation was cancelled.</p>' : ''}
+                        <p><strong>Conversations:</strong></p>
+                        <ul style="font-size: 0.85rem;">
+                            <li><strong>Total:</strong> <span class="badge bg-primary">${foundMessages.length}</span></li>
+                            <li><strong>Successfully Deleted:</strong> <span class="badge bg-success">${convoSuccess}</span></li>
+                            ${convoFailed > 0 ? `<li><strong>Failed:</strong> <span class="badge bg-danger">${convoFailed}</span></li>` : ''}
+                        </ul>
+                        ${selectedFiles.length > 0 ? `
+                            <p class="mt-2"><strong>File Attachments:</strong></p>
+                            <ul style="font-size: 0.85rem;">
+                                <li><strong>Total:</strong> <span class="badge bg-primary">${selectedFiles.length}</span></li>
+                                <li><strong>Successfully Deleted:</strong> <span class="badge bg-success">${fileSuccess}</span></li>
+                                ${fileFailed > 0 ? `<li><strong>Failed:</strong> <span class="badge bg-danger">${fileFailed}</span></li>` : ''}
+                            </ul>
+                        ` : ''}
+                        ${(convoFailed === 0 && fileFailed === 0) ? '<p class="text-success mb-0"><i class="bi bi-check-circle me-1"></i>All items deleted successfully!</p>' : ''}
                     </div>
                 `;
 
@@ -1287,7 +1547,7 @@ async function deleteConvos(e) {
                 }
                 deleteProgressDiv.parentNode.insertBefore(errorCard, deleteProgressDiv.nextSibling);
             } finally {
-                deleteBtn.disabled = false; cancelDeleteBtn.disabled = true;
+                deleteBtn.disabled = false;
             }
         });
         form.dataset.bound = 'true';

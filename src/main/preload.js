@@ -49,6 +49,10 @@ contextBridge.exposeInMainWorld('axios', {
     cancelDeleteConvos: async () => {
         return await ipcRenderer.invoke('axios:cancelDeleteConvos');
     },
+    deleteFiles: async (data) => {
+        console.log('inside deleteFiles');
+        return await ipcRenderer.invoke('axios:deleteFiles', data);
+    },
     checkCommChannel: async (data) => {
         console.log('inside preload checkCommChannel');
         return await ipcRenderer.invoke('axios:checkCommChannel', data);
@@ -201,6 +205,14 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('preload.js > cancelDeleteEmptyAssignmentGroups');
 
         return await ipcRenderer.invoke('axios:cancelDeleteEmptyAssignmentGroups');
+    },
+    bulkEnroll: async (data) => {
+        console.log('preload.js > bulkEnroll');
+        return await ipcRenderer.invoke('axios:bulkEnroll', data);
+    },
+    cancelBulkEnroll: async () => {
+        console.log('preload.js > cancelBulkEnroll');
+        return await ipcRenderer.invoke('axios:cancelBulkEnroll');
     },
     deleteTheThings: async (data) => {
         console.log('preload.js > deleteTheThings');
@@ -435,6 +447,22 @@ contextBridge.exposeInMainWorld('axios', {
     getCourseInfo: async (data) => {
         console.log('preload.js > getCourseInfo');
         return await ipcRenderer.invoke('axios:getCourseInfo', data);
+    },
+    matchPermissions: async (data) => {
+        console.log('preload.js > matchPermissions');
+        return await ipcRenderer.invoke('axios:matchPermissions', data);
+    },
+    cancelMatchPermissions: async () => {
+        console.log('preload.js > cancelMatchPermissions');
+        return await ipcRenderer.invoke('axios:cancelMatchPermissions');
+    },
+    enableDisableAllPermissions: async (data) => {
+        console.log('preload.js > enableDisableAllPermissions');
+        return await ipcRenderer.invoke('axios:enableDisableAllPermissions', data);
+    },
+    cancelEnableDisablePermissions: async () => {
+        console.log('preload.js > cancelEnableDisablePermissions');
+        return await ipcRenderer.invoke('axios:cancelEnableDisablePermissions');
     }
 });
 
@@ -507,6 +535,26 @@ contextBridge.exposeInMainWorld('progressAPI', {
     // Clear all progress listeners (useful when switching forms)
     removeAllProgressListeners: () => {
         ipcRenderer.removeAllListeners('update-progress');
+    },
+    // Subscribe to permissions matching progress
+    onPermissionsMatchProgress: (callback) => {
+        const handler = (_event, payload) => callback(payload);
+        ipcRenderer.on('permissions-match-progress', handler);
+        return () => ipcRenderer.removeListener('permissions-match-progress', handler);
+    },
+    // Clear permissions progress listeners
+    removePermissionsProgressListeners: () => {
+        ipcRenderer.removeAllListeners('permissions-match-progress');
+    },
+    // Subscribe to enable/disable permissions progress
+    onEnableDisableProgress: (callback) => {
+        const handler = (_event, payload) => callback(payload);
+        ipcRenderer.on('enable-disable-progress', handler);
+        return () => ipcRenderer.removeListener('enable-disable-progress', handler);
+    },
+    // Clear enable/disable progress listeners
+    removeEnableDisableProgressListeners: () => {
+        ipcRenderer.removeAllListeners('enable-disable-progress');
     }
 });
 
