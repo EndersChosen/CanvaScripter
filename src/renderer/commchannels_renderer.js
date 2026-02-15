@@ -1084,6 +1084,7 @@ function resetComm(e) {
     const resetPatternInput = resetCommForm.querySelector('#reset-pattern-input');
     const resetSingleDiv = resetCommForm.querySelector('#reset-single-div');
     const resetPatternDiv = resetCommForm.querySelector('#reset-pattern-div');
+    let patternResetCancelled = false;
 
     // Prevent duplicate event listeners by checking if already bound
     if (resetCommForm.dataset.boundEventListeners !== 'true') {
@@ -1139,7 +1140,7 @@ function resetComm(e) {
                     handleResetOptions(allBtns, uploadBtn);
                 }
                 // Cancel button is visible for pattern or upload modes
-                cancelBtn.hidden = !(document.querySelector('#reset-pattern-emails').checked || document.querySelector('#reset-upload-input').checked);
+                cancelBtn.hidden = !(resetCommForm.querySelector('#reset-pattern-emails').checked || resetCommForm.querySelector('#reset-upload-input').checked);
             }
 
         });
@@ -1269,6 +1270,7 @@ function resetComm(e) {
             resetPatternBtn.disabled = true;
             cancelBtn.hidden = false;
             cancelBtn.disabled = false;
+            patternResetCancelled = false;
 
             const domain = document.querySelector('#domain').value.trim();
             const token = document.querySelector('#token').value.trim();
@@ -1315,8 +1317,20 @@ function resetComm(e) {
             // When resetting bounce count canvas creates a job to schedule it
             // the bounce count isn't cleared until after the job is run
             try {
-                const response = await window.axios.resetCommChannelsByPattern(requestData);
-                const totalProcessed = Array.isArray(response) ? response.length : 0;
+                const rawResponse = await window.axios.resetCommChannelsByPattern(requestData);
+                if (patternResetCancelled) {
+                    progressCard.hidden = true;
+                    resultsCard.hidden = false;
+                    patternContainer.innerHTML = '<div class="alert alert-warning mb-0" role="alert"><i class="bi bi-exclamation-circle me-2"></i>Pattern reset was cancelled.</div>';
+                    return;
+                }
+
+                if (!Array.isArray(rawResponse)) {
+                    throw new Error('Unexpected response format from pattern reset endpoint.');
+                }
+
+                const response = rawResponse;
+                const totalProcessed = response.length;
 
                 // Hide progress, show results
                 progressCard.hidden = true;
@@ -1333,7 +1347,7 @@ function resetComm(e) {
                             </h5>
                         </div>
                         <div class="card-body">
-                            <p class="mb-2"><strong>Pattern:</strong> <code>${resetPattern}</code></p>
+                            <p class="mb-2"><strong>Pattern:</strong> <code id="reset-pattern-display"></code></p>
                             <p class="mb-3"><strong>Total Processed:</strong> <span class="badge bg-primary">${totalProcessed}</span> email(s)</p>
                 `;
 
@@ -1412,6 +1426,10 @@ function resetComm(e) {
 
                 // Set all HTML at once
                 patternContainer.innerHTML = htmlContent;
+                const patternDisplay = patternContainer.querySelector('#reset-pattern-display');
+                if (patternDisplay) {
+                    patternDisplay.textContent = resetPattern;
+                }
 
                 // Append download link as DOM element if failed emails exist
                 if (failedEmails.length > 0 && window.utilities?.createDownloadLink) {
@@ -1431,7 +1449,10 @@ function resetComm(e) {
             } catch (error) {
                 progressCard.hidden = true;
                 resultsCard.hidden = false;
-                if (error.message.toLowerCase().includes('not implemented')) {
+                const errorMessage = String(error?.message || error || 'Unknown error');
+                if (errorMessage.toLowerCase().includes('cancel')) {
+                    patternContainer.innerHTML = '<div class="alert alert-warning mb-0" role="alert"><i class="bi bi-exclamation-circle me-2"></i>Pattern reset was cancelled.</div>';
+                } else if (errorMessage.toLowerCase().includes('not implemented')) {
                     patternContainer.innerHTML = '<p class="text-warning">Pattern-based reset functionality needs to be implemented in the backend.</p>';
                 } else {
                     errorHandler(error, patternContainer);
@@ -1848,12 +1869,18 @@ function resetComm(e) {
             e.preventDefault();
             e.stopPropagation();
             cancelBtn.disabled = true;
+            patternResetCancelled = true;
             try {
-                // Try both possible operations; backend ignores if not running
-                await Promise.race([
-                    window.axios.cancelResetEmails?.(),
-                    window.axios.cancelResetCommChannelsByPattern?.()
-                ]);
+                const cancellationCalls = [];
+                if (typeof window.axios.cancelResetEmails === 'function') {
+                    cancellationCalls.push(window.axios.cancelResetEmails());
+                }
+                if (typeof window.axios.cancelResetCommChannelsByPattern === 'function') {
+                    cancellationCalls.push(window.axios.cancelResetCommChannelsByPattern());
+                }
+                if (cancellationCalls.length > 0) {
+                    await Promise.allSettled(cancellationCalls);
+                }
             } catch (_) { /* ignore */ }
         });
 
