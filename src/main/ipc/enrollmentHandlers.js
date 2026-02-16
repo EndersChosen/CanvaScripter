@@ -24,7 +24,8 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             enrollmentCount: params.enrollments.length
         });
 
-        const { domain, token, enrollments, enrollmentState } = params;
+        const { domain, token, enrollments, enrollmentState, enrollmentTask } = params;
+        const task = ['delete', 'conclude', 'deactivate'].includes(enrollmentTask) ? enrollmentTask : 'enroll';
         const results = {
             successful: 0,
             failed: 0,
@@ -44,16 +45,84 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             try {
                 // Send progress update
                 if (mainWindow && !mainWindow.isDestroyed()) {
+                    const detailText = task === 'enroll'
+                        ? `Enrolling user ${enrollment.user_id}...`
+                        : `${task[0].toUpperCase()}${task.slice(1)} enrollment ${enrollment.enrollment_id || 'Unknown'}...`;
+
                     mainWindow.webContents.send('progress:enrollment', {
                         current: processed + 1,
                         total: enrollments.length,
-                        detail: `Enrolling user ${enrollment.user_id}...`
+                        detail: detailText
                     });
                 }
 
                 // Determine if we use section or course endpoint
                 const sectionId = enrollment.course_section_id;
                 const targetCourseId = enrollment.course_id;
+                const enrollmentId = enrollment.enrollment_id;
+
+                if (task !== 'enroll') {
+                    if (!targetCourseId) {
+                        results.failed++;
+                        results.errors.push({
+                            user_id: enrollment.user_id || 'Unknown',
+                            reason: `${task} requires course_id and cannot use section_id`
+                        });
+                        processed++;
+                        continue;
+                    }
+
+                    if (!enrollmentId) {
+                        results.failed++;
+                        results.errors.push({
+                            user_id: enrollment.user_id || 'Unknown',
+                            reason: `${task} requires enrollment_id`
+                        });
+                        processed++;
+                        continue;
+                    }
+
+                    const endpoint = `https://${domain}/api/v1/courses/${targetCourseId}/enrollments/${enrollmentId}`;
+
+                    logDebug('[axios:bulkEnroll] Processing enrollment task', {
+                        task,
+                        enrollment_id: enrollmentId,
+                        course_id: targetCourseId,
+                        endpoint
+                    });
+
+                    const response = await axios.delete(endpoint, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        params: {
+                            task
+                        }
+                    });
+
+                    if (response.status === 200 || response.status === 204) {
+                        results.successful++;
+                        logDebug('[axios:bulkEnroll] Enrollment task successful', {
+                            task,
+                            enrollment_id: enrollmentId
+                        });
+                    } else {
+                        results.failed++;
+                        results.errors.push({
+                            user_id: enrollment.user_id || 'Unknown',
+                            reason: `Unexpected status code: ${response.status}`
+                        });
+                    }
+
+                    processed++;
+
+                    if (processed < enrollments.length) {
+                        await new Promise(resolve => setTimeout(resolve, batchConfig.timeDelay / 10));
+                    }
+
+                    continue;
+                }
 
                 if (!sectionId && !targetCourseId) {
                     results.failed++;

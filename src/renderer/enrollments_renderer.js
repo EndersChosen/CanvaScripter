@@ -82,7 +82,7 @@ function bulkEnrollmentUI(e) {
                             <label class="form-label fw-bold">
                                 <i class="bi bi-sliders me-1"></i>Enrollment State
                             </label>
-                            <div class="d-flex gap-3">
+                            <div class="d-flex gap-3 flex-wrap">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="enrollment-state" 
                                            id="state-active" value="active" checked>
@@ -97,9 +97,30 @@ function bulkEnrollmentUI(e) {
                                         Inactive
                                     </label>
                                 </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="enrollment-state" 
+                                           id="state-delete" value="delete">
+                                    <label class="form-check-label" for="state-delete">
+                                        Delete
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="enrollment-state" 
+                                           id="state-conclude" value="conclude">
+                                    <label class="form-check-label" for="state-conclude">
+                                        Conclude
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="enrollment-state" 
+                                           id="state-deactivate" value="deactivate">
+                                    <label class="form-check-label" for="state-deactivate">
+                                        Deactivate
+                                    </label>
+                                </div>
                             </div>
                             <div class="form-text text-muted">
-                                <i class="bi bi-info-circle me-1"></i>This state will be applied to all enrollments
+                                <i class="bi bi-info-circle me-1"></i>Delete, Conclude, and Deactivate require <strong>course_id</strong> and <strong>enrollment_id</strong> in your file and cannot use section_id.
                             </div>
                         </div>
                     </div>
@@ -160,8 +181,82 @@ function setupEnrollmentFormListeners() {
     const fileHelp = document.getElementById('file-help');
     const filePreview = document.getElementById('file-preview');
     const previewText = document.getElementById('preview-text');
+    const enrollmentStateInputs = Array.from(document.querySelectorAll('input[name="enrollment-state"]'));
 
     let parsedData = null;
+
+    const getSelectedAction = () => {
+        const selected = enrollmentStateInputs.find(input => input.checked);
+        return selected ? selected.value : 'active';
+    };
+
+    const updateActionButtonLabel = (action) => {
+        const labels = {
+            active: '<i class="bi bi-person-plus-fill me-2"></i>Process Enrollments',
+            inactive: '<i class="bi bi-person-plus-fill me-2"></i>Process Enrollments',
+            delete: '<i class="bi bi-trash me-2"></i>Delete Enrollments',
+            conclude: '<i class="bi bi-check2-circle me-2"></i>Conclude Enrollments',
+            deactivate: '<i class="bi bi-pause-circle me-2"></i>Deactivate Enrollments'
+        };
+
+        enrollBtn.innerHTML = labels[action] || labels.active;
+    };
+
+    const validateEnrollmentsForTask = (enrollments, action) => {
+        if (!Array.isArray(enrollments) || enrollments.length === 0) {
+            return { valid: false, message: 'No valid enrollment records found in file.' };
+        }
+
+        if (action === 'delete' || action === 'conclude' || action === 'deactivate') {
+            const missingEnrollmentId = enrollments.some(enrollment => !enrollment.enrollment_id);
+            if (missingEnrollmentId) {
+                return {
+                    valid: false,
+                    message: `This request can't be completed because ${action} requires an enrollment_id and it was not found for one or more rows in the file.`
+                };
+            }
+
+            const missingCourseId = enrollments.some(enrollment => !enrollment.course_id);
+            if (missingCourseId) {
+                return {
+                    valid: false,
+                    message: `This request can't be completed because ${action} requires a course_id and one or more rows do not include it. These tasks cannot use section_id.`
+                };
+            }
+        }
+
+        return { valid: true, message: '' };
+    };
+
+    const refreshValidationState = () => {
+        const selectedAction = getSelectedAction();
+        updateActionButtonLabel(selectedAction);
+
+        if (!parsedData || parsedData.length === 0) {
+            enrollBtn.disabled = true;
+            return;
+        }
+
+        const validation = validateEnrollmentsForTask(parsedData, selectedAction);
+
+        if (!validation.valid) {
+            fileHelp.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>${validation.message}`;
+            fileHelp.style.visibility = 'visible';
+            enrollBtn.disabled = true;
+            return;
+        }
+
+        fileHelp.style.visibility = 'hidden';
+        enrollBtn.disabled = false;
+    };
+
+    enrollmentStateInputs.forEach((input) => {
+        input.addEventListener('change', () => {
+            refreshValidationState();
+        });
+    });
+
+    updateActionButtonLabel(getSelectedAction());
 
     // File input change handler
     fileInput.addEventListener('change', async (e) => {
@@ -176,7 +271,8 @@ function setupEnrollmentFormListeners() {
         }
 
         // Validate file type
-        if (!file.name.endsWith('.csv') && !file.name.endsWith('.txt')) {
+        const lowerFileName = file.name.toLowerCase();
+        if (!lowerFileName.endsWith('.csv') && !lowerFileName.endsWith('.txt')) {
             fileHelp.textContent = 'Please select a CSV or TXT file.';
             fileHelp.style.visibility = 'visible';
             enrollBtn.disabled = true;
@@ -210,10 +306,9 @@ function setupEnrollmentFormListeners() {
 
             // Show preview with summary statistics
             const summary = generateEnrollmentSummary(parsedData);
-            fileHelp.style.visibility = 'hidden';
             filePreview.style.display = 'block';
             previewText.innerHTML = summary;
-            enrollBtn.disabled = false;
+            refreshValidationState();
 
         } catch (error) {
             console.error('Error parsing file:', error);
@@ -232,9 +327,20 @@ function setupEnrollmentFormListeners() {
         const domain = document.getElementById('domain').value.trim();
         const token = document.getElementById('token').value.trim();
         const enrollmentState = document.querySelector('input[name="enrollment-state"]:checked').value;
+        const enrollmentTask = (enrollmentState === 'delete' || enrollmentState === 'conclude' || enrollmentState === 'deactivate')
+            ? enrollmentState
+            : 'enroll';
 
         if (!domain || !token) {
             alert('Please enter Canvas domain and API token.');
+            return;
+        }
+
+        const validation = validateEnrollmentsForTask(parsedData, enrollmentState);
+        if (!validation.valid) {
+            fileHelp.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>${validation.message}`;
+            fileHelp.style.visibility = 'visible';
+            enrollBtn.disabled = true;
             return;
         }
 
@@ -248,7 +354,8 @@ function setupEnrollmentFormListeners() {
                 domain,
                 token,
                 enrollments: parsedData,
-                enrollmentState
+                enrollmentState,
+                enrollmentTask
             });
 
             // Show results
@@ -275,10 +382,14 @@ function parseEnrollmentFile(content) {
     // Map common column names to standard fields
     const fieldMap = {
         'canvas_user_id': 'user_id',
-        'user_id': 'sis_user_id',
+        'user_id': 'user_id',
+        'sis_user_id': 'user_id',
         'canvas_section_id': 'course_section_id',
-        'section_id': 'sis_section_id',
+        'section_id': 'course_section_id',
+        'sis_section_id': 'course_section_id',
         'canvas_course_id': 'course_id',
+        'enrollment_id': 'enrollment_id',
+        'canvas_enrollment_id': 'enrollment_id',
         'base_role_type': 'type',
         'limit_section_privileges': 'limit_privileges_to_course_section',
         'status': 'enrollment_state'
@@ -309,6 +420,7 @@ function parseEnrollmentFile(content) {
             role: enrollment.role,
             course_section_id: enrollment.course_section_id || enrollment.canvas_section_id,
             course_id: enrollment.course_id || enrollment.canvas_course_id,
+            enrollment_id: enrollment.enrollment_id || enrollment.canvas_enrollment_id,
             start_at: enrollment.start_at,
             end_at: enrollment.end_at,
             limit_privileges_to_course_section: enrollment.limit_privileges_to_course_section === 'true' ||
@@ -338,6 +450,7 @@ function generateEnrollmentSummary(enrollments) {
     const uniqueUsers = new Set();
     const uniqueCourses = new Set();
     const uniqueSections = new Set();
+    const uniqueEnrollmentIds = new Set();
     const roleCounts = {};
 
     enrollments.forEach(enrollment => {
@@ -356,6 +469,10 @@ function generateEnrollmentSummary(enrollments) {
             uniqueSections.add(enrollment.course_section_id);
         }
 
+        if (enrollment.enrollment_id) {
+            uniqueEnrollmentIds.add(enrollment.enrollment_id);
+        }
+
         // Count roles (use role if available, otherwise type)
         const roleType = enrollment.role || enrollment.type || 'Unknown';
         roleCounts[roleType] = (roleCounts[roleType] || 0) + 1;
@@ -366,6 +483,7 @@ function generateEnrollmentSummary(enrollments) {
     summary += `${uniqueUsers.size} unique user${uniqueUsers.size !== 1 ? 's' : ''}<br>`;
     summary += `${uniqueCourses.size} unique course${uniqueCourses.size !== 1 ? 's' : ''}<br>`;
     summary += `${uniqueSections.size} unique section${uniqueSections.size !== 1 ? 's' : ''}<br>`;
+    summary += `${uniqueEnrollmentIds.size} enrollment ID${uniqueEnrollmentIds.size !== 1 ? 's' : ''}<br>`;
 
     // Add role breakdown
     const sortedRoles = Object.entries(roleCounts).sort((a, b) => b[1] - a[1]);
