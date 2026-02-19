@@ -71,8 +71,8 @@ function enableDisableAllUI(e) {
                             </label>
                             <input type="text" class="form-control form-control-sm" id="enable-disable-account-id" 
                                    placeholder="Account ID" required />
-                            <div class="form-text text-muted">
-                                <i class="bi bi-info-circle me-1"></i>Required
+                            <div id="account-id-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Account ID is required.
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -226,8 +226,8 @@ function permissionsMatchUI(e) {
                             </label>
                             <input type="text" class="form-control form-control-sm" id="source-account-id" 
                                    placeholder="Account ID" required />
-                            <div class="form-text text-muted">
-                                <i class="bi bi-info-circle me-1"></i>Required
+                            <div id="source-account-id-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Source Account ID is required.
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -236,6 +236,9 @@ function permissionsMatchUI(e) {
                             </label>
                             <input type="text" class="form-control form-control-sm" id="source-role-id" 
                                    placeholder="Role name or ID" />
+                            <div id="source-role-id-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Source role name or ID is required.
+                            </div>
                             <div class="form-text text-muted">
                                 <i class="bi bi-info-circle me-1"></i>e.g., 'TeacherEnrollment' or role ID
                             </div>
@@ -263,8 +266,8 @@ function permissionsMatchUI(e) {
                             </label>
                             <input type="text" class="form-control form-control-sm" id="target-account-id" 
                                    placeholder="Account ID" required />
-                            <div class="form-text text-muted">
-                                <i class="bi bi-info-circle me-1"></i>Required
+                            <div id="target-account-id-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Target Account ID is required.
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -273,6 +276,9 @@ function permissionsMatchUI(e) {
                             </label>
                             <input type="text" class="form-control form-control-sm" id="target-role-id" 
                                    placeholder="Role name or ID" />
+                            <div id="target-role-id-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Target role name or ID is required.
+                            </div>
                             <div class="form-text text-muted">
                                 <i class="bi bi-info-circle me-1"></i>e.g., 'Custom Role' or role ID
                             </div>
@@ -310,12 +316,25 @@ function setupEnableDisableFormListeners() {
     const roleIdInput = document.getElementById('enable-disable-role-id');
     const applyBtn = document.getElementById('apply-permissions-btn');
     const roleIdHelp = document.getElementById('role-id-help');
+    const accountIdHelp = document.getElementById('account-id-help');
     let progressUnsubscribe = null;
 
     // Add auto-parsing for account and role fields
     setupFieldAutoParser('enable-disable-account-id', 'enable-disable-account-id', 'enable-disable-role-id');
 
     // Input validation
+    accountIdInput.addEventListener('input', () => {
+        if (accountIdInput.value.trim()) {
+            accountIdHelp.style.visibility = 'hidden';
+        }
+    });
+
+    accountIdInput.addEventListener('blur', () => {
+        if (!accountIdInput.value.trim()) {
+            accountIdHelp.style.visibility = 'visible';
+        }
+    });
+
     roleIdInput.addEventListener('input', () => {
         const value = roleIdInput.value.trim();
         if (value) {
@@ -338,9 +357,11 @@ function setupEnableDisableFormListeners() {
 
         // Validate inputs
         if (!accountId) {
-            alert('Please enter the Account ID (required).');
+            accountIdHelp.style.visibility = 'visible';
+            accountIdInput.focus();
             return;
         }
+        accountIdHelp.style.visibility = 'hidden';
 
         if (!roleId) {
             roleIdHelp.style.visibility = 'visible';
@@ -350,11 +371,6 @@ function setupEnableDisableFormListeners() {
         const domain = document.getElementById('domain').value.trim();
         const token = document.getElementById('token').value.trim();
 
-        if (!domain || !token) {
-            alert('Please enter Canvas domain and API token.');
-            return;
-        }
-
         // Show progress card
         const progressCard = document.getElementById('permissions-progress-card');
         const progressInfo = document.getElementById('permissions-progress-info');
@@ -362,6 +378,12 @@ function setupEnableDisableFormListeners() {
         const progressBar = document.getElementById('permissions-progress-bar');
         const resultsCard = document.getElementById('permissions-results-card');
         const responseDiv = document.getElementById('permissions-response');
+
+        if (!domain || !token) {
+            resultsCard.hidden = false;
+            responseDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Please enter Canvas domain and API token in Settings.</div>';
+            return;
+        }
 
         progressCard.hidden = false;
         resultsCard.hidden = true;
@@ -620,6 +642,17 @@ function setupMatchFormListeners() {
     setupFieldAutoParser('source-domain', 'source-account-id', 'source-role-id');
     setupFieldAutoParser('target-domain', 'target-account-id', 'target-role-id');
 
+    // Inline validation: clear error when user types
+    ['source-account-id', 'target-account-id', 'source-role-id', 'target-role-id'].forEach(id => {
+        const input = document.getElementById(id);
+        const help = document.getElementById(`${id}-help`);
+        if (input && help) {
+            input.addEventListener('input', () => {
+                if (input.value.trim()) help.style.visibility = 'hidden';
+            });
+        }
+    });
+
     // Match button handler
     matchBtn.addEventListener('click', async () => {
         // Source fields
@@ -632,27 +665,45 @@ function setupMatchFormListeners() {
         const targetAccountId = document.getElementById('target-account-id').value.trim();
         const targetRole = document.getElementById('target-role-id').value.trim();
 
+        // Set up results area early so validation can use it
+        const resultsCard = document.getElementById('match-results-card');
+        const responseDiv = document.getElementById('match-response');
+
         // Validate required fields
         if (!sourceAccountId) {
-            alert('Please enter the Source Account ID (required).');
+            document.getElementById('source-account-id-help').style.visibility = 'visible';
+            document.getElementById('source-account-id').focus();
             return;
         }
+        document.getElementById('source-account-id-help').style.visibility = 'hidden';
 
         if (!targetAccountId) {
-            alert('Please enter the Target Account ID (required).');
+            document.getElementById('target-account-id-help').style.visibility = 'visible';
+            document.getElementById('target-account-id').focus();
             return;
         }
+        document.getElementById('target-account-id-help').style.visibility = 'hidden';
 
         if (!sourceRole || !targetRole) {
-            alert('Please enter both source and target role name or ID.');
+            if (!sourceRole) {
+                document.getElementById('source-role-id-help').style.visibility = 'visible';
+                document.getElementById('source-role-id').focus();
+            }
+            if (!targetRole) {
+                document.getElementById('target-role-id-help').style.visibility = 'visible';
+                if (sourceRole) document.getElementById('target-role-id').focus();
+            }
             return;
         }
+        document.getElementById('source-role-id-help').style.visibility = 'hidden';
+        document.getElementById('target-role-id-help').style.visibility = 'hidden';
 
         const domain = document.getElementById('domain').value.trim();
         const token = document.getElementById('token').value.trim();
 
         if (!domain || !token) {
-            alert('Please enter Canvas domain and API token.');
+            resultsCard.hidden = false;
+            responseDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Please enter Canvas domain and API token in Settings.</div>';
             return;
         }
 
@@ -661,8 +712,6 @@ function setupMatchFormListeners() {
         const finalTargetDomain = targetDomain || domain;
 
         // Show results card and prepare for updates
-        const resultsCard = document.getElementById('match-results-card');
-        const responseDiv = document.getElementById('match-response');
         resultsCard.hidden = false;
         responseDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split me-2"></i>Starting permissions matching...</div>';
 

@@ -571,7 +571,7 @@ function deletePagesTemplate(e) {
     const courseId = courseIdInput.value.trim();
 
     if (!domain || !token) {
-      alert('Please configure domain and token settings.');
+      resultArea.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Please configure domain and token settings.</div>';
       return;
     }
 

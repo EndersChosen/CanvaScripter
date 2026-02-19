@@ -33,97 +33,26 @@ function showQTIAnalyzerUI() {
                 <i class="bi bi-file-earmark-code"></i> QTI Assessment Analyzer
             </h3>
 
-            <!-- Tabs -->
-            <ul class="nav nav-tabs mb-4" id="qtiTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="standard-qti-tab" data-bs-toggle="tab" data-bs-target="#standard-qti-pane" type="button" role="tab" aria-controls="standard-qti-pane" aria-selected="true">Standard Analyzer</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="ai-qti-tab" data-bs-toggle="tab" data-bs-target="#ai-qti-pane" type="button" role="tab" aria-controls="ai-qti-pane" aria-selected="false">AI Advisor</button>
-                </li>
-            </ul>
-
-            <div class="tab-content" id="qtiTabsContent">
-                <!-- Standard Analyzer Pane -->
-                <div class="tab-pane fade show active" id="standard-qti-pane" role="tabpanel" aria-labelledby="standard-qti-tab" tabindex="0">
-                    <div class="card mb-4">
-                        <div class="card-body">
-                            <h5 class="card-title">QTI File Analysis</h5>
-                            <p class="card-text text-muted">
-                                Analyze QTI assessment files (XML or ZIP packages) for Canvas compatibility,
-                                validation errors, and content issues. Supports QTI 1.2 and 2.1 formats.
-                            </p>
-                            <button id="select-qti-file" class="btn btn-primary">
-                                <i class="bi bi-upload"></i> Select QTI File
-                            </button>
-                            <div class="mt-2 text-muted small">
-                                <i class="bi bi-info-circle"></i> Supported formats: .xml (individual files) or .zip (QTI packages)
-                            </div>
-                        </div>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">QTI File Analysis</h5>
+                    <p class="card-text text-muted">
+                        Analyze QTI assessment files (XML or ZIP packages) for Canvas compatibility,
+                        validation errors, and content issues. Supports QTI 1.2 and 2.1 formats.
+                    </p>
+                    <button id="select-qti-file" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> Select QTI File
+                    </button>
+                    <div class="mt-2 text-muted small">
+                        <i class="bi bi-info-circle"></i> Supported formats: .xml (individual files) or .zip (QTI packages)
                     </div>
-                    <div id="qti-results"></div>
-                </div>
-
-                <!-- AI Analyzer Pane -->
-                <div class="tab-pane fade" id="ai-qti-pane" role="tabpanel" aria-labelledby="ai-qti-tab" tabindex="0">
-                    <div class="card mb-4">
-                        <div class="card-body">
-                            <h5 class="card-title">AI-Powered QTI Analysis</h5>
-                            <p class="card-text text-muted">
-                                Get intelligent insights about your QTI content, including Canvas migration
-                                recommendations and question quality analysis.
-                            </p>
-
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label for="ai-model-select-qti" class="form-label">Select AI Model</label>
-                                    <select class="form-select" id="ai-model-select-qti">
-                                        <option value="gpt-5.2">GPT-5.2</option>
-                                        <option value="claude-sonnet-4.5">Claude Sonnet 4.5</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="ai-prompt-qti" class="form-label">Custom Instructions (Optional)</label>
-                                <textarea class="form-control" id="ai-prompt-qti" rows="3"
-                                    placeholder="E.g., 'Focus on Canvas import issues' or 'Suggest question improvements'..."></textarea>
-                            </div>
-
-                            <div id="api-key-section-qti" class="mb-3 d-none">
-                                <label for="api-key-input-qti" class="form-label text-danger">API Key Required</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="api-key-input-qti" placeholder="Enter API Key">
-                                    <button class="btn btn-outline-secondary" type="button" id="save-api-key-qti">Save Key</button>
-                                </div>
-                                <div class="form-text">Your API key will be stored securely locally.</div>
-                            </div>
-
-                            <div id="api-key-display-section-qti" class="mb-3 d-none">
-                                <label class="form-label text-success">API Key Stored</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="masked-api-key-qti" disabled readonly value="">
-                                    <button class="btn btn-outline-danger" type="button" id="delete-api-key-qti">Remove</button>
-                                </div>
-                                <div class="form-text">Key is saved. Remove to update.</div>
-                            </div>
-
-                            <div id="ai-status-msg-qti" class="mb-3"></div>
-
-                            <button id="select-qti-file-ai" class="btn btn-primary" disabled>
-                                <i class="bi bi-robot"></i> Select & Analyze with AI
-                            </button>
-                        </div>
-                    </div>
-                    <div id="qti-ai-results"></div>
                 </div>
             </div>
+            <div id="qti-results"></div>
         </div>
     `;
 
-    // --- Event Listeners ---
-
-    // 1. Standard Analysis
+    // Standard Analysis
     const selectButton = document.getElementById('select-qti-file');
     selectButton.addEventListener('click', async () => {
         try {
@@ -139,109 +68,6 @@ function showQTIAnalyzerUI() {
             showQtiError('Failed to analyze QTI file: ' + error.message);
         }
     });
-
-    // 2. AI Model Selection & Key Management
-    const modelSelect = document.getElementById('ai-model-select-qti');
-    const apiKeySection = document.getElementById('api-key-section-qti');
-    const apiKeyInput = document.getElementById('api-key-input-qti');
-    const saveKeyBtn = document.getElementById('save-api-key-qti');
-    const apiKeyDisplaySection = document.getElementById('api-key-display-section-qti');
-    const maskedApiKeyInput = document.getElementById('masked-api-key-qti');
-    const deleteKeyBtn = document.getElementById('delete-api-key-qti');
-    const analyzeBtn = document.getElementById('select-qti-file-ai');
-    const statusMsg = document.getElementById('ai-status-msg-qti');
-
-    async function checkKeyStatus() {
-        const model = modelSelect.value;
-        const provider = model.includes('gpt') ? 'openai' : 'anthropic';
-
-        try {
-            const hasKey = await window.ipcRenderer.invoke('settings:hasApiKey', provider);
-
-            if (hasKey) {
-                try {
-                    const maskedKey = await window.ipcRenderer.invoke('settings:getMaskedApiKey', provider);
-                    maskedApiKeyInput.value = maskedKey || '****';
-                } catch (e) {
-                    console.error('Failed to get masked key', e);
-                    maskedApiKeyInput.value = '**** (Error retrieving)';
-                }
-
-                apiKeySection.classList.add('d-none');
-                apiKeyDisplaySection.classList.remove('d-none');
-                analyzeBtn.disabled = false;
-                statusMsg.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> API Key found. Ready to analyze.</span>';
-            } else {
-                apiKeySection.classList.remove('d-none');
-                apiKeyDisplaySection.classList.add('d-none');
-                analyzeBtn.disabled = true;
-                statusMsg.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-triangle"></i> API Key missing. Please enter it above.</span>';
-            }
-        } catch (err) {
-            console.error('Error checking API key:', err);
-        }
-    }
-
-    modelSelect.addEventListener('change', checkKeyStatus);
-
-    const aiTab = document.getElementById('ai-qti-tab');
-    aiTab.addEventListener('shown.bs.tab', checkKeyStatus);
-
-    if (deleteKeyBtn) {
-        deleteKeyBtn.addEventListener('click', async () => {
-            const model = modelSelect.value;
-            const provider = model.includes('gpt') ? 'openai' : 'anthropic';
-
-            if (confirm('Are you sure you want to remove the stored API key?')) {
-                try {
-                    await window.ipcRenderer.invoke('settings:deleteApiKey', provider);
-                    await checkKeyStatus();
-                } catch (err) {
-                    statusMsg.innerHTML = `<span class="text-danger">Failed to delete key: ${err.message}</span>`;
-                }
-            }
-        });
-    }
-
-    saveKeyBtn.addEventListener('click', async () => {
-        const key = apiKeyInput.value.trim();
-        if (!key) return;
-
-        const model = modelSelect.value;
-        const provider = model.includes('gpt') ? 'openai' : 'anthropic';
-
-        try {
-            await window.ipcRenderer.invoke('settings:saveApiKey', provider, key);
-            apiKeyInput.value = '';
-            await checkKeyStatus();
-        } catch (err) {
-            statusMsg.innerHTML = `<span class="text-danger">Failed to save key: ${err.message}</span>`;
-        }
-    });
-
-    // 3. AI Analysis Execution
-    analyzeBtn.addEventListener('click', async () => {
-        try {
-            const result = await window.ipcRenderer.invoke('qti:selectFile');
-            if (result.canceled) return;
-
-            const model = modelSelect.value;
-            const prompt = document.getElementById('ai-prompt-qti').value;
-
-            showQtiAiLoadingState();
-
-            const analysis = await window.ipcRenderer.invoke('qti:analyzeAi', {
-                filePath: result.filePath,
-                model: model,
-                prompt: prompt
-            });
-
-            displayQtiAiResults(analysis);
-
-        } catch (error) {
-            showQtiAiError('Failed to run AI analysis: ' + error.message);
-        }
-    });
 }
 
 function showQtiLoadingState() {
@@ -253,43 +79,6 @@ function showQtiLoadingState() {
             </div>
             <p class="mt-3">Analyzing QTI file...</p>
             <small class="text-muted">This may take a moment for large assessments</small>
-        </div>
-    `;
-}
-
-function showQtiAiLoadingState() {
-    const resultsDiv = document.getElementById('qti-ai-results');
-    resultsDiv.innerHTML = `
-        <div class="text-center p-5">
-            <div class="spinner-border text-success" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-3">Consulting AI Model...</p>
-        </div>
-    `;
-}
-
-function displayQtiAiResults(analysis) {
-    const resultsDiv = document.getElementById('qti-ai-results');
-    const content = typeof analysis === 'string' ? analysis : (analysis.content || JSON.stringify(analysis, null, 2));
-
-    resultsDiv.innerHTML = `
-        <div class="card">
-            <div class="card-header bg-success text-white">
-                <i class="bi bi-robot"></i> AI Analysis Result
-            </div>
-            <div class="card-body">
-                <div class="ai-response-content" style="white-space: pre-wrap;">${content}</div>
-            </div>
-        </div>
-    `;
-}
-
-function showQtiAiError(message) {
-    const resultsDiv = document.getElementById('qti-ai-results');
-    resultsDiv.innerHTML = `
-        <div class="alert alert-danger" role="alert">
-            <i class="bi bi-exclamation-triangle-fill"></i> ${message}
         </div>
     `;
 }
@@ -568,6 +357,8 @@ function renderInteractionTypes(analysis) {
             supportBadge = '<span class="badge bg-success">Fully Supported</span>';
         } else if (data.canvasSupported === 'limited') {
             supportBadge = '<span class="badge bg-warning">Limited Support</span>';
+        } else if (data.canvasSupported === 'new_quizzes_only') {
+            supportBadge = '<span class="badge bg-info">New Quizzes Only</span>';
         } else {
             supportBadge = '<span class="badge bg-danger">Not Supported</span>';
         }
@@ -662,6 +453,7 @@ function renderScoringAnalysis(analysis) {
 
 function renderContentAnalysis(analysis) {
     const content = analysis.contentAnalysis;
+    const media = analysis.mediaAnalysis || { total: 0, resolved: 0, missing: 0, external: 0, unknown: 0, references: [] };
 
     const features = [
         { key: 'hasImages', label: 'Images', icon: 'image' },
@@ -688,6 +480,52 @@ function renderContentAnalysis(analysis) {
         `;
     }).join('');
 
+    const unresolvedRefs = (media.references || []).filter(ref => ref.status === 'missing' || ref.status === 'unknown');
+    const unresolvedHtml = unresolvedRefs.length > 0 ? `
+        <div class="alert alert-warning mt-3 mb-0">
+            <h6 class="mb-2"><i class="bi bi-exclamation-triangle"></i> Unresolved Media References</h6>
+            <ul class="mb-0">
+                ${unresolvedRefs.map(ref => `<li><code>${ref.reference}</code> <span class="text-muted">(${ref.status})</span></li>`).join('')}
+            </ul>
+        </div>
+    ` : '';
+
+    const mediaSummaryHtml = media.total > 0 ? `
+        <div class="row g-2 mb-3">
+            <div class="col-md-2">
+                <div class="border rounded p-2 text-center">
+                    <div class="small text-muted">Refs</div>
+                    <div class="fw-bold">${media.total}</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="border rounded p-2 text-center">
+                    <div class="small text-muted">Resolved</div>
+                    <div class="fw-bold text-success">${media.resolved}</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="border rounded p-2 text-center">
+                    <div class="small text-muted">Missing</div>
+                    <div class="fw-bold text-danger">${media.missing}</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="border rounded p-2 text-center">
+                    <div class="small text-muted">External</div>
+                    <div class="fw-bold text-warning">${media.external}</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="border rounded p-2 text-center">
+                    <div class="small text-muted">Unknown</div>
+                    <div class="fw-bold text-secondary">${media.unknown}</div>
+                </div>
+            </div>
+        </div>
+        ${unresolvedHtml}
+    ` : '<p class="text-muted mb-3">No explicit media references detected.</p>';
+
     return `
         <div class="card mb-3">
             <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#content-collapse">
@@ -698,6 +536,10 @@ function renderContentAnalysis(analysis) {
             </div>
             <div id="content-collapse" class="collapse">
                 <div class="card-body">
+                    <h6 class="mb-2">Media Reference Resolution</h6>
+                    ${mediaSummaryHtml}
+
+                    <h6 class="mt-4">Content Feature Flags</h6>
                     <ul class="list-group list-group-flush">
                         ${featuresList}
                     </ul>

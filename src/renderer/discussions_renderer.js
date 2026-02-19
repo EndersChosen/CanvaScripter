@@ -1,13 +1,13 @@
 // discussions_renderer.js - UI for creating Discussions
 function discussionTemplate(e) {
-  hideEndpoints(e);
+    hideEndpoints(e);
 
-  const eContent = document.querySelector('#endpoint-content');
-  let form = eContent.querySelector('#create-discussions-form');
-  if (!form) {
-    form = document.createElement('form');
-    form.id = 'create-discussions-form';
-    form.innerHTML = `
+    const eContent = document.querySelector('#endpoint-content');
+    let form = eContent.querySelector('#create-discussions-form');
+    if (!form) {
+        form = document.createElement('form');
+        form.id = 'create-discussions-form';
+        form.innerHTML = `
             <style>
                 #create-discussions-form .card-title { font-size: 1.1rem; }
                 #create-discussions-form .card-header small { font-size: 0.7rem; }
@@ -170,216 +170,216 @@ function discussionTemplate(e) {
                 <div class="card-body" id="response"></div>
             </div>
         `;
-    eContent.append(form);
-  }
-  form.hidden = false;
+        eContent.append(form);
+    }
+    form.hidden = false;
 
-  const createBtn = form.querySelector('#create-btn');
-  const progressCard = form.querySelector('#progress-card');
-  const progressBar = form.querySelector('#progress-bar');
-  const progressInfo = form.querySelector('#progress-info');
-  const progressDetail = form.querySelector('#progress-detail');
-  const resultsCard = form.querySelector('#results-card');
-  const courseIdInput = form.querySelector('#course-id');
-  const numItemsInput = form.querySelector('#num-items');
-  const titleInput = form.querySelector('#title');
-  const delaySwitch = form.querySelector('#delayed_post_at_enable');
-  const delayInput = form.querySelector('#delayed_post_at');
-  const delayedPostRow = form.querySelector('#delayed-post-row');
-  const courseHelp = form.querySelector('#course-id-help');
-  const numHelp = form.querySelector('#num-items-help');
-  const delayHelp = form.querySelector('#delayed-post-help');
-  const titlePreview = form.querySelector('#title-preview');
-  const titlePreview2 = form.querySelector('#title-preview-2');
+    const createBtn = form.querySelector('#create-btn');
+    const progressCard = form.querySelector('#progress-card');
+    const progressBar = form.querySelector('#progress-bar');
+    const progressInfo = form.querySelector('#progress-info');
+    const progressDetail = form.querySelector('#progress-detail');
+    const resultsCard = form.querySelector('#results-card');
+    const courseIdInput = form.querySelector('#course-id');
+    const numItemsInput = form.querySelector('#num-items');
+    const titleInput = form.querySelector('#title');
+    const delaySwitch = form.querySelector('#delayed_post_at_enable');
+    const delayInput = form.querySelector('#delayed_post_at');
+    const delayedPostRow = form.querySelector('#delayed-post-row');
+    const courseHelp = form.querySelector('#course-id-help');
+    const numHelp = form.querySelector('#num-items-help');
+    const delayHelp = form.querySelector('#delayed-post-help');
+    const titlePreview = form.querySelector('#title-preview');
+    const titlePreview2 = form.querySelector('#title-preview-2');
 
-  // Track validation attempts
-  let hasAttemptedSubmit = false;
-  const touchedFields = new Set();
+    // Track validation attempts
+    let hasAttemptedSubmit = false;
+    const touchedFields = new Set();
 
-  // Update title preview as user types
-  titleInput.addEventListener('input', () => {
-    const prefix = titleInput.value.trim() || 'Discussion';
-    titlePreview.textContent = prefix;
-    titlePreview2.textContent = prefix;
-  });
+    // Update title preview as user types
+    titleInput.addEventListener('input', () => {
+        const prefix = titleInput.value.trim() || 'Discussion';
+        titlePreview.textContent = prefix;
+        titlePreview2.textContent = prefix;
+    });
 
-  // Handle delayed post visibility
-  delaySwitch.addEventListener('change', () => {
-    delayedPostRow.style.display = delaySwitch.checked ? 'block' : 'none';
-    delayInput.disabled = !delaySwitch.checked;
-    validate(true);
-  });
+    // Handle delayed post visibility
+    delaySwitch.addEventListener('change', () => {
+        delayedPostRow.style.display = delaySwitch.checked ? 'block' : 'none';
+        delayInput.disabled = !delaySwitch.checked;
+        validate(true);
+    });
 
-  function isPositiveInt(val, max = 100) {
-    const trimmed = String(val).trim();
-    if (trimmed === '') return { valid: false, isEmpty: true };
-    const n = Number(trimmed);
-    return { valid: Number.isInteger(n) && n > 0 && n <= max, isEmpty: false };
-  }
-
-  function validate(showErrors = false) {
-    const cidResult = isPositiveInt(courseIdInput.value, 999999);
-    const cntResult = isPositiveInt(numItemsInput.value, 100);
-
-    // Only show validation errors if we should show errors, field has been touched/submitted, 
-    // field is not empty, and validation failed
-    const showCourseError = showErrors &&
-      (hasAttemptedSubmit || touchedFields.has('course-id')) &&
-      !cidResult.isEmpty &&
-      !cidResult.valid;
-
-    const showCountError = showErrors &&
-      (hasAttemptedSubmit || touchedFields.has('num-items')) &&
-      !cntResult.isEmpty &&
-      !cntResult.valid;
-
-    courseIdInput.classList.toggle('is-invalid', showCourseError);
-    courseHelp.style.visibility = showCourseError ? 'visible' : 'hidden';
-
-    numItemsInput.classList.toggle('is-invalid', showCountError);
-    numHelp.style.visibility = showCountError ? 'visible' : 'hidden';
-
-    // Delay validation
-    const delayEnabled = delaySwitch.checked;
-    let delayOk = true;
-    if (delayEnabled) {
-      delayOk = !!delayInput.value;
-      const showDelayError = showErrors &&
-        (hasAttemptedSubmit || touchedFields.has('delayed_post_at')) &&
-        !delayOk;
-      delayInput.classList.toggle('is-invalid', showDelayError);
-      delayHelp.style.visibility = showDelayError ? 'visible' : 'hidden';
-    } else {
-      delayInput.classList.remove('is-invalid');
-      delayHelp.style.visibility = 'hidden';
+    function isPositiveInt(val, max = 100) {
+        const trimmed = String(val).trim();
+        if (trimmed === '') return { valid: false, isEmpty: true };
+        const n = Number(trimmed);
+        return { valid: Number.isInteger(n) && n > 0 && n <= max, isEmpty: false };
     }
 
-    const isValid = cidResult.valid && cntResult.valid && delayOk;
-    createBtn.disabled = !isValid;
+    function validate(showErrors = false) {
+        const cidResult = isPositiveInt(courseIdInput.value, 999999);
+        const cntResult = isPositiveInt(numItemsInput.value, 100);
 
-    // Update button text based on validation
-    if (isValid) {
-      const count = parseInt(numItemsInput.value) || 0;
-      createBtn.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Create ${count} Discussion${count !== 1 ? 's' : ''}`;
-    } else {
-      createBtn.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Create Discussions`;
+        // Only show validation errors if we should show errors, field has been touched/submitted, 
+        // field is not empty, and validation failed
+        const showCourseError = showErrors &&
+            (hasAttemptedSubmit || touchedFields.has('course-id')) &&
+            !cidResult.isEmpty &&
+            !cidResult.valid;
+
+        const showCountError = showErrors &&
+            (hasAttemptedSubmit || touchedFields.has('num-items')) &&
+            !cntResult.isEmpty &&
+            !cntResult.valid;
+
+        courseIdInput.classList.toggle('is-invalid', showCourseError);
+        courseHelp.style.visibility = showCourseError ? 'visible' : 'hidden';
+
+        numItemsInput.classList.toggle('is-invalid', showCountError);
+        numHelp.style.visibility = showCountError ? 'visible' : 'hidden';
+
+        // Delay validation
+        const delayEnabled = delaySwitch.checked;
+        let delayOk = true;
+        if (delayEnabled) {
+            delayOk = !!delayInput.value;
+            const showDelayError = showErrors &&
+                (hasAttemptedSubmit || touchedFields.has('delayed_post_at')) &&
+                !delayOk;
+            delayInput.classList.toggle('is-invalid', showDelayError);
+            delayHelp.style.visibility = showDelayError ? 'visible' : 'hidden';
+        } else {
+            delayInput.classList.remove('is-invalid');
+            delayHelp.style.visibility = 'hidden';
+        }
+
+        const isValid = cidResult.valid && cntResult.valid && delayOk;
+        createBtn.disabled = !isValid;
+
+        // Update button text based on validation
+        if (isValid) {
+            const count = parseInt(numItemsInput.value) || 0;
+            createBtn.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Create ${count} Discussion${count !== 1 ? 's' : ''}`;
+        } else {
+            createBtn.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Create Discussions`;
+        }
+
+        return isValid;
     }
 
-    return isValid;
-  }
+    // Add blur event listeners to mark fields as touched
+    courseIdInput.addEventListener('blur', () => {
+        touchedFields.add('course-id');
+        validate(true);
+    });
 
-  // Add blur event listeners to mark fields as touched
-  courseIdInput.addEventListener('blur', () => {
-    touchedFields.add('course-id');
-    validate(true);
-  });
+    numItemsInput.addEventListener('blur', () => {
+        touchedFields.add('num-items');
+        validate(true);
+    });
 
-  numItemsInput.addEventListener('blur', () => {
-    touchedFields.add('num-items');
-    validate(true);
-  });
+    delayInput.addEventListener('blur', () => {
+        touchedFields.add('delayed_post_at');
+        validate(true);
+    });
 
-  delayInput.addEventListener('blur', () => {
-    touchedFields.add('delayed_post_at');
-    validate(true);
-  });
+    courseIdInput.addEventListener('input', () => validate(true));
+    numItemsInput.addEventListener('input', () => validate(true));
+    delayInput.addEventListener('input', () => validate(true));
+    validate();
 
-  courseIdInput.addEventListener('input', () => validate(true));
-  numItemsInput.addEventListener('input', () => validate(true));
-  delayInput.addEventListener('input', () => validate(true));
-  validate();
+    createBtn.addEventListener('click', async (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        hasAttemptedSubmit = true;
+        if (!validate(true)) return;
 
-  createBtn.addEventListener('click', async (ev) => {
-    ev.preventDefault(); ev.stopPropagation();
-    hasAttemptedSubmit = true;
-    if (!validate(true)) return;
+        const domain = document.querySelector('#domain').value.trim();
+        const token = document.querySelector('#token').value.trim();
+        const course_id = form.querySelector('#course-id').value.trim();
+        const number = parseInt(form.querySelector('#num-items').value.trim(), 10) || 0;
+        const title = form.querySelector('#title').value.trim() || 'Discussion';
+        const discussionMessage = form.querySelector('#message').value.trim();
+        const published = form.querySelector('#published').checked;
+        const threaded = form.querySelector('#threaded').checked;
+        const delayEnabled = form.querySelector('#delayed_post_at_enable').checked;
+        const delayed_post_at = delayEnabled ? form.querySelector('#delayed_post_at').value : null;
 
-    const domain = document.querySelector('#domain').value.trim();
-    const token = document.querySelector('#token').value.trim();
-    const course_id = form.querySelector('#course-id').value.trim();
-    const number = parseInt(form.querySelector('#num-items').value.trim(), 10) || 0;
-    const title = form.querySelector('#title').value.trim() || 'Discussion';
-    const discussionMessage = form.querySelector('#message').value.trim();
-    const published = form.querySelector('#published').checked;
-    const threaded = form.querySelector('#threaded').checked;
-    const delayEnabled = form.querySelector('#delayed_post_at_enable').checked;
-    const delayed_post_at = delayEnabled ? form.querySelector('#delayed_post_at').value : null;
+        if (!course_id || number <= 0) {
+            validate(true);
+            return;
+        }
 
-    if (!course_id || number <= 0) {
-      alert('Enter a Course ID and a positive number.');
-      return;
-    }
+        createBtn.disabled = true;
+        progressCard.hidden = false;
+        resultsCard.hidden = true;
+        progressInfo.textContent = 'Creating discussions...';
+        progressBar.style.width = '0%';
+        progressBar.setAttribute('aria-valuenow', '0');
 
-    createBtn.disabled = true;
-    progressCard.hidden = false;
-    resultsCard.hidden = true;
-    progressInfo.textContent = 'Creating discussions...';
-    progressBar.style.width = '0%';
-    progressBar.setAttribute('aria-valuenow', '0');
+        const responseDiv = resultsCard.querySelector('#response');
+        responseDiv.innerHTML = '';
 
-    const responseDiv = resultsCard.querySelector('#response');
-    responseDiv.innerHTML = '';
+        try {
+            const requests = [];
+            for (let i = 1; i <= number; i++) {
+                requests.push({
+                    domain, token, course_id,
+                    title: `${title} ${i}`,
+                    message: discussionMessage,
+                    published,
+                    threaded,
+                    delayed_post_at
+                });
 
-    try {
-      const requests = [];
-      for (let i = 1; i <= number; i++) {
-        requests.push({
-          domain, token, course_id,
-          title: `${title} ${i}`,
-          message: discussionMessage,
-          published,
-          threaded,
-          delayed_post_at
-        });
+                // Update progress
+                const progress = Math.round((i / number) * 100);
+                progressBar.style.width = `${progress}%`;
+                progressBar.setAttribute('aria-valuenow', progress);
+                progressDetail.textContent = `Preparing ${i} of ${number} discussions...`;
+            }
 
-        // Update progress
-        const progress = Math.round((i / number) * 100);
-        progressBar.style.width = `${progress}%`;
-        progressBar.setAttribute('aria-valuenow', progress);
-        progressDetail.textContent = `Preparing ${i} of ${number} discussions...`;
-      }
+            progressInfo.textContent = 'Sending GraphQL requests to Canvas...';
+            progressDetail.textContent = 'Processing discussions via GraphQL API...';
+            const res = await window.axios.createDiscussions({ requests });
 
-      progressInfo.textContent = 'Sending GraphQL requests to Canvas...';
-      progressDetail.textContent = 'Processing discussions via GraphQL API...';
-      const res = await window.axios.createDiscussions({ requests });
+            // Show results
+            progressCard.hidden = true;
+            resultsCard.hidden = false;
 
-      // Show results
-      progressCard.hidden = true;
-      resultsCard.hidden = false;
+            const successful = res.successful.length;
+            const failed = res.failed ? res.failed.length : 0;
 
-      const successful = res.successful.length;
-      const failed = res.failed ? res.failed.length : 0;
+            let icon = 'bi bi-check-circle';
+            let alertClass = 'alert-success';
+            let message = '';
 
-      let icon = 'bi bi-check-circle';
-      let alertClass = 'alert-success';
-      let message = '';
+            if (failed === 0) {
+                message = `<i class="${icon} me-1"></i><strong>Success!</strong> Created ${successful} discussion${successful !== 1 ? 's' : ''}.`;
+            } else if (successful > 0) {
+                icon = 'bi bi-exclamation-triangle';
+                alertClass = 'alert-warning';
+                message = `<i class="${icon} me-1"></i><strong>Partial Success:</strong> Created ${successful} discussion${successful !== 1 ? 's' : ''}, but ${failed} failed.`;
+            } else {
+                icon = 'bi bi-x-circle';
+                alertClass = 'alert-danger';
+                message = `<i class="${icon} me-1"></i><strong>Error:</strong> All discussions failed to create.`;
+            }
 
-      if (failed === 0) {
-        message = `<i class="${icon} me-1"></i><strong>Success!</strong> Created ${successful} discussion${successful !== 1 ? 's' : ''}.`;
-      } else if (successful > 0) {
-        icon = 'bi bi-exclamation-triangle';
-        alertClass = 'alert-warning';
-        message = `<i class="${icon} me-1"></i><strong>Partial Success:</strong> Created ${successful} discussion${successful !== 1 ? 's' : ''}, but ${failed} failed.`;
-      } else {
-        icon = 'bi bi-x-circle';
-        alertClass = 'alert-danger';
-        message = `<i class="${icon} me-1"></i><strong>Error:</strong> All discussions failed to create.`;
-      }
+            responseDiv.innerHTML = `<div class="alert ${alertClass}" role="alert">${message}</div>`;
 
-      responseDiv.innerHTML = `<div class="alert ${alertClass}" role="alert">${message}</div>`;
-
-    } catch (err) {
-      progressCard.hidden = true;
-      resultsCard.hidden = false;
-      responseDiv.innerHTML = `
+        } catch (err) {
+            progressCard.hidden = true;
+            resultsCard.hidden = false;
+            responseDiv.innerHTML = `
         <div class="alert alert-danger" role="alert">
           <i class="bi bi-exclamation-triangle me-1"></i><strong>Error:</strong> ${err?.message || String(err)}
         </div>
       `;
-    } finally {
-      createBtn.disabled = false;
-    }
-  });
+        } finally {
+            createBtn.disabled = false;
+        }
+    });
 }
 
 window.discussionTemplate = discussionTemplate;

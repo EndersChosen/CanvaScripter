@@ -215,6 +215,11 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('preload.js > bulkEnroll');
         return await ipcRenderer.invoke('axios:bulkEnroll', data);
     },
+    onBulkEnrollProgress: (callback) => {
+        const handler = (_event, payload) => callback(payload);
+        ipcRenderer.on('progress:enrollment', handler);
+        return () => ipcRenderer.removeListener('progress:enrollment', handler);
+    },
     cancelBulkEnroll: async () => {
         console.log('preload.js > cancelBulkEnroll');
         return await ipcRenderer.invoke('axios:cancelBulkEnroll');
@@ -686,7 +691,6 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
     // QTI analyzer
     'qti:selectFile',
     'qti:analyze',
-    'qti:analyzeAi',
 
     // Diff checker
     'diff:selectFile',

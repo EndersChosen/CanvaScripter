@@ -42,9 +42,9 @@ function showAIAssistantUI() {
                         <label for="ai-assistant-model" class="form-label">AI Model</label>
                         <select class="form-select" id="ai-assistant-model">
                             <option value="claude-haiku-4.5" selected>Claude Haiku 4.5</option>
-                            <option value="claude-sonnet-4.5">Claude Sonnet 4.5</option>
-                            <option value="gpt-5-nano">GPT 5-nano</option>
-                            <option value="gpt-5.2">GPT 5.2</option>
+                            <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                            <option value="gpt-5-nano">GPT 5 nano</option>
+                            <option value="gpt-5.2-pro">GPT 5.2 Pro</option>
                         </select>
                     </div>
 

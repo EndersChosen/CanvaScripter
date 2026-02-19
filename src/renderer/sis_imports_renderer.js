@@ -233,6 +233,12 @@ async function createSingleSISFile(e) {
                                                     <span id="file-import-count">0</span> IDs loaded from file
                                                 </small>
                                             </div>
+                                            <div id="file-import-error" class="mt-2" style="display: none;">
+                                                <small class="text-danger">
+                                                    <i class="bi bi-exclamation-triangle me-1"></i>
+                                                    <span id="file-import-error-text"></span>
+                                                </small>
+                                            </div>
                                         </div>
                                         
                                         <div id="field-checkboxes-container">
@@ -261,6 +267,7 @@ async function createSingleSISFile(e) {
                                         </button>
                                         <small class="text-muted ms-3">Large file mode - rows generated directly to file</small>
                                     </div>
+                                    <div id="generate-csv-result" class="mt-2" style="display: none;"></div>
                                     </div>
                                 </div>
                             </div>
@@ -480,11 +487,17 @@ async function createSingleSISFile(e) {
                         // Update field state to show it's using file data
                         updateFieldImportState(importField, true);
                     } else {
-                        alert('No valid data found in file');
+                        const errSpan = document.getElementById('file-import-error-text');
+                        const errDiv = document.getElementById('file-import-error');
+                        if (errSpan) errSpan.textContent = 'No valid data found in file.';
+                        if (errDiv) errDiv.style.display = 'block';
                     }
                 } catch (error) {
                     console.error('Error reading import file:', error);
-                    alert(`Error reading file: ${error.message}`);
+                    const errSpan = document.getElementById('file-import-error-text');
+                    const errDiv = document.getElementById('file-import-error');
+                    if (errSpan) errSpan.textContent = `Error reading file: ${error.message}`;
+                    if (errDiv) errDiv.style.display = 'block';
                 }
             }
         });
@@ -1206,7 +1219,7 @@ async function createSingleSISFile(e) {
         console.log(`>>> outputPath: ${outputPath}, rowCount: ${rowCountInput.value}`);
 
         if (!outputPath) {
-            alert('Please select an output path first.');
+            showGenerateResult('danger', 'Please select an output path first.');
             return;
         }
 
@@ -1246,10 +1259,10 @@ async function createSingleSISFile(e) {
                 allOptions
             );
 
-            alert(`Successfully generated ${rowCount.toLocaleString()} rows to ${result.filePath}`);
+            showGenerateResult('success', `Successfully generated ${rowCount.toLocaleString()} rows to ${result.filePath}`);
         } catch (error) {
             console.error('Error generating CSV:', error);
-            alert(`Error generating CSV: ${error.message}`);
+            showGenerateResult('danger', `Error generating CSV: ${error.message}`);
         }
     }
 
@@ -1261,7 +1274,7 @@ async function createSingleSISFile(e) {
             : '@instructure.com';
 
         if (!outputPath) {
-            alert('Please select an output path first.');
+            showGenerateResult('danger', 'Please select an output path first.');
             return;
         }
 
@@ -1278,11 +1291,19 @@ async function createSingleSISFile(e) {
                 { fieldValues: {}, searchData: null }
             );
 
-            alert(`Successfully generated ${rowCount.toLocaleString()} random rows to ${result.filePath}`);
+            showGenerateResult('success', `Successfully generated ${rowCount.toLocaleString()} random rows to ${result.filePath}`);
         } catch (error) {
             console.error('Error generating CSV:', error);
-            alert(`Error generating CSV: ${error.message}`);
+            showGenerateResult('danger', `Error generating CSV: ${error.message}`);
         }
+    }
+
+    function showGenerateResult(type, message) {
+        const resultDiv = document.getElementById('generate-csv-result');
+        if (!resultDiv) return;
+        const icon = type === 'success' ? 'check-circle-fill' : 'exclamation-triangle-fill';
+        resultDiv.innerHTML = `<div class="alert alert-${type} py-1 mb-0 small"><i class="bi bi-${icon} me-1"></i>${message}</div>`;
+        resultDiv.style.display = 'block';
     }
 
     function addRemoveRowListeners(fileType) {

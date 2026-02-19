@@ -45,7 +45,8 @@ class QTIParser {
                 version: this.version,
                 data: this.parsedData,
                 errors: this.errors,
-                success: true
+                success: true,
+                rawXml: this.rawXml
             };
         } catch (error) {
             this.errors.push({
@@ -56,7 +57,8 @@ class QTIParser {
                 version: null,
                 data: null,
                 errors: this.errors,
-                success: false
+                success: false,
+                rawXml: this.rawXml
             };
         }
     }
@@ -155,9 +157,9 @@ class QTIPackageExtractor {
 
     isQTIFile(xmlContent) {
         return xmlContent.includes('<questestinterop') ||
-               xmlContent.includes('<assessmentTest') ||
-               xmlContent.includes('<assessmentItem') ||
-               xmlContent.includes('imsqti');
+            xmlContent.includes('<assessmentTest') ||
+            xmlContent.includes('<assessmentItem') ||
+            xmlContent.includes('imsqti');
     }
 
     parseManifest(xmlContent) {
@@ -236,6 +238,7 @@ class QTIAnalyzer {
         this.data = qtiData.data;
         this.version = qtiData.version;
         this.rawData = qtiData;
+        this.rawXml = qtiData.rawXml || '';
         this.options = options;
     }
 
@@ -252,6 +255,7 @@ class QTIAnalyzer {
             scoringAnalysis: this.getScoringAnalysis(),
             canvasCompatibility: this.checkCanvasCompatibility(),
             contentAnalysis: this.analyzeContent(),
+            mediaAnalysis: this.analyzeMediaReferences(),
             warnings: this.getWarnings()
         };
     }
@@ -471,17 +475,157 @@ class QTIAnalyzer {
     }
 
     detectQuestionType12(item) {
+        const metadataType = this.getQuestionTypeFromMetadata12(item);
+        if (metadataType) {
+            return metadataType;
+        }
+
         // Check response types
         const presentation = item.presentation;
         if (!presentation) return 'unknown';
 
-        if (presentation.response_lid) return 'Multiple Choice';
+        if (presentation.response_lid) {
+            const responseLid = Array.isArray(presentation.response_lid) ? presentation.response_lid[0] : presentation.response_lid;
+            const cardinality = String(responseLid?.['@_rcardinality'] || '').toLowerCase();
+
+            if (this.isTrueFalseResponse12(responseLid)) return 'True/False';
+            if (cardinality === 'multiple') return 'Multiple Answers';
+            return 'Multiple Choice';
+        }
         if (presentation.response_str) return 'Fill in Blank';
         if (presentation.response_num) return 'Numerical';
         if (presentation.response_xy) return 'Hotspot';
         if (presentation.response_grp) return 'Matching';
 
+        if (presentation.material && !presentation.response_lid && !presentation.response_str && !presentation.response_num && !presentation.response_xy && !presentation.response_grp) {
+            return 'Stimulus';
+        }
+
         return 'unknown';
+    }
+
+    getQuestionTypeFromMetadata12(item) {
+        const metadataFields = this.extractMetadataFields12(item);
+        if (metadataFields.length === 0) {
+            return null;
+        }
+
+        const typeField = metadataFields.find(field => {
+            const label = String(field.fieldlabel || '').toLowerCase();
+            return label === 'question_type' || label === 'qmd_question_type' || label === 'cc_profile';
+        });
+
+        if (!typeField || !typeField.fieldentry) {
+            return null;
+        }
+
+        return this.normalizeQuestionType(typeField.fieldentry);
+    }
+
+    extractMetadataFields12(item) {
+        const fields = [];
+
+        const normalizeValue = (value) => {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+                return String(value);
+            }
+            if (typeof value === 'object') {
+                if (value['#text'] !== undefined) {
+                    return normalizeValue(value['#text']);
+                }
+                if (value.fieldentry !== undefined) {
+                    return normalizeValue(value.fieldentry);
+                }
+            }
+            return '';
+        };
+
+        const visit = (node) => {
+            if (!node || typeof node !== 'object') return;
+
+            if (node.qtimetadatafield) {
+                const qtiFields = Array.isArray(node.qtimetadatafield) ? node.qtimetadatafield : [node.qtimetadatafield];
+                qtiFields.forEach(field => {
+                    fields.push({
+                        fieldlabel: normalizeValue(field.fieldlabel).trim(),
+                        fieldentry: normalizeValue(field.fieldentry).trim()
+                    });
+                });
+            }
+
+            Object.values(node).forEach(child => {
+                if (Array.isArray(child)) {
+                    child.forEach(visit);
+                } else if (child && typeof child === 'object') {
+                    visit(child);
+                }
+            });
+        };
+
+        visit(item);
+        return fields;
+    }
+
+    normalizeQuestionType(rawType) {
+        if (!rawType) return 'unknown';
+
+        const normalized = String(rawType).trim().toLowerCase();
+        const typeMap = {
+            'multiple_choice_question': 'Multiple Choice',
+            'multiple_answers_question': 'Multiple Answers',
+            'true_false_question': 'True/False',
+            'short_answer_question': 'Short Answer',
+            'essay_question': 'Essay',
+            'file_upload_question': 'File Upload',
+            'matching_question': 'Matching',
+            'numerical_question': 'Numerical',
+            'calculated_question': 'Formula',
+            'formula_question': 'Formula',
+            'fill_in_multiple_blanks_question': 'Fill in Multiple Blanks',
+            'multiple_dropdowns_question': 'Multiple Dropdowns',
+            'categorization_question': 'Categorization',
+            'hot_spot_question': 'Hotspot',
+            'hotspot_question': 'Hotspot',
+            'text_only_question': 'Stimulus',
+            'stimulus_question': 'Stimulus',
+            'ordering_question': 'Ordering'
+        };
+
+        return typeMap[normalized] || rawType;
+    }
+
+    isTrueFalseResponse12(responseLid) {
+        if (!responseLid) return false;
+
+        const labels = [];
+        const collectLabels = (node) => {
+            if (!node || typeof node !== 'object') return;
+            if (node['@_ident']) {
+                labels.push(String(node['@_ident']).toLowerCase());
+            }
+            Object.values(node).forEach(child => {
+                if (Array.isArray(child)) {
+                    child.forEach(collectLabels);
+                } else if (child && typeof child === 'object') {
+                    collectLabels(child);
+                }
+            });
+        };
+
+        collectLabels(responseLid.render_choice || responseLid);
+
+        if (labels.length !== 2) return false;
+        const labelSet = new Set(labels);
+
+        const trueFalsePairs = [
+            ['true', 'false'],
+            ['t', 'f'],
+            ['yes', 'no'],
+            ['1', '0']
+        ];
+
+        return trueFalsePairs.some(pair => labelSet.has(pair[0]) && labelSet.has(pair[1]));
     }
 
     extractPoints12(item) {
@@ -586,11 +730,11 @@ class QTIAnalyzer {
 
     hasMedia(content) {
         return content.includes('<img') ||
-               content.includes('<audio') ||
-               content.includes('<video') ||
-               content.includes('matimage') ||
-               content.includes('mataudio') ||
-               content.includes('matvideo');
+            content.includes('<audio') ||
+            content.includes('<video') ||
+            content.includes('matimage') ||
+            content.includes('mataudio') ||
+            content.includes('matvideo');
     }
 
     /**
@@ -622,15 +766,22 @@ class QTIAnalyzer {
             'Multiple Choice',
             'True/False',
             'Fill in Blank',
+            'Fill in Multiple Blanks',
+            'Multiple Dropdowns',
+            'Short Answer',
             'Essay',
             'Matching',
             'Multiple Answers',
-            'Numerical'
+            'Numerical',
+            'Calculated',
+            'Formula'
         ];
-        const limited = ['Hotspot'];
+        const limited = ['Hotspot', 'File Upload', 'Stimulus'];
+        const newQuizzesOnly = ['Categorization', 'Ordering'];
 
         if (supported.includes(type)) return 'full';
         if (limited.includes(type)) return 'limited';
+        if (newQuizzesOnly.includes(type)) return 'new_quizzes_only';
         return 'unsupported';
     }
 
@@ -692,6 +843,13 @@ class QTIAnalyzer {
                     message: `Limited support for ${type} (${data.count} question${data.count > 1 ? 's' : ''})`,
                     impact: 'These questions may require manual review after import'
                 });
+            } else if (data.canvasSupported === 'new_quizzes_only') {
+                warnings.push({
+                    severity: 'medium',
+                    type: 'new_quizzes_only_interaction',
+                    message: `${type} (${data.count} question${data.count > 1 ? 's' : ''}) is supported in Canvas New Quizzes only`,
+                    impact: 'These questions are not supported in Classic Quizzes'
+                });
             }
         });
 
@@ -703,6 +861,16 @@ class QTIAnalyzer {
                 type: 'external_references',
                 message: 'External media references detected',
                 impact: 'Media files may need manual upload to Canvas'
+            });
+        }
+
+        const mediaAnalysis = this.analyzeMediaReferences();
+        if (mediaAnalysis.missing > 0) {
+            warnings.push({
+                severity: 'high',
+                type: 'missing_media_references',
+                message: `${mediaAnalysis.missing} media reference${mediaAnalysis.missing > 1 ? 's are' : ' is'} missing from the package`,
+                impact: 'Questions may import with broken media in Canvas'
             });
         }
 
@@ -751,6 +919,10 @@ class QTIAnalyzer {
             recommendations.push('Prepare to manually upload media files referenced in questions');
         }
 
+        if (warnings.some(w => w.type === 'missing_media_references')) {
+            recommendations.push('Re-export the package or include all referenced media files before import');
+        }
+
         if (recommendations.length === 0) {
             recommendations.push('File appears compatible with Canvas - ready for import');
         }
@@ -773,6 +945,113 @@ class QTIAnalyzer {
             hasTables: content.includes('<table'),
             hasFormattedText: content.includes('<p>') || content.includes('<div>')
         };
+    }
+
+    analyzeMediaReferences() {
+        if (!this.rawXml || typeof this.rawXml !== 'string') {
+            return {
+                total: 0,
+                internal: 0,
+                resolved: 0,
+                missing: 0,
+                external: 0,
+                unknown: 0,
+                references: []
+            };
+        }
+
+        const referenceMatches = [
+            ...[...this.rawXml.matchAll(/<(?:matimage|mataudio|matvideo)[^>]*\suri="([^"]+)"/g)].map(match => ({
+                reference: match[1],
+                source: 'qti_material'
+            })),
+            ...[...this.rawXml.matchAll(/(?:src|href)="([^"]+)"/g)].map(match => ({
+                reference: match[1],
+                source: 'html_attr'
+            }))
+        ];
+
+        const uniqueByRef = new Map();
+        referenceMatches.forEach(item => {
+            if (!uniqueByRef.has(item.reference)) {
+                uniqueByRef.set(item.reference, item);
+            }
+        });
+
+        const refs = [...uniqueByRef.values()];
+        const references = refs.map(item => this.resolveMediaReference(item.reference, item.source));
+
+        return {
+            total: references.length,
+            internal: references.filter(r => r.isInternal).length,
+            resolved: references.filter(r => r.status === 'resolved').length,
+            missing: references.filter(r => r.status === 'missing').length,
+            external: references.filter(r => r.status === 'external').length,
+            unknown: references.filter(r => r.status === 'unknown').length,
+            references
+        };
+    }
+
+    resolveMediaReference(reference, source) {
+        const decoded = this.decodeReference(reference);
+        const normalizedPath = this.normalizePackagePath(decoded);
+        const lowerRef = decoded.toLowerCase();
+
+        const isExternal =
+            lowerRef.startsWith('http://') ||
+            lowerRef.startsWith('https://') ||
+            lowerRef.startsWith('//');
+
+        if (isExternal) {
+            return {
+                reference,
+                normalizedPath,
+                source,
+                status: 'external',
+                isInternal: false
+            };
+        }
+
+        const packageContext = this.options.packageContext || {};
+        const packageFiles = packageContext.packageFiles instanceof Set ? packageContext.packageFiles : null;
+        const manifestFiles = packageContext.manifestFiles instanceof Set ? packageContext.manifestFiles : null;
+
+        if (packageFiles || manifestFiles) {
+            const inPackage = packageFiles ? packageFiles.has(normalizedPath.toLowerCase()) : false;
+            const inManifest = manifestFiles ? manifestFiles.has(normalizedPath.toLowerCase()) : false;
+
+            return {
+                reference,
+                normalizedPath,
+                source,
+                status: (inPackage || inManifest) ? 'resolved' : 'missing',
+                isInternal: true
+            };
+        }
+
+        return {
+            reference,
+            normalizedPath,
+            source,
+            status: 'unknown',
+            isInternal: true
+        };
+    }
+
+    decodeReference(reference) {
+        try {
+            return decodeURIComponent(reference);
+        } catch (error) {
+            return reference;
+        }
+    }
+
+    normalizePackagePath(pathValue) {
+        return String(pathValue || '')
+            .replace(/\\/g, '/')
+            .replace(/^\$IMS-CC-FILEBASE\$\/?/i, '')
+            .replace(/^\.\//, '')
+            .trim();
     }
 
     /**
@@ -827,23 +1106,172 @@ class QTIAnalyzer {
             throw new Error('No QTI files found in ZIP package');
         }
 
-        // Analyze the first QTI file (or combine multiple if needed)
-        const firstFile = packageData.assessmentFiles[0];
-        const parser = new QTIParser(firstFile.content);
-        const parseResult = parser.parse();
+        const analyzedFiles = [];
+        const failedFiles = [];
+        const allQuestions = [];
+        const mediaAnalyses = [];
 
-        if (!parseResult.success) {
-            throw new Error('Failed to parse QTI file in package: ' + parseResult.errors.map(e => e.message).join(', '));
+        const zip = await JSZip.loadAsync(zipBuffer);
+        const packageFiles = new Set();
+        zip.forEach((relativePath, file) => {
+            if (!file.dir) {
+                packageFiles.add(relativePath.replace(/\\/g, '/').toLowerCase());
+            }
+        });
+
+        let manifestFiles = new Set();
+        const manifestFile = zip.file('imsmanifest.xml');
+        if (manifestFile) {
+            const manifestRaw = await manifestFile.async('string');
+            const manifestRefs = [...manifestRaw.matchAll(/<file\s+href="([^"]+)"/g)].map(match =>
+                match[1].replace(/\\/g, '/').trim().toLowerCase()
+            );
+            manifestFiles = new Set(manifestRefs);
         }
 
-        const analyzer = new QTIAnalyzer(parseResult);
-        const report = analyzer.generateReport();
+        for (const assessmentFile of packageData.assessmentFiles) {
+            const parser = new QTIParser(assessmentFile.content);
+            const parseResult = parser.parse();
+
+            if (!parseResult.success) {
+                failedFiles.push({
+                    filename: assessmentFile.filename,
+                    errors: parseResult.errors
+                });
+                continue;
+            }
+
+            const analyzer = new QTIAnalyzer(parseResult, {
+                packageContext: {
+                    packageFiles,
+                    manifestFiles
+                }
+            });
+            const fileReport = analyzer.generateReport();
+            const fileQuestions = analyzer.extractAllQuestions();
+
+            analyzedFiles.push({
+                filename: assessmentFile.filename,
+                report: fileReport
+            });
+
+            allQuestions.push(...fileQuestions);
+            mediaAnalyses.push(fileReport.mediaAnalysis);
+        }
+
+        if (analyzedFiles.length === 0) {
+            throw new Error('Failed to parse any QTI assessment files in ZIP package');
+        }
+
+        const report = analyzedFiles[0].report;
+        const supportAnalyzer = new QTIAnalyzer({ data: {}, version: report.version, success: true });
+
+        const allMediaReferences = [];
+        mediaAnalyses.forEach(media => {
+            if (media && Array.isArray(media.references)) {
+                allMediaReferences.push(...media.references);
+            }
+        });
+
+        if (allMediaReferences.length > 0) {
+            const uniqueRefs = [];
+            const seen = new Set();
+            allMediaReferences.forEach(ref => {
+                const key = `${ref.reference}|${ref.source}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueRefs.push(ref);
+                }
+            });
+
+            report.mediaAnalysis = {
+                total: uniqueRefs.length,
+                internal: uniqueRefs.filter(r => r.isInternal).length,
+                resolved: uniqueRefs.filter(r => r.status === 'resolved').length,
+                missing: uniqueRefs.filter(r => r.status === 'missing').length,
+                external: uniqueRefs.filter(r => r.status === 'external').length,
+                unknown: uniqueRefs.filter(r => r.status === 'unknown').length,
+                references: uniqueRefs
+            };
+        }
+
+        if (allQuestions.length > 0) {
+            const byType = {};
+            const byPoints = {
+                '0': 0,
+                '1-5': 0,
+                '6-10': 0,
+                '11+': 0
+            };
+
+            let withFeedback = 0;
+            let withMedia = 0;
+            const pointValues = [];
+
+            allQuestions.forEach(question => {
+                const type = question.type || 'unknown';
+                const parsedPoints = Number.parseFloat(question.points);
+                const points = Number.isFinite(parsedPoints) ? parsedPoints : 0;
+
+                byType[type] = (byType[type] || 0) + 1;
+
+                if (points === 0) byPoints['0']++;
+                else if (points <= 5) byPoints['1-5']++;
+                else if (points <= 10) byPoints['6-10']++;
+                else byPoints['11+']++;
+
+                if (question.hasFeedback) withFeedback++;
+                if (question.hasMedia) withMedia++;
+
+                pointValues.push(points);
+            });
+
+            report.questionSummary = {
+                total: allQuestions.length,
+                byType,
+                byPoints,
+                withFeedback,
+                withMedia
+            };
+
+            report.metadata.questionCount = allQuestions.length;
+
+            const interactionTypes = {};
+            Object.entries(byType).forEach(([type, count]) => {
+                interactionTypes[type] = {
+                    count,
+                    canvasSupported: supportAnalyzer.isCanvasSupportedType(type)
+                };
+            });
+
+            report.interactionTypes = {
+                total: allQuestions.length,
+                types: interactionTypes
+            };
+
+            const totalPoints = pointValues.reduce((sum, val) => sum + val, 0);
+            const pointDistribution = {};
+            pointValues.forEach(val => {
+                pointDistribution[val] = (pointDistribution[val] || 0) + 1;
+            });
+
+            report.scoringAnalysis = {
+                totalPoints,
+                averagePoints: pointValues.length > 0 ? totalPoints / pointValues.length : 0,
+                minPoints: pointValues.length > 0 ? Math.min(...pointValues) : 0,
+                maxPoints: pointValues.length > 0 ? Math.max(...pointValues) : 0,
+                pointDistribution
+            };
+        }
 
         // Add package info
         report.packageInfo = {
             fileCount: packageData.fileCount,
             files: packageData.assessmentFiles.map(f => f.filename),
-            hasManifest: packageData.manifest !== null
+            hasManifest: packageData.manifest !== null,
+            analyzedFileCount: analyzedFiles.length,
+            failedFileCount: failedFiles.length,
+            failedFiles
         };
 
         return report;

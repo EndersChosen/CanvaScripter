@@ -24,7 +24,7 @@ async function getPageViews(e) {
 
     if (!getPageViewsForm) {
 
-        getPageViewsForm =                        getPageViewsForm = document.createElement('form');
+        getPageViewsForm = getPageViewsForm = document.createElement('form');
         getPageViewsForm.id = 'get-page-views-form';
         // eContent.innerHTML = `
         //     <div>
@@ -707,6 +707,7 @@ function userNotifications(e) {
                                 <button type="button" class="btn btn-sm btn-outline-primary" id="fetch-comm-channels-btn" disabled>
                                     <i class="bi bi-download me-2"></i>Fetch Communication Channels
                                 </button>
+                                <div id="fetch-comm-channels-error" class="form-text text-danger mt-1" style="min-height: 1.25rem; display: none;"></div>
                             </div>
                         </div>
                     </div>
@@ -793,6 +794,7 @@ function userNotifications(e) {
     const commChannelID = userNotificationsForm.querySelector('#comm-channel-id');
     const commChannelSelect = userNotificationsForm.querySelector('#comm-channel-select');
     const fetchCommChannelsBtn = userNotificationsForm.querySelector('#fetch-comm-channels-btn');
+    const fetchChannelsErrorDiv = userNotificationsForm.querySelector('#fetch-comm-channels-error');
     const enableAllBtn = userNotificationsForm.querySelector('#enable-all-btn');
     const disableAllBtn = userNotificationsForm.querySelector('#disable-all-btn');
     const progressCard = userNotificationsForm.querySelector('#notifications-progress-card');
@@ -923,14 +925,21 @@ function userNotifications(e) {
         const token = document.querySelector('#token').value;
 
         if (!user || !domain || !token) {
-            alert('Please ensure all required fields are filled.');
+            if (fetchChannelsErrorDiv) {
+                fetchChannelsErrorDiv.textContent = 'Please ensure all required fields are filled.';
+                fetchChannelsErrorDiv.style.display = 'block';
+            }
             return;
         }
+        if (fetchChannelsErrorDiv) fetchChannelsErrorDiv.style.display = 'none';
 
         // Check if axios is available
         if (!window.axios || !window.axios.getCommChannels) {
             console.error('axios or getCommChannels function not available');
-            alert('Error: Communication functions not yet loaded. Please try again in a moment.');
+            if (fetchChannelsErrorDiv) {
+                fetchChannelsErrorDiv.textContent = 'Communication functions not yet loaded. Please try again in a moment.';
+                fetchChannelsErrorDiv.style.display = 'block';
+            }
             return;
         }
 
@@ -951,7 +960,10 @@ function userNotifications(e) {
             }
         } catch (error) {
             console.error('Error fetching communication channels:', error);
-            alert(`Error fetching communication channels: ${error.message}`);
+            if (fetchChannelsErrorDiv) {
+                fetchChannelsErrorDiv.textContent = `Error fetching communication channels: ${error.message}`;
+                fetchChannelsErrorDiv.style.display = 'block';
+            }
         } finally {
             fetchCommChannelsBtn.disabled = false;
             fetchCommChannelsBtn.innerHTML = 'Fetch Comm Channels';

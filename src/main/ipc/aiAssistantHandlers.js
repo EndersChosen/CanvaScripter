@@ -89,7 +89,7 @@ Example output format:
                     { role: 'system', content: 'You are a helpful assistant that generates creative announcement titles. Respond only with a JSON array of strings.' },
                     { role: 'user', content: prompt }
                 ],
-                model: 'gpt-4o',
+                model: 'gpt-5-nano',
                 response_format: { type: "json_object" }
             });
             responseText = completion.choices[0].message.content;
@@ -1376,10 +1376,9 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 // Map model identifier to actual API model name
                 const modelMap = {
                     'gpt-5-nano': 'gpt-5-nano',
-                    'gpt-5.2': 'gpt-5.2',
-                    'gpt-4o': 'gpt-4o'
+                    'gpt-5.2-pro': 'gpt-5.2-pro'
                 };
-                const apiModel = modelMap[model] || 'gpt-4o';
+                const apiModel = modelMap[model] || 'gpt-5-nano';
                 const completion = await openai.chat.completions.create({
                     messages: [
                         { role: 'system', content: systemPrompt },
@@ -1393,10 +1392,10 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 const anthropic = new Anthropic({ apiKey });
                 // Map model identifier to actual API model name
                 const modelMap = {
-                    'claude-sonnet-4.5': 'claude-sonnet-4-5-20250929',
-                    'claude-haiku-4.5': 'claude-haiku-4-5-20251001'
+                    'claude-haiku-4.5': 'claude-haiku-4-5-20251001',
+                    'claude-sonnet-4-6': 'claude-sonnet-4-6'
                 };
-                const apiModel = modelMap[model] || 'claude-sonnet-4-5-20250929';
+                const apiModel = modelMap[model] || 'claude-sonnet-4-6';
                 const msg = await anthropic.messages.create({
                     model: apiModel,
                     max_tokens: 2048,

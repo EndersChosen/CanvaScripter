@@ -139,6 +139,9 @@ function bulkEnrollmentUI(e) {
                             </div>
                         </div>
                     </div>
+                    <div id="enroll-error" class="alert alert-danger mt-1" hidden>
+                        <i class="bi bi-exclamation-triangle me-2"></i><span id="enroll-error-text"></span>
+                    </div>
                 </div>
             </div>
 
@@ -158,6 +161,11 @@ function bulkEnrollmentUI(e) {
                         </div>
                     </div>
                     <small class="text-muted" id="enrollment-progress-detail"></small>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-danger" id="enrollment-cancel-btn" hidden>
+                            <i class="bi bi-x-circle me-1"></i>Cancel Processing
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -181,9 +189,11 @@ function setupEnrollmentFormListeners() {
     const fileHelp = document.getElementById('file-help');
     const filePreview = document.getElementById('file-preview');
     const previewText = document.getElementById('preview-text');
+    const cancelBtn = document.getElementById('enrollment-cancel-btn');
     const enrollmentStateInputs = Array.from(document.querySelectorAll('input[name="enrollment-state"]'));
 
     let parsedData = null;
+    let cancellationRequested = false;
 
     const getSelectedAction = () => {
         const selected = enrollmentStateInputs.find(input => input.checked);
@@ -332,9 +342,12 @@ function setupEnrollmentFormListeners() {
             : 'enroll';
 
         if (!domain || !token) {
-            alert('Please enter Canvas domain and API token.');
+            const errDiv = document.getElementById('enroll-error');
+            document.getElementById('enroll-error-text').textContent = 'Please enter Canvas domain and API token in Settings.';
+            errDiv.hidden = false;
             return;
         }
+        document.getElementById('enroll-error').hidden = true;
 
         const validation = validateEnrollmentsForTask(parsedData, enrollmentState);
         if (!validation.valid) {
@@ -348,6 +361,25 @@ function setupEnrollmentFormListeners() {
         document.getElementById('enrollment-progress-card').hidden = false;
         document.getElementById('enrollment-results-card').hidden = true;
         enrollBtn.disabled = true;
+        cancellationRequested = false;
+
+        if (cancelBtn) {
+            cancelBtn.hidden = false;
+            cancelBtn.disabled = false;
+            cancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel Processing';
+            cancelBtn.classList.remove('btn-secondary');
+            cancelBtn.classList.add('btn-outline-danger');
+        }
+
+        const progressBar = document.getElementById('enrollment-progress-bar');
+        const progressInfo = document.getElementById('enrollment-progress-info');
+        const progressDetail = document.getElementById('enrollment-progress-detail');
+        if (progressBar && progressInfo && progressDetail) {
+            progressBar.style.width = '0%';
+            progressBar.setAttribute('aria-valuenow', '0');
+            progressInfo.textContent = `Processing enrollments ... 0/${parsedData.length}`;
+            progressDetail.textContent = 'Preparing requests...';
+        }
 
         try {
             const result = await window.axios.bulkEnroll({
@@ -360,14 +392,46 @@ function setupEnrollmentFormListeners() {
 
             // Show results
             displayEnrollmentResults(result);
+
+            if (cancellationRequested) {
+                const progressDetailAfter = document.getElementById('enrollment-progress-detail');
+                if (progressDetailAfter) {
+                    progressDetailAfter.textContent = 'Processing cancelled. In-flight requests were allowed to finish.';
+                }
+            }
         } catch (error) {
             console.error('Enrollment error:', error);
             displayEnrollmentError(error);
         } finally {
             enrollBtn.disabled = false;
             document.getElementById('enrollment-progress-card').hidden = true;
+            if (cancelBtn) {
+                cancelBtn.hidden = true;
+                cancelBtn.disabled = true;
+            }
         }
     });
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', async () => {
+            cancelBtn.disabled = true;
+            cancellationRequested = true;
+            cancelBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Cancelling...';
+            cancelBtn.classList.remove('btn-outline-danger');
+            cancelBtn.classList.add('btn-secondary');
+
+            const progressDetail = document.getElementById('enrollment-progress-detail');
+            if (progressDetail) {
+                progressDetail.textContent = 'Cancelling... letting in-flight requests finish.';
+            }
+
+            try {
+                await window.axios.cancelBulkEnroll();
+            } catch (error) {
+                console.error('Error cancelling bulk enrollments:', error);
+            }
+        });
+    }
 }
 
 function parseEnrollmentFile(content) {
@@ -379,17 +443,9 @@ function parseEnrollmentFile(content) {
     const header = lines[0].split(',').map(h => h.trim().toLowerCase());
     const enrollments = [];
 
-    // Map common column names to standard fields
+    // Map non-identifier aliases to standard fields.
+    // Keep identifier columns separate so we can prioritize canvas_* values later.
     const fieldMap = {
-        'canvas_user_id': 'user_id',
-        'user_id': 'user_id',
-        'sis_user_id': 'user_id',
-        'canvas_section_id': 'course_section_id',
-        'section_id': 'course_section_id',
-        'sis_section_id': 'course_section_id',
-        'canvas_course_id': 'course_id',
-        'enrollment_id': 'enrollment_id',
-        'canvas_enrollment_id': 'enrollment_id',
         'base_role_type': 'type',
         'limit_section_privileges': 'limit_privileges_to_course_section',
         'status': 'enrollment_state'
@@ -412,21 +468,26 @@ function parseEnrollmentFile(content) {
             enrollment[standardField] = value;
         });
 
-        // Extract required fields with priority
+        const parseBoolean = (value) => {
+            if (typeof value === 'boolean') return value;
+            if (typeof value !== 'string') return false;
+            return value.trim().toLowerCase() === 'true';
+        };
+
+        // Extract required fields with priority.
+        // Prefer Canvas numeric identifiers when both Canvas and SIS IDs are present.
         const parsed = {
-            user_id: enrollment.user_id || enrollment.canvas_user_id,
+            user_id: enrollment.canvas_user_id || enrollment.user_id || enrollment.sis_user_id,
             type: enrollment.type || enrollment.base_role_type,
             role_id: enrollment.role_id,
             role: enrollment.role,
-            course_section_id: enrollment.course_section_id || enrollment.canvas_section_id,
-            course_id: enrollment.course_id || enrollment.canvas_course_id,
-            enrollment_id: enrollment.enrollment_id || enrollment.canvas_enrollment_id,
+            course_section_id: enrollment.canvas_section_id || enrollment.course_section_id || enrollment.section_id || enrollment.sis_section_id,
+            course_id: enrollment.canvas_course_id || enrollment.course_id,
+            enrollment_id: enrollment.canvas_enrollment_id || enrollment.enrollment_id,
             start_at: enrollment.start_at,
             end_at: enrollment.end_at,
-            limit_privileges_to_course_section: enrollment.limit_privileges_to_course_section === 'true' ||
-                enrollment.limit_privileges_to_course_section === true ||
-                enrollment.limit_section_privileges === 'true' ||
-                enrollment.limit_section_privileges === true
+            limit_privileges_to_course_section: parseBoolean(enrollment.limit_privileges_to_course_section) ||
+                parseBoolean(enrollment.limit_section_privileges)
         };
 
         // Validate that we have required fields
@@ -521,16 +582,64 @@ function displayEnrollmentResults(result) {
     `;
 
         if (result.errors && result.errors.length > 0) {
+            const maxDisplay = 10;
+            const displayErrors = result.errors.slice(0, maxDisplay);
+
             html += `<div class="mt-3"><h6>Error Details:</h6><ul>`;
-            result.errors.forEach(error => {
+            displayErrors.forEach(error => {
                 html += `<li><code>${error.user_id || 'Unknown'}</code>: ${error.reason}</li>`;
             });
-            html += `</ul></div>`;
+            html += `</ul>`;
+
+            if (result.errors.length > maxDisplay) {
+                html += `<p class="text-muted">...and ${result.errors.length - maxDisplay} more error(s).</p>`;
+            }
+
+            // Add download button for full error log
+            html += `<button id="enrollment-download-errors" type="button" class="btn btn-sm btn-outline-secondary mt-2"><i class="bi bi-download me-1"></i>Download Full Error Log (CSV)</button>`;
+            html += `</div>`;
         }
     }
 
     responseDiv.innerHTML = html;
     resultsCard.hidden = false;
+
+    // Attach event listener for download errors button
+    if (result.errors && result.errors.length > 0) {
+        const downloadErrorsBtn = document.getElementById('enrollment-download-errors');
+        if (downloadErrorsBtn) {
+            downloadErrorsBtn.addEventListener('click', async () => {
+                try {
+                    const errorData = result.errors.map(error => ({
+                        user_id: error.user_id || 'Unknown',
+                        course_id: error.course_id || '',
+                        section_id: error.section_id || '',
+                        role: error.role || '',
+                        reason: error.reason || 'Unknown error'
+                    }));
+
+                    const defaultFileName = `enrollment_errors_${new Date().toISOString().split('T')[0]}.csv`;
+                    const csvResult = await window.csv.sendToCSV({
+                        fileName: defaultFileName,
+                        data: errorData,
+                        showSaveDialog: true
+                    });
+
+                    if (csvResult && csvResult.filePath) {
+                        downloadErrorsBtn.innerHTML = '<i class="bi bi-check me-1"></i>Downloaded';
+                        downloadErrorsBtn.classList.remove('btn-outline-secondary');
+                        downloadErrorsBtn.classList.add('btn-success');
+                        downloadErrorsBtn.disabled = true;
+                    }
+                } catch (error) {
+                    console.error('Error downloading error log:', error);
+                    downloadErrorsBtn.innerHTML = '<i class="bi bi-x me-1"></i>Download Failed';
+                    downloadErrorsBtn.classList.remove('btn-outline-secondary');
+                    downloadErrorsBtn.classList.add('btn-danger');
+                }
+            });
+        }
+    }
 }
 
 function displayEnrollmentError(error) {
@@ -546,19 +655,22 @@ function displayEnrollmentError(error) {
     resultsCard.hidden = false;
 }
 
-// Setup progress listener if needed
-if (window.progressUtils && window.progressUtils.subscribeToProgress) {
-    window.progressUtils.subscribeToProgress('enrollment', (data) => {
+// Setup progress listener for bulk enrollment
+if (window.axios && window.axios.onBulkEnrollProgress) {
+    window.axios.onBulkEnrollProgress((data) => {
         const progressBar = document.getElementById('enrollment-progress-bar');
         const progressInfo = document.getElementById('enrollment-progress-info');
         const progressDetail = document.getElementById('enrollment-progress-detail');
 
         if (progressBar && progressInfo && progressDetail) {
-            const percentage = Math.round((data.current / data.total) * 100);
+            const current = Number(data?.current || 0);
+            const total = Number(data?.total || 0);
+            const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+
             progressBar.style.width = `${percentage}%`;
-            progressBar.setAttribute('aria-valuenow', percentage);
-            progressInfo.textContent = `Processing enrollment ${data.current} of ${data.total}`;
-            progressDetail.textContent = data.detail || '';
+            progressBar.setAttribute('aria-valuenow', String(percentage));
+            progressInfo.textContent = `Processing enrollments ... ${current}/${total}`;
+            progressDetail.textContent = data?.detail || '';
         }
     });
 }

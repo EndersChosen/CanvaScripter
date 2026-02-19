@@ -16,6 +16,24 @@ const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 
 /**
+ * Classify a MIME type string into a human-readable resource category.
+ * @param {string} mimeType
+ * @returns {string}
+ */
+function classifyMimeType(mimeType) {
+    if (!mimeType) return 'Other';
+    const m = mimeType.toLowerCase();
+    if (m.includes('html')) return 'Document';
+    if (m.includes('javascript') || m.includes('ecmascript')) return 'Script';
+    if (m.includes('css')) return 'Stylesheet';
+    if (m.startsWith('image/')) return 'Image';
+    if (m.includes('font') || m.includes('woff')) return 'Font';
+    if (m.startsWith('video/') || m.startsWith('audio/')) return 'Media';
+    if (m.includes('json') || m.includes('xml') || m.includes('form')) return 'XHR/Fetch';
+    return 'Other';
+}
+
+/**
  * Register all file operation IPC handlers
  * @param {Object} options - Configuration options
  * @param {BrowserWindow} options.mainWindow - Main application window
@@ -104,7 +122,8 @@ function registerFileHandlers({ mainWindow, security, parsers, harAnalyzer }) {
         return { canceled: false, filePath };
     });
 
-    // HAR analysis with security check
+    // HAR parse — returns a clean, flat representation of the HAR file
+    // for the user to browse and analyse themselves.
     ipcMain.handle('har:analyze', async (event, filePath) => {
         try {
             if (!isAllowedPath(allowedReadPaths, event.sender.id, filePath)) {
@@ -112,12 +131,61 @@ function registerFileHandlers({ mainWindow, security, parsers, harAnalyzer }) {
             }
             const harContent = fs.readFileSync(filePath, 'utf8');
             const harData = JSON.parse(harContent);
-            const analyzer = new harAnalyzer.HARAnalyzer(harData);
-            const report = analyzer.generateReport();
-            report.diagnosis = analyzer.diagnoseIncompleteAuth();
-            return report;
+
+            const log = harData.log || {};
+            const rawEntries = log.entries || [];
+            const rawPages = log.pages || [];
+
+            // Flatten each entry into a simple object
+            const entries = rawEntries.map((entry, i) => {
+                const req = entry.request || {};
+                const res = entry.response || {};
+                const mimeType = ((res.content && res.content.mimeType) || res.mimeType || '').split(';')[0].trim();
+
+                return {
+                    id: i + 1,
+                    startedDateTime: entry.startedDateTime || null,
+                    pageref: entry.pageref || null,
+                    method: req.method || '',
+                    url: req.url || '',
+                    status: res.status || 0,
+                    statusText: res.statusText || '',
+                    mimeType,
+                    resourceType: classifyMimeType(mimeType),
+                    contentSize: (res.content && res.content.size != null) ? res.content.size : -1,
+                    transferSize: res.bodySize != null ? res.bodySize : -1,
+                    time: Math.round(entry.time || 0),
+                };
+            });
+
+            const pages = rawPages.map(p => ({
+                id: p.id,
+                title: p.title || '',
+                startedDateTime: p.startedDateTime || null,
+            }));
+
+            // Derive user-agent from the first entry's request headers
+            let userAgent = null;
+            if (rawEntries.length > 0) {
+                const reqHeaders = rawEntries[0].request && rawEntries[0].request.headers || [];
+                const uaHeader = reqHeaders.find(h => h.name.toLowerCase() === 'user-agent');
+                if (uaHeader) userAgent = uaHeader.value;
+            }
+
+            return {
+                summary: {
+                    totalRequests: entries.length,
+                    totalPages: pages.length,
+                    creator: (log.creator && log.creator.name) ? log.creator.name : null,
+                    startTime: rawEntries.length > 0 ? rawEntries[0].startedDateTime : null,
+                    endTime: rawEntries.length > 0 ? rawEntries[rawEntries.length - 1].startedDateTime : null,
+                    userAgent,
+                },
+                pages,
+                entries,
+            };
         } catch (error) {
-            throw new Error(`Failed to analyze HAR file: ${error.message}`);
+            throw new Error(`Failed to parse HAR file: ${error.message}`);
         }
     });
 
@@ -158,9 +226,10 @@ ${JSON.stringify(summary, null, 2)}`;
                 const openai = new OpenAI({ apiKey });
                 // Mapping custom user request to actual available model
                 const modelMapper = {
-                    'gpt-5.2': 'gpt-4o', // Fallback as 5.2 doesn't exist publically yet
+                    'gpt-5-nano': 'gpt-5-nano',
+                    'gpt-5.2-pro': 'gpt-5.2-pro'
                 };
-                const targetModel = modelMapper[model] || model;
+                const targetModel = modelMapper[model] || 'gpt-5-nano';
 
                 const completion = await openai.chat.completions.create({
                     messages: [
@@ -178,9 +247,10 @@ ${JSON.stringify(summary, null, 2)}`;
                 const anthropic = new Anthropic({ apiKey });
                 // Mapping custom user request to actual available model
                 const modelMapper = {
-                    'claude-sonnet-4.5': 'claude-sonnet-4-5-20250929',
+                    'claude-haiku-4.5': 'claude-haiku-4-5-20251001',
+                    'claude-sonnet-4-6': 'claude-sonnet-4-6'
                 };
-                const targetModel = modelMapper[model] || 'claude-3-5-sonnet-20240620'; // Fallback to a known stable model if mapping fails
+                const targetModel = modelMapper[model] || 'claude-sonnet-4-6';
 
                 const msg = await anthropic.messages.create({
                     model: targetModel,
@@ -314,86 +384,6 @@ ${JSON.stringify(summary, null, 2)}`;
             return qtiData;
         } catch (error) {
             throw new Error(`Failed to analyze QTI file: ${error.message}`);
-        }
-    });
-
-    // QTI AI analysis
-    ipcMain.handle('qti:analyzeAi', async (event, { filePath, model, prompt }) => {
-        try {
-            if (!isAllowedPath(allowedReadPaths, event.sender.id, filePath)) {
-                throw new Error('Access denied: QTI file was not selected via dialog');
-            }
-
-            // First do standard analysis
-            const { QTIAnalyzer } = require('../../shared/qtiAnalyzer');
-            const isZip = filePath.toLowerCase().endsWith('.zip');
-            let qtiData;
-
-            if (isZip) {
-                const zipBuffer = fs.readFileSync(filePath);
-                qtiData = await QTIAnalyzer.analyzePackage(zipBuffer);
-            } else {
-                const xmlContent = fs.readFileSync(filePath, 'utf8');
-                qtiData = await QTIAnalyzer.analyzeXML(xmlContent);
-            }
-
-            // Prepare AI context
-            const summary = {
-                version: qtiData.version,
-                metadata: qtiData.metadata,
-                questionSummary: qtiData.questionSummary,
-                interactionTypes: qtiData.interactionTypes,
-                compatibility: qtiData.canvasCompatibility,
-                warnings: qtiData.warnings,
-                contentAnalysis: qtiData.contentAnalysis
-            };
-
-            const systemPrompt = `You are an expert in QTI (Question and Test Interoperability) standards and Canvas LMS.
-Analyze QTI assessments for Canvas compatibility, quality issues, and provide actionable recommendations.
-Focus on practical import guidance and question improvement suggestions.`;
-
-            let userContent = `Analyze this QTI assessment summary:\n\n${JSON.stringify(summary, null, 2)}`;
-            if (prompt && prompt.trim()) {
-                userContent = `User request: ${prompt}\n\nQTI Assessment Data:\n${JSON.stringify(summary, null, 2)}`;
-            }
-
-            // Call AI (reuse HAR analyzer AI logic)
-            let responseText = '';
-            if (model.startsWith('gpt')) {
-                // OpenAI call
-                const apiKey = getDecryptedKey('openai');
-                if (!apiKey) throw new Error('OpenAI API Key missing');
-
-                const OpenAI = require('openai').default || require('openai');
-                const openai = new OpenAI({ apiKey });
-                const completion = await openai.chat.completions.create({
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userContent }
-                    ],
-                    model: 'gpt-4o',
-                });
-                responseText = completion.choices[0].message.content;
-
-            } else if (model.startsWith('claude')) {
-                // Anthropic call
-                const apiKey = getDecryptedKey('anthropic');
-                if (!apiKey) throw new Error('Anthropic API Key missing');
-
-                const Anthropic = require('@anthropic-ai/sdk').default || require('@anthropic-ai/sdk');
-                const anthropic = new Anthropic({ apiKey });
-                const msg = await anthropic.messages.create({
-                    model: 'claude-sonnet-4-5-20250929',
-                    max_tokens: 4096,
-                    messages: [{ role: "user", content: `${systemPrompt}\n\n${userContent}` }],
-                });
-                responseText = msg.content[0].text;
-            }
-
-            return responseText;
-
-        } catch (error) {
-            throw new Error(`Failed to run AI analysis: ${error.message}`);
         }
     });
 

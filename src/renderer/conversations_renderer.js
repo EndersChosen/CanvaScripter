@@ -1351,7 +1351,17 @@ async function deleteConvos(e) {
                                 link.click();
                                 URL.revokeObjectURL(url);
                             } catch (err) {
-                                alert('Error downloading CSV: ' + err.message);
+                                console.error('Error downloading CSV:', err);
+                                const btn = csvDownloadBtn;
+                                const originalHtml = btn.innerHTML;
+                                btn.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>Error: ${err.message}`;
+                                btn.classList.add('btn-danger');
+                                btn.classList.remove('btn-outline-primary');
+                                setTimeout(() => {
+                                    btn.innerHTML = originalHtml;
+                                    btn.classList.remove('btn-danger');
+                                    btn.classList.add('btn-outline-primary');
+                                }, 4000);
                             }
                         });
                     }

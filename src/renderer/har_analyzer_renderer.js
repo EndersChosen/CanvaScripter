@@ -30,13 +30,13 @@ function showHARAnalyzerUI() {
     harContainer.innerHTML = `
         <div class="har-analyzer-ui">
             <h3 class="mb-4">
-                <i class="bi bi-file-earmark-zip"></i> HAR File Analyzer
+                <i class="bi bi-file-earmark-zip"></i> Basic Har Parser
             </h3>
 
             <!-- Tabs -->
             <ul class="nav nav-tabs mb-4" id="harTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="standard-analyzer-tab" data-bs-toggle="tab" data-bs-target="#standard-analyzer-pane" type="button" role="tab" aria-controls="standard-analyzer-pane" aria-selected="true">Standard Analyzer</button>
+                    <button class="nav-link active" id="standard-analyzer-tab" data-bs-toggle="tab" data-bs-target="#standard-analyzer-pane" type="button" role="tab" aria-controls="standard-analyzer-pane" aria-selected="true">Basic Har Parser</button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="ai-analyzer-tab" data-bs-toggle="tab" data-bs-target="#ai-analyzer-pane" type="button" role="tab" aria-controls="ai-analyzer-pane" aria-selected="false">AI Advisor</button>
@@ -48,10 +48,11 @@ function showHARAnalyzerUI() {
                 <div class="tab-pane fade show active" id="standard-analyzer-pane" role="tabpanel" aria-labelledby="standard-analyzer-tab" tabindex="0">
                     <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title">Standard HAR Analysis</h5>
+                            <h5 class="card-title">Basic Har Parser</h5>
                             <p class="card-text text-muted">
-                                Analyze HTTP Archive (HAR) files to diagnose authentication issues,
-                                performance problems, and network traffic patterns.
+                                Select a HAR file to parse and explore its contents.
+                                All requests are displayed in a searchable, filterable table
+                                grouped by resource type and domain — so you can do your own analysis.
                             </p>
                             <button id="select-har-file" class="btn btn-primary">
                                 <i class="bi bi-upload"></i> Select HAR File
@@ -74,8 +75,10 @@ function showHARAnalyzerUI() {
                                 <div class="col-md-6">
                                     <label for="ai-model-select" class="form-label">Select AI Model</label>
                                     <select class="form-select" id="ai-model-select">
-                                        <option value="gpt-5.2">GPT-5.2</option>
-                                        <option value="claude-sonnet-4.5">Claude Sonnet 4.5</option>
+                                        <option value="claude-haiku-4.5">Claude Haiku 4.5</option>
+                                        <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                                        <option value="gpt-5-nano">GPT 5 nano</option>
+                                        <option value="gpt-5.2-pro">GPT 5.2 Pro</option>
                                     </select>
                                 </div>
                             </div>
@@ -316,641 +319,326 @@ function showHarAiError(message) {
     `;
 }
 
-function displayHarAnalysisResults(analysis) {
+// ─── HAR Parser Display ──────────────────────────────────────────────────────
+
+/** Stored data for live filter re-renders */
+let _harData = null;
+
+function displayHarAnalysisResults(data) {
+    _harData = data;
     const resultsDiv = document.getElementById('har-results');
 
-    const html = `
-        <div class="har-analysis-results">
-            ${renderDiagnosis(analysis)}
-            ${renderOverview(analysis)}
-            ${renderBrowserInfo(analysis)}
-            ${renderErrors(analysis)}
-            ${renderAuthFlow(analysis)}
-            ${renderStatusCodes(analysis)}
-            ${renderDomains(analysis)}
-            ${renderPerformance(analysis)}
-            ${renderSecurity(analysis)}
-            ${renderContentTypes(analysis)}
-            ${renderCookies(analysis)}
+    resultsDiv.innerHTML = `
+        <div class="har-parser-results">
+            ${renderSummary(data)}
+            ${renderResourceBreakdown(data)}
+            ${renderDomainsTable(data)}
+            ${renderRequestsTable(data, data.entries)}
         </div>
-        `;
+    `;
 
-    resultsDiv.innerHTML = html;
+    setupRequestFilters(data);
 }
 
-function renderOverview(analysis) {
-    const stats = analysis.basicStats;
-    const duration = stats.duration ? `${stats.duration.toFixed(1)} s` : 'N/A';
-    const startTime = stats.startTime ? new Date(stats.startTime).toLocaleString() : 'N/A';
+function renderSummary(data) {
+    const s = data.summary;
+    const startStr = s.startTime ? new Date(s.startTime).toLocaleString() : 'N/A';
+    const endStr = s.endTime ? new Date(s.endTime).toLocaleString() : 'N/A';
+    const creatorStr = s.creator ? escapeHtml(s.creator) : 'N/A';
+    const uaStr = s.userAgent ? escapeHtml(s.userAgent) : 'N/A';
+
+    let totalTimeStr = 'N/A';
+    if (s.startTime && s.endTime) {
+        const ms = new Date(s.endTime) - new Date(s.startTime);
+        if (ms >= 0) {
+            const totalSec = Math.round(ms / 1000);
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const sec = totalSec % 60;
+            if (h > 0) totalTimeStr = `${h}h ${m}m ${sec}s`;
+            else if (m > 0) totalTimeStr = `${m}m ${sec}s`;
+            else totalTimeStr = `${sec}s`;
+        }
+    }
 
     return `
         <div class="card mb-3">
-            <div class="card-header bg-primary text-white" role="button" data-bs-toggle="collapse" data-bs-target="#overview-collapse" aria-expanded="true">
-                <h5 class="mb-0">
-                    <i class="bi bi-info-circle"></i> Overview
-                    <i class="bi bi-chevron-down float-end"></i>
-                </h5>
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Summary</h5>
             </div>
-            <div id="overview-collapse" class="collapse show">
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <div class="display-4 text-primary">${stats.totalRequests}</div>
-                                <div class="text-muted">Total Requests</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <div class="display-4 text-info">${stats.totalPages}</div>
-                                <div class="text-muted">Pages/Steps</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <div class="display-4 text-success">${duration}</div>
-                                <div class="text-muted">Duration</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <div class="h6 text-secondary">${startTime}</div>
-                                <div class="text-muted">Started</div>
-                            </div>
-                        </div>
+            <div class="card-body">
+                <div class="row text-center g-3 mb-3">
+                    <div class="col-6 col-md-2">
+                        <div class="display-5 fw-bold">${s.totalRequests}</div>
+                        <div class="text-muted small">Total Requests</div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="display-5 fw-bold">${s.totalPages}</div>
+                        <div class="text-muted small">Pages</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="fw-semibold small">${startStr}</div>
+                        <div class="text-muted small">Start Time</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="fw-semibold small">${endStr}</div>
+                        <div class="text-muted small">End Time</div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="fw-semibold">${totalTimeStr}</div>
+                        <div class="text-muted small">Total Time</div>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-12 col-md-3">
+                        <div class="text-muted small">Browser / Tool</div>
+                        <div class="small">${creatorStr}</div>
+                    </div>
+                    <div class="col-12 col-md-9">
+                        <div class="text-muted small">User-Agent</div>
+                        <div class="small text-break font-monospace">${uaStr}</div>
                     </div>
                 </div>
             </div>
         </div>
-        `;
+    `;
 }
 
-function renderBrowserInfo(analysis) {
-    const browser = analysis.browserInfo;
+function renderResourceBreakdown(data) {
+    const typeCounts = {};
+    data.entries.forEach(e => {
+        typeCounts[e.resourceType] = (typeCounts[e.resourceType] || 0) + 1;
+    });
 
-    // Determine device icon
-    let deviceIcon = 'bi-laptop';
-    if (browser.deviceType === 'Mobile') deviceIcon = 'bi-phone';
-    else if (browser.deviceType === 'Tablet') deviceIcon = 'bi-tablet';
-
-    // Determine browser icon
-    let browserIcon = 'bi-browser-chrome';
-    if (browser.browserName.includes('Firefox')) browserIcon = 'bi-browser-firefox';
-    else if (browser.browserName.includes('Edge')) browserIcon = 'bi-browser-edge';
-    else if (browser.browserName.includes('Safari')) browserIcon = 'bi-browser-safari';
-
-    return `
-        <div class="card mb-3">
-            <div class="card-header bg-secondary text-white" role="button" data-bs-toggle="collapse" data-bs-target="#browser-collapse" aria-expanded="true">
-                <h5 class="mb-0">
-                    <i class="bi ${browserIcon}"></i> Browser & Environment
-                    <i class="bi bi-chevron-down float-end"></i>
-                </h5>
-            </div>
-            <div id="browser-collapse" class="collapse show">
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="d-flex align-items-center mb-2">
-                                <i class="bi ${browserIcon} fs-4 me-2 text-primary"></i>
-                                <div>
-                                    <strong>Browser</strong>
-                                    <div class="text-muted">${escapeHtml(browser.fullBrowserString)}</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="d-flex align-items-center mb-2">
-                                <i class="bi bi-hdd fs-4 me-2 text-success"></i>
-                                <div>
-                                    <strong>Operating System</strong>
-                                    <div class="text-muted">${escapeHtml(browser.fullOSString)}</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="d-flex align-items-center mb-2">
-                                <i class="bi ${deviceIcon} fs-4 me-2 text-info"></i>
-                                <div>
-                                    <strong>Device Type</strong>
-                                    <div class="text-muted">${escapeHtml(browser.deviceType)}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    ${browser.userAgent ? `
-                        <div class="mt-3">
-                            <strong>User-Agent String:</strong>
-                            <div class="mt-1">
-                                <code class="d-block p-2 bg-light rounded" style="font-size: 0.75rem; word-break: break-all;">
-                                    ${escapeHtml(browser.userAgent)}
-                                </code>
-                            </div>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        </div>
-        `;
-}
-
-function renderStatusCodes(analysis) {
-    const statusRows = analysis.statusCodes.map(({ status, count, category }) => {
-        let badgeClass = 'secondary';
-        if (category === 'Success') badgeClass = 'success';
-        else if (category === 'Redirect') badgeClass = 'info';
-        else if (category === 'Client Error') badgeClass = 'warning';
-        else if (category === 'Server Error') badgeClass = 'danger';
-        else if (category === 'Failed') badgeClass = 'dark';
-
-        return `
-        <tr>
-                <td><span class="badge bg-${badgeClass}">${status}</span></td>
-                <td>${category}</td>
-                <td>${count}</td>
-            </tr>
-        `;
-    }).join('');
-
-    return `
-        <div class="card mb-3">
-            <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#status-collapse">
-                <h5 class="mb-0">
-                    <i class="bi bi-bar-chart"></i> HTTP Status Codes
-                    <i class="bi bi-chevron-down float-end"></i>
-                </h5>
-            </div>
-            <div id="status-collapse" class="collapse">
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Status</th>
-                                    <th>Category</th>
-                                    <th>Count</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${statusRows}
-                            </tbody>
-                        </table>
+    const cards = Object.entries(typeCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([type, count]) => `
+            <div class="col">
+                <div class="card text-center h-100">
+                    <div class="card-body p-2">
+                        <div class="fs-4 fw-bold">${count}</div>
+                        <div class="small text-muted">${escapeHtml(type)}</div>
                     </div>
                 </div>
             </div>
-        </div>
-        `;
-}
-
-function renderDomains(analysis) {
-    const domainRows = analysis.domains.slice(0, 15).map(({ domain, count }) => `
-        <tr>
-            <td>${escapeHtml(domain)}</td>
-            <td><span class="badge bg-secondary">${count}</span></td>
-        </tr>
         `).join('');
 
     return `
         <div class="card mb-3">
-            <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#domains-collapse">
+            <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#resource-breakdown-collapse" aria-expanded="true">
                 <h5 class="mb-0">
-                    <i class="bi bi-globe"></i> Top Domains
+                    <i class="bi bi-pie-chart"></i> Resource Types
                     <i class="bi bi-chevron-down float-end"></i>
                 </h5>
             </div>
-            <div id="domains-collapse" class="collapse">
+            <div id="resource-breakdown-collapse" class="collapse show">
                 <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead>
+                    <div class="row row-cols-2 row-cols-md-4 g-2">${cards}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderDomainsTable(data) {
+    const domainCounts = {};
+    data.entries.forEach(e => {
+        try {
+            const domain = new URL(e.url).hostname;
+            domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+        } catch (_) { /* skip invalid URLs */ }
+    });
+
+    const rows = Object.entries(domainCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([domain, count]) => `
+            <tr>
+                <td>${escapeHtml(domain)}</td>
+                <td><span class="badge bg-secondary">${count}</span></td>
+            </tr>
+        `).join('');
+
+    return `
+        <div class="card mb-3">
+            <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#har-domains-collapse">
+                <h5 class="mb-0">
+                    <i class="bi bi-globe"></i> Domains
+                    <i class="bi bi-chevron-down float-end"></i>
+                </h5>
+            </div>
+            <div id="har-domains-collapse" class="collapse">
+                <div class="p-0">
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light sticky-top">
                                 <tr>
                                     <th>Domain</th>
                                     <th>Requests</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                ${domainRows}
-                            </tbody>
+                            <tbody>${rows}</tbody>
                         </table>
                     </div>
                 </div>
             </div>
         </div>
-        `;
+    `;
 }
 
-function renderErrors(analysis) {
-    if (analysis.errors.length === 0) {
-        return `
-        <div class="card mb-3 border-success">
-                <div class="card-header bg-success text-white" role="button" data-bs-toggle="collapse" data-bs-target="#errors-collapse">
-                    <h5 class="mb-0">
-                        <i class="bi bi-check-circle"></i> Errors
-                        <i class="bi bi-chevron-down float-end"></i>
-                    </h5>
-                </div>
-                <div id="errors-collapse" class="collapse">
-                    <div class="card-body">
-                        <p class="mb-0 text-success"><i class="bi bi-check-circle-fill"></i> No HTTP errors found (4xx, 5xx)</p>
+function buildRequestRow(e) {
+    let statusBadge = 'secondary';
+    if (e.status === 0) statusBadge = 'dark';
+    else if (e.status >= 200 && e.status < 300) statusBadge = 'success';
+    else if (e.status >= 300 && e.status < 400) statusBadge = 'info';
+    else if (e.status >= 400 && e.status < 500) statusBadge = 'warning';
+    else if (e.status >= 500) statusBadge = 'danger';
+
+    const sizeStr = e.contentSize > 0 ? formatBytes(e.contentSize) : '-';
+    const timeStr = e.time > 0 ? `${e.time} ms` : '-';
+    const displayUrl = e.url.length > 90 ? e.url.substring(0, 90) + '…' : e.url;
+
+    return `
+        <tr>
+            <td class="text-muted small">${e.id}</td>
+            <td><span class="badge bg-primary">${escapeHtml(e.method)}</span></td>
+            <td><span class="badge bg-${statusBadge}">${e.status || '0'}</span></td>
+            <td class="small" title="${escapeHtml(e.url)}">${escapeHtml(displayUrl)}</td>
+            <td class="small text-muted">${escapeHtml(e.resourceType)}</td>
+            <td class="small text-muted text-nowrap">${sizeStr}</td>
+            <td class="small text-muted text-nowrap">${timeStr}</td>
+        </tr>
+    `;
+}
+
+function renderRequestsTable(data, filteredEntries) {
+    const rows = filteredEntries.map(buildRequestRow).join('');
+
+    return `
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-list-ul"></i> All Requests</h5>
+            </div>
+            <div class="card-body pb-2">
+                <div class="row g-2 mb-2">
+                    <div class="col-12 col-md-5">
+                        <input type="text" class="form-control form-control-sm" id="req-filter-url" placeholder="Search URL…">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm" id="req-filter-method">
+                            <option value="">All Methods</option>
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="OPTIONS">OPTIONS</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm" id="req-filter-status">
+                            <option value="">All Statuses</option>
+                            <option value="2">2xx Success</option>
+                            <option value="3">3xx Redirect</option>
+                            <option value="4">4xx Client Error</option>
+                            <option value="5">5xx Server Error</option>
+                            <option value="0">Failed (0)</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <select class="form-select form-select-sm" id="req-filter-type">
+                            <option value="">All Types</option>
+                            <option value="Document">Document</option>
+                            <option value="Script">Script</option>
+                            <option value="Stylesheet">Stylesheet</option>
+                            <option value="Image">Image</option>
+                            <option value="XHR/Fetch">XHR / Fetch</option>
+                            <option value="Font">Font</option>
+                            <option value="Media">Media</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-1">
+                        <button class="btn btn-outline-secondary btn-sm w-100" id="req-filter-reset">Reset</button>
                     </div>
                 </div>
+                <div class="text-muted small" id="req-count-label">
+                    Showing ${filteredEntries.length} of ${data.entries.length} requests
+                </div>
             </div>
-        `;
+            <div class="table-responsive" style="max-height: 550px; overflow-y: auto;">
+                <table class="table table-sm table-hover mb-0" id="requests-table">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th style="width:3%">#</th>
+                            <th style="width:7%">Method</th>
+                            <th style="width:7%">Status</th>
+                            <th>URL</th>
+                            <th style="width:10%">Type</th>
+                            <th style="width:8%">Size</th>
+                            <th style="width:8%">Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="requests-table-body">
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function formatBytes(bytes) {
+    if (bytes < 0) return '-';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function setupRequestFilters(data) {
+    const urlInput = document.getElementById('req-filter-url');
+    const methodSel = document.getElementById('req-filter-method');
+    const statusSel = document.getElementById('req-filter-status');
+    const typeSel = document.getElementById('req-filter-type');
+    const resetBtn = document.getElementById('req-filter-reset');
+    const tbody = document.getElementById('requests-table-body');
+    const countLabel = document.getElementById('req-count-label');
+
+    if (!urlInput || !tbody) return;
+
+    function applyFilters() {
+        const urlFilter = urlInput.value.toLowerCase();
+        const methodFilter = methodSel.value;
+        const statusFilter = statusSel.value;
+        const typeFilter = typeSel.value;
+
+        let filtered = data.entries;
+
+        if (urlFilter) filtered = filtered.filter(e => e.url.toLowerCase().includes(urlFilter));
+        if (methodFilter) filtered = filtered.filter(e => e.method === methodFilter);
+        if (statusFilter === '0') {
+            filtered = filtered.filter(e => e.status === 0);
+        } else if (statusFilter) {
+            filtered = filtered.filter(e => String(e.status).startsWith(statusFilter));
+        }
+        if (typeFilter) filtered = filtered.filter(e => e.resourceType === typeFilter);
+
+        tbody.innerHTML = filtered.map(buildRequestRow).join('');
+        if (countLabel) {
+            countLabel.textContent = `Showing ${filtered.length} of ${data.entries.length} requests`;
+        }
     }
 
-    const errorRows = analysis.errors.map(error => {
-        let badgeClass = error.status >= 500 ? 'danger' : 'warning';
-        return `
-        <tr>
-                <td><span class="badge bg-${badgeClass}">${error.status}</span></td>
-                <td>${error.method}</td>
-                <td class="text-truncate" style="max-width: 400px;" title="${escapeHtml(error.url)}">${escapeHtml(error.url)}</td>
-            </tr>
-        `;
-    }).join('');
-
-    return `
-        <div class="card mb-3 border-danger">
-            <div class="card-header bg-danger text-white" role="button" data-bs-toggle="collapse" data-bs-target="#errors-collapse" aria-expanded="true">
-                <h5 class="mb-0">
-                    <i class="bi bi-exclamation-triangle"></i> Errors (${analysis.errors.length})
-                    <i class="bi bi-chevron-down float-end"></i>
-                </h5>
-            </div>
-            <div id="errors-collapse" class="collapse show">
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Status</th>
-                                    <th>Method</th>
-                                    <th>URL</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${errorRows}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-        `;
-}
-
-function renderAuthFlow(analysis) {
-    if (!analysis.authFlow.detected) {
-        return `
-        <div class="card mb-3">
-                <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#authflow-collapse">
-                    <h5 class="mb-0">
-                        <i class="bi bi-shield-lock"></i> Authentication Flow
-                        <i class="bi bi-chevron-down float-end"></i>
-                    </h5>
-                </div>
-                <div id="authflow-collapse" class="collapse">
-                    <div class="card-body">
-                        <p class="mb-0 text-muted">No authentication flow detected</p>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    const authType = analysis.authFlow.type.join(', ');
-    const requestRows = analysis.authFlow.requests.map(req => {
-        let statusBadge = 'secondary';
-        if (req.status >= 200 && req.status < 300) statusBadge = 'success';
-        else if (req.status >= 300 && req.status < 400) statusBadge = 'info';
-        else if (req.status >= 400) statusBadge = 'danger';
-
-        return `
-        <tr>
-                <td><span class="badge bg-${statusBadge}">${req.status}</span></td>
-                <td>${req.method}</td>
-                <td class="text-truncate" style="max-width: 400px;" title="${escapeHtml(req.url)}">${escapeHtml(req.url)}</td>
-            </tr>
-        `;
-    }).join('');
-
-    return `
-        <div class="card mb-3">
-            <div class="card-header bg-info text-white" role="button" data-bs-toggle="collapse" data-bs-target="#authflow-collapse" aria-expanded="true">
-                <h5 class="mb-0">
-                    <i class="bi bi-shield-lock"></i> Authentication Flow
-                    <i class="bi bi-chevron-down float-end"></i>
-                </h5>
-            </div>
-            <div id="authflow-collapse" class="collapse show">
-                <div class="card-body">
-                    <p><strong>Type:</strong> ${escapeHtml(authType)}</p>
-                    <p><strong>Requests:</strong> ${analysis.authFlow.requestCount}</p>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Status</th>
-                                    <th>Method</th>
-                                    <th>URL</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${requestRows}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-        `;
-}
-
-function renderPerformance(analysis) {
-    const timingRows = analysis.timing.map((t, i) => `
-        <tr>
-            <td>${i + 1}</td>
-            <td>${t.time.toFixed(0)}ms</td>
-            <td class="text-truncate" style="max-width: 400px;" title="${escapeHtml(t.url)}">${escapeHtml(t.url)}</td>
-        </tr>
-        `).join('');
-
-    const sizeRows = analysis.size.byType.slice(0, 10).map(({ type, sizeKB, count }) => `
-        <tr>
-            <td>${escapeHtml(type)}</td>
-            <td>${sizeKB} KB</td>
-            <td>${count}</td>
-        </tr>
-        `).join('');
-
-    return `
-        <div class="card mb-3">
-            <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#performance-collapse">
-                <h5 class="mb-0">
-                    <i class="bi bi-speedometer2"></i> Performance
-                    <i class="bi bi-chevron-down float-end"></i>
-                </h5>
-            </div>
-            <div id="performance-collapse" class="collapse">
-                <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <div class="card bg-light">
-                                <div class="card-body text-center">
-                                    <h3>${analysis.size.totalContentSizeMB} MB</h3>
-                                    <p class="mb-0">Total Content Size</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card bg-light">
-                                <div class="card-body text-center">
-                                    <h3>${analysis.size.totalTransferSizeMB} MB</h3>
-                                    <p class="mb-0">Total Transferred</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <h6>Slowest Requests</h6>
-                    <div class="table-responsive mb-3">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Time</th>
-                                    <th>URL</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${timingRows}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <h6>Size by Content Type (Top 10)</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Type</th>
-                                    <th>Size</th>
-                                    <th>Count</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${sizeRows}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-        `;
-}
-
-function renderSecurity(analysis) {
-    const security = analysis.security;
-    return `
-        <div class="card mb-3">
-            <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#security-collapse">
-                <h5 class="mb-0">
-                    <i class="bi bi-shield-check"></i> Security Headers
-                    <i class="bi bi-chevron-down float-end"></i>
-                </h5>
-            </div>
-            <div id="security-collapse" class="collapse">
-                <div class="card-body">
-                    <ul class="list-group">
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            X-Frame-Options
-                            <span class="badge bg-primary rounded-pill">${security.xFrameOptions}</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Content-Security-Policy
-                            <span class="badge bg-primary rounded-pill">${security.contentSecurityPolicy}</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Strict-Transport-Security
-                            <span class="badge bg-primary rounded-pill">${security.strictTransportSecurity}</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            X-Content-Type-Options
-                            <span class="badge bg-primary rounded-pill">${security.xContentTypeOptions}</span>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-        `;
-}
-
-function renderContentTypes(analysis) {
-    const rows = analysis.contentTypes.slice(0, 15).map(({ type, count }) => `
-        <tr>
-            <td>${escapeHtml(type)}</td>
-            <td><span class="badge bg-secondary">${count}</span></td>
-        </tr>
-        `).join('');
-
-    return `
-        <div class="card mb-3">
-            <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#content-types-collapse">
-                <h5 class="mb-0">
-                    <i class="bi bi-file-earmark-text"></i> Content Types
-                    <i class="bi bi-chevron-down float-end"></i>
-                </h5>
-            </div>
-            <div id="content-types-collapse" class="collapse">
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Type</th>
-                                    <th>Count</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${rows}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-        `;
-}
-
-function renderCookies(analysis) {
-    const cookieRows = analysis.cookies.byDomain.slice(0, 10).map(({ domain, count }) => `
-        <tr>
-            <td>${escapeHtml(domain)}</td>
-            <td><span class="badge bg-secondary">${count}</span></td>
-        </tr>
-        `).join('');
-
-    const noCookies = analysis.cookies.totalCookies === 0;
-
-    return `
-        <div class="card mb-3">
-            <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#cookies-collapse">
-                <h5 class="mb-0">
-                    <i class="bi bi-cookie"></i> Cookies
-                    <i class="bi bi-chevron-down float-end"></i>
-                </h5>
-            </div>
-            <div id="cookies-collapse" class="collapse">
-                <div class="card-body">
-                    ${noCookies ? '<p class="text-muted">No cookies set</p>' : `
-                        <p><strong>Total cookies set:</strong> ${analysis.cookies.totalCookies}</p>
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Domain</th>
-                                        <th>Cookies</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${cookieRows}
-                                </tbody>
-                            </table>
-                        </div>
-                    `}
-                </div>
-            </div>
-        </div>
-        `;
-}
-
-function renderDiagnosis(analysis) {
-    // Get diagnosis if available
-    const diagnosis = analysis.diagnosis;
-    if (!diagnosis || !diagnosis.isIncomplete) {
-        return '';
-    }
-
-    // Determine styling based on severity
-    let borderClass = 'border-warning';
-    let headerClass = 'bg-warning text-dark';
-    let alertClass = 'alert-warning';
-    let icon = 'bi-exclamation-triangle-fill';
-    let title = 'Authentication Issue Detected';
-
-    if (diagnosis.severity === 'critical') {
-        borderClass = 'border-danger';
-        headerClass = 'bg-danger text-white';
-        alertClass = 'alert-danger';
-        icon = 'bi-x-circle-fill';
-
-        if (diagnosis.rootCause === 'backend_service_auth_failure') {
-            title = 'Backend Service Authentication Failure';
-        } else {
-            title = 'Critical Authentication Error';
-        }
-    } else if (diagnosis.severity === 'warning') {
-        title = 'Authentication Flow Incomplete';
-    }
-
-    // Format reasons - handle both list items and plain text
-    const reasonsList = diagnosis.reasons.map(r => {
-        // If reason is empty (blank line separator), add spacing
-        if (r.trim() === '') {
-            return '<li style="list-style: none; height: 0.5em;"></li>';
-        }
-        // If reason starts with bullet or special char, it's likely not a list item
-        if (r.startsWith('•') || r.startsWith('⚠️') || r.startsWith('Root Cause') || r.startsWith('The authentication')) {
-            return `<li style="list-style: none; margin-left: -1em;">${escapeHtml(r)}</li>`;
-        }
-        return `<li>${escapeHtml(r)}</li>`;
-    }).join('');
-
-    const recommendationsList = diagnosis.recommendations.map(r => {
-        // Handle separators and special formatting
-        if (r.trim() === '') {
-            return '<li style="list-style: none; height: 0.5em;"></li>';
-        }
-        if (r.startsWith('🔧') || r.startsWith('⚠️') || r.startsWith('This is NOT')) {
-            return `<li style="list-style: none; margin-left: -1em;"><strong>${escapeHtml(r)}</strong></li>`;
-        }
-        if (r.match(/^\d+\./)) {
-            return `<li style="list-style: none; margin-left: -1em;">${escapeHtml(r)}</li>`;
-        }
-        return `<li>${escapeHtml(r)}</li>`;
-    }).join('');
-
-    return `
-        <div class="card mb-3 ${borderClass}">
-            <div class="card-header ${headerClass}" role="button" data-bs-toggle="collapse" data-bs-target="#diagnosis-collapse" aria-expanded="true">
-                <h5 class="mb-0">
-                    <i class="bi ${icon}"></i> ${title}
-                    <i class="bi bi-chevron-down float-end"></i>
-                </h5>
-            </div>
-            <div id="diagnosis-collapse" class="collapse show">
-                <div class="card-body">
-                    ${diagnosis.severity === 'critical' ? `
-                        <div class="alert ${alertClass}" role="alert">
-                            <strong><i class="bi ${icon}"></i> ${title}</strong>
-                        </div>
-                    ` : ''}
-
-                    <h6>Analysis:</h6>
-                    <ul class="mb-3" style="line-height: 1.6;">
-                        ${reasonsList}
-                    </ul>
-
-                    ${recommendationsList ? `
-                        <h6>Action Required:</h6>
-                        <ul class="mb-0" style="line-height: 1.6;">
-                            ${recommendationsList}
-                        </ul>
-                    ` : ''}
-                </div>
-            </div>
-        </div>
-        `;
+    urlInput.addEventListener('input', applyFilters);
+    methodSel.addEventListener('change', applyFilters);
+    statusSel.addEventListener('change', applyFilters);
+    typeSel.addEventListener('change', applyFilters);
+    resetBtn.addEventListener('click', () => {
+        urlInput.value = '';
+        methodSel.value = '';
+        statusSel.value = '';
+        typeSel.value = '';
+        applyFilters();
+    });
 }
 
 function showHarError(message) {

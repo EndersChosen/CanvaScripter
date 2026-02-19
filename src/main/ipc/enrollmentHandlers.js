@@ -33,30 +33,28 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
         };
 
         const batchConfig = getBatchConfig();
+        const concurrency = Math.max(1, Number(batchConfig.batchSize) || 1);
+        const delayMs = Math.max(0, Math.floor((Number(batchConfig.timeDelay) || 0) / 10));
         let processed = 0;
 
-        for (const enrollment of enrollments) {
-            // Check for cancellation
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        const sendProgress = (detail) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('progress:enrollment', {
+                    current: processed,
+                    total: enrollments.length,
+                    detail
+                });
+            }
+        };
+
+        const processEnrollment = async (enrollment) => {
             if (cancellationState.get(rendererId)) {
-                logDebug('[axios:bulkEnroll] Enrollment cancelled by user');
-                break;
+                return;
             }
 
             try {
-                // Send progress update
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    const detailText = task === 'enroll'
-                        ? `Enrolling user ${enrollment.user_id}...`
-                        : `${task[0].toUpperCase()}${task.slice(1)} enrollment ${enrollment.enrollment_id || 'Unknown'}...`;
-
-                    mainWindow.webContents.send('progress:enrollment', {
-                        current: processed + 1,
-                        total: enrollments.length,
-                        detail: detailText
-                    });
-                }
-
-                // Determine if we use section or course endpoint
                 const sectionId = enrollment.course_section_id;
                 const targetCourseId = enrollment.course_id;
                 const enrollmentId = enrollment.enrollment_id;
@@ -68,137 +66,114 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
                             user_id: enrollment.user_id || 'Unknown',
                             reason: `${task} requires course_id and cannot use section_id`
                         });
-                        processed++;
-                        continue;
-                    }
-
-                    if (!enrollmentId) {
+                    } else if (!enrollmentId) {
                         results.failed++;
                         results.errors.push({
                             user_id: enrollment.user_id || 'Unknown',
                             reason: `${task} requires enrollment_id`
                         });
-                        processed++;
-                        continue;
-                    }
-
-                    const endpoint = `https://${domain}/api/v1/courses/${targetCourseId}/enrollments/${enrollmentId}`;
-
-                    logDebug('[axios:bulkEnroll] Processing enrollment task', {
-                        task,
-                        enrollment_id: enrollmentId,
-                        course_id: targetCourseId,
-                        endpoint
-                    });
-
-                    const response = await axios.delete(endpoint, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
-                        params: {
-                            task
-                        }
-                    });
-
-                    if (response.status === 200 || response.status === 204) {
-                        results.successful++;
-                        logDebug('[axios:bulkEnroll] Enrollment task successful', {
-                            task,
-                            enrollment_id: enrollmentId
-                        });
                     } else {
+                        const endpoint = `https://${domain}/api/v1/courses/${targetCourseId}/enrollments/${enrollmentId}`;
+
+                        logDebug('[axios:bulkEnroll] Processing enrollment task', {
+                            task,
+                            enrollment_id: enrollmentId,
+                            course_id: targetCourseId,
+                            endpoint
+                        });
+
+                        const response = await axios.delete(endpoint, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            params: {
+                                task
+                            }
+                        });
+
+                        if (response.status === 200 || response.status === 204) {
+                            results.successful++;
+                            logDebug('[axios:bulkEnroll] Enrollment task successful', {
+                                task,
+                                enrollment_id: enrollmentId
+                            });
+                        } else {
+                            results.failed++;
+                            results.errors.push({
+                                user_id: enrollment.user_id || 'Unknown',
+                                reason: `Unexpected status code: ${response.status}`
+                            });
+                        }
+                    }
+                } else {
+                    if (!sectionId && !targetCourseId) {
                         results.failed++;
                         results.errors.push({
-                            user_id: enrollment.user_id || 'Unknown',
-                            reason: `Unexpected status code: ${response.status}`
+                            user_id: enrollment.user_id,
+                            reason: 'No section ID or course ID provided in file'
                         });
+                    } else {
+                        const enrollmentPayload = {
+                            enrollment: {
+                                user_id: enrollment.user_id,
+                                enrollment_state: enrollmentState
+                            }
+                        };
+
+                        if (enrollment.type) {
+                            enrollmentPayload.enrollment.type = enrollment.type;
+                        }
+
+                        if (enrollment.role_id) {
+                            enrollmentPayload.enrollment.role_id = enrollment.role_id;
+                        } else if (enrollment.role) {
+                            enrollmentPayload.enrollment.role = enrollment.role;
+                        }
+
+                        if (enrollment.start_at) {
+                            enrollmentPayload.enrollment.start_at = enrollment.start_at;
+                        }
+                        if (enrollment.end_at) {
+                            enrollmentPayload.enrollment.end_at = enrollment.end_at;
+                        }
+                        if (enrollment.limit_privileges_to_course_section !== undefined) {
+                            enrollmentPayload.enrollment.limit_privileges_to_course_section =
+                                enrollment.limit_privileges_to_course_section;
+                        }
+
+                        const endpoint = sectionId
+                            ? `https://${domain}/api/v1/sections/${sectionId}/enrollments`
+                            : `https://${domain}/api/v1/courses/${targetCourseId}/enrollments`;
+
+                        logDebug('[axios:bulkEnroll] Enrolling user', {
+                            user_id: enrollment.user_id,
+                            endpoint,
+                            payload: enrollmentPayload
+                        });
+
+                        const response = await axios.post(endpoint, enrollmentPayload, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+
+                        if (response.status === 200 || response.status === 201) {
+                            results.successful++;
+                            logDebug('[axios:bulkEnroll] Enrollment successful', {
+                                user_id: enrollment.user_id,
+                                enrollment_id: response.data.id
+                            });
+                        } else {
+                            results.failed++;
+                            results.errors.push({
+                                user_id: enrollment.user_id,
+                                reason: `Unexpected status code: ${response.status}`
+                            });
+                        }
                     }
-
-                    processed++;
-
-                    if (processed < enrollments.length) {
-                        await new Promise(resolve => setTimeout(resolve, batchConfig.timeDelay / 10));
-                    }
-
-                    continue;
                 }
-
-                if (!sectionId && !targetCourseId) {
-                    results.failed++;
-                    results.errors.push({
-                        user_id: enrollment.user_id,
-                        reason: 'No section ID or course ID provided in file'
-                    });
-                    processed++;
-                    continue;
-                }
-
-                // Build enrollment payload
-                const enrollmentPayload = {
-                    enrollment: {
-                        user_id: enrollment.user_id,
-                        enrollment_state: enrollmentState
-                    }
-                };
-
-                // Add type if available
-                if (enrollment.type) {
-                    enrollmentPayload.enrollment.type = enrollment.type;
-                }
-
-                // Prioritize role_id over role
-                if (enrollment.role_id) {
-                    enrollmentPayload.enrollment.role_id = enrollment.role_id;
-                } else if (enrollment.role) {
-                    enrollmentPayload.enrollment.role = enrollment.role;
-                }
-
-                // Add optional fields
-                if (enrollment.start_at) {
-                    enrollmentPayload.enrollment.start_at = enrollment.start_at;
-                }
-                if (enrollment.end_at) {
-                    enrollmentPayload.enrollment.end_at = enrollment.end_at;
-                }
-                if (enrollment.limit_privileges_to_course_section !== undefined) {
-                    enrollmentPayload.enrollment.limit_privileges_to_course_section =
-                        enrollment.limit_privileges_to_course_section;
-                }
-
-                // Choose endpoint based on section ID availability
-                const endpoint = sectionId
-                    ? `https://${domain}/api/v1/sections/${sectionId}/enrollments`
-                    : `https://${domain}/api/v1/courses/${targetCourseId}/enrollments`;
-
-                logDebug('[axios:bulkEnroll] Enrolling user', {
-                    user_id: enrollment.user_id,
-                    endpoint,
-                    payload: enrollmentPayload
-                });
-
-                // Make API call
-                const response = await axios.post(endpoint, enrollmentPayload, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (response.status === 200 || response.status === 201) {
-                    results.successful++;
-                    logDebug('[axios:bulkEnroll] Enrollment successful', {
-                        user_id: enrollment.user_id,
-                        enrollment_id: response.data.id
-                    });
-                } else {
-                    results.failed++;
-                    results.errors.push({
-                        user_id: enrollment.user_id,
-                        reason: `Unexpected status code: ${response.status}`
-                    });
-                }
-
             } catch (error) {
                 results.failed++;
                 const errorMessage = error.response?.data?.errors?.[0]?.message ||
@@ -216,21 +191,36 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
                     error: errorMessage,
                     status: error.response?.status
                 });
+            } finally {
+                processed++;
+                const detailText = task === 'enroll'
+                    ? `Processed user ${enrollment.user_id || 'Unknown'}`
+                    : `Processed enrollment ${enrollment.enrollment_id || 'Unknown'}`;
+                sendProgress(detailText);
             }
 
-            processed++;
-
-            // Rate limiting delay between requests
-            if (processed < enrollments.length) {
-                await new Promise(resolve => setTimeout(resolve, batchConfig.timeDelay / 10));
+            if (!cancellationState.get(rendererId) && delayMs > 0 && processed < enrollments.length) {
+                await sleep(delayMs);
             }
+        };
+
+        for (let index = 0; index < enrollments.length; index += concurrency) {
+            if (cancellationState.get(rendererId)) {
+                logDebug('[axios:bulkEnroll] Enrollment cancelled by user');
+                break;
+            }
+
+            const batch = enrollments.slice(index, index + concurrency);
+            await Promise.allSettled(batch.map(enrollment => processEnrollment(enrollment)));
         }
 
         cancellationState.delete(rendererId);
 
         logDebug('[axios:bulkEnroll] Bulk enrollment complete', {
             successful: results.successful,
-            failed: results.failed
+            failed: results.failed,
+            processed,
+            concurrency
         });
 
         return results;
