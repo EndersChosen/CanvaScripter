@@ -252,6 +252,10 @@ contextBridge.exposeInMainWorld('axios', {
 
         return await ipcRenderer.invoke('axios:resetCourses', data);
     },
+    cancelResetCourses: async () => {
+        console.log('preload.js > cancelResetCourses');
+        return await ipcRenderer.invoke('axios:cancelResetCourses');
+    },
     getCourseInfo: async (data) => {
         console.log('preload.js > getCourseInfo');
 
@@ -482,7 +486,7 @@ contextBridge.exposeInMainWorld('csv', {
 
         //console.log(data);
 
-        await ipcRenderer.invoke('csv:sendToCSV', data);
+        return await ipcRenderer.invoke('csv:sendToCSV', data);
     },
     writeAtPath: async (fullPath, data) => {
         return await ipcRenderer.invoke('csv:writeAtPath', { fullPath, data });

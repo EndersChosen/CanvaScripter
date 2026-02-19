@@ -129,6 +129,9 @@ async function enrollUsers(usersToEnroll, userIDs, getBatchConfig) {
 function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
     logDebug('Registering course/quiz/module IPC handlers...');
 
+    // Per-renderer cancellation flags for reset-courses operations
+    const resetCoursesCancelFlags = new Map();
+
     // ==================== Course Operations ====================
 
     /**
@@ -180,6 +183,9 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
     ipcMain.handle('axios:resetCourses', async (event, data) => {
         console.log('courseHandlers.js > resetCourses');
 
+        const rendererId = event.sender.id;
+        resetCoursesCancelFlags.set(rendererId, false);
+
         let completedRequests = 0;
         const totalRequests = data.courses.length;
 
@@ -200,19 +206,36 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
         };
 
         const requests = [];
-        let requestID = 1;
         data.courses.forEach((course) => {
             const requestData = {
                 domain: data.domain,
                 token: data.token,
                 course: course
             };
-            requests.push({ id: requestID, request: () => request(requestData) });
-            requestID++;
+            requests.push({ id: course, request: () => request(requestData) });
         });
 
-        const batchResponse = await batchHandler(requests, getBatchConfig());
-        return batchResponse;
+        const batchConfig = {
+            ...getBatchConfig(),
+            isCancelled: () => !!resetCoursesCancelFlags.get(rendererId)
+        };
+
+        try {
+            const batchResponse = await batchHandler(requests, batchConfig);
+            return batchResponse;
+        } finally {
+            resetCoursesCancelFlags.delete(rendererId);
+        }
+    });
+
+    /**
+     * Cancel an in-progress resetCourses batch
+     */
+    ipcMain.handle('axios:cancelResetCourses', async (event) => {
+        const rendererId = event.sender.id;
+        logDebug('[axios:cancelResetCourses] Cancelling reset courses', { rendererId });
+        resetCoursesCancelFlags.set(rendererId, true);
+        return { cancelled: true };
     });
 
     /**

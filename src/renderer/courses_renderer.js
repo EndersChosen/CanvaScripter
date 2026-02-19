@@ -254,8 +254,17 @@ async function resetCourses(e) {
                 <div class="progress mt-2" style="width: 75%" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                     <div class="progress-bar" style="width: 0%"></div>
                 </div>
+                <button type="button" class="btn btn-sm btn-outline-danger mt-2" id="reset-courses-cancel-btn" hidden>
+                    <i class="bi bi-x-circle me-1"></i>Cancel
+                </button>
             </div>
-            <div id='response-contailer'></div>`
+            <div id='response-contailer'></div>
+            <div class="card mt-2" id="reset-results-card" hidden>
+                <div class="card-header bg-secondary-subtle py-1">
+                    <h6 class="mb-0">Reset Results</h6>
+                </div>
+                <div class="card-body" id="reset-results-body"></div>
+            </div>`
 
         eContent.append(resetCourseForm);
     }
@@ -266,6 +275,74 @@ async function resetCourses(e) {
     const progressInfo = resetCourseForm.querySelector('#progress-info');
     const resetBtn = resetCourseForm.querySelector('#resetBtn');
     const uploadBtn = resetCourseForm.querySelector('#uploadBtn');
+    const resultsCard = resetCourseForm.querySelector('#reset-results-card');
+    const resultsBody = resetCourseForm.querySelector('#reset-results-body');
+
+    // Renders a summary card into the results area after a reset completes.
+    // response: { successful: [...], failed: [...] }
+    // cancelRequested: boolean
+    function renderResetResults(response, cancelRequested) {
+        const successCount = response.successful?.length ?? 0;
+        const failedItems = response.failed ?? [];
+        const failCount = failedItems.length;
+
+        let html = '<div class="d-flex gap-3 align-items-center mb-2" style="font-size:0.85rem;">';
+        html += `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Succeeded: ${successCount}</span>`;
+        html += `<span class="badge ${failCount > 0 ? 'bg-danger' : 'bg-secondary'}"><i class="bi bi-x-circle me-1"></i>Failed: ${failCount}</span>`;
+        if (cancelRequested) {
+            html += '<span class="badge bg-warning text-dark"><i class="bi bi-slash-circle me-1"></i>Cancelled</span>';
+        }
+        html += '</div>';
+
+        if (failCount > 0) {
+            const preview = failedItems.slice(0, 5);
+            html += '<div class="alert alert-danger py-2 mb-2" style="font-size:0.8rem;"><strong>Failures</strong>';
+            if (failCount > 5) html += ` <span class="text-muted">(showing 5 of ${failCount})</span>`;
+            html += '<ul class="mb-0 mt-1">';
+            for (const f of preview) {
+                const courseId = f.id ?? '?';
+                const reason = f.reason ?? f.status ?? 'Unknown error';
+                html += `<li>Course <strong>${courseId}</strong>: ${reason}</li>`;
+            }
+            html += '</ul></div>';
+
+            html += `<button type="button" class="btn btn-sm btn-outline-secondary" id="reset-failures-csv-btn">
+                <i class="bi bi-download me-1"></i>Download failures CSV
+            </button>`;
+        }
+
+        resultsBody.innerHTML = html;
+        resultsCard.hidden = false;
+
+        if (failCount > 0) {
+            const dlBtn = resultsBody.querySelector('#reset-failures-csv-btn');
+            dlBtn.addEventListener('click', async () => {
+                try {
+                    dlBtn.disabled = true;
+                    dlBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Saving...';
+                    const csvData = failedItems.map(f => ({
+                        course_id: f.id ?? '',
+                        reason: f.reason ?? '',
+                        status: f.status ?? ''
+                    }));
+                    const fileName = `reset_courses_failures_${new Date().toISOString().slice(0, 10)}.csv`;
+                    const result = await window.csv.sendToCSV({ fileName, data: csvData, showSaveDialog: true });
+                    if (result?.filePath) {
+                        dlBtn.innerHTML = '<i class="bi bi-check me-1"></i>Downloaded';
+                        dlBtn.classList.replace('btn-outline-secondary', 'btn-success');
+                    } else {
+                        dlBtn.disabled = false;
+                        dlBtn.innerHTML = '<i class="bi bi-download me-1"></i>Download failures CSV';
+                    }
+                } catch (err) {
+                    console.error('Error saving failures CSV:', err);
+                    dlBtn.disabled = false;
+                    dlBtn.innerHTML = '<i class="bi bi-x me-1"></i>Download failed';
+                    dlBtn.classList.replace('btn-outline-secondary', 'btn-danger');
+                }
+            });
+        }
+    }
     const courseTextDiv = resetCourseForm.querySelector('#course-text-div');
     const courseTextArea = resetCourseForm.querySelector('#reset-courses-area');
     courseTextArea.addEventListener('input', (e) => {
@@ -314,7 +391,7 @@ async function resetCourses(e) {
 
         uploadBtn.disabled = true;
         progressInfo.innerHTML = '';
-        progressDiv.hidden = false;
+        progressDiv.hidden = true;
 
         const domain = document.querySelector('#domain').value.trim();
         const apiToken = document.querySelector('#token').value.trim();
@@ -323,43 +400,113 @@ async function resetCourses(e) {
         try {
             courses = await window.fileUpload.resetCourse();
         } catch (error) {
+            uploadBtn.disabled = false;
+            progressDiv.hidden = false;
             errorHandler(error, progressInfo);
+            return;
         }
 
-        if (courses.length > 0) {
+        // User cancelled the file picker
+        if (!courses || courses.length === 0) {
+            uploadBtn.disabled = false;
+            return;
+        }
+
+        // --- Show summary + confirmation ---
+        const total = courses.length;
+
+        // Find or create a confirmation container
+        let confirmDiv = resetCourseForm.querySelector('#upload-confirm-div');
+        if (!confirmDiv) {
+            confirmDiv = document.createElement('div');
+            confirmDiv.id = 'upload-confirm-div';
+            confirmDiv.className = 'mt-2';
+            progressDiv.parentElement.insertBefore(confirmDiv, progressDiv);
+        }
+
+        confirmDiv.innerHTML = `
+            <div class="alert alert-info py-2 mb-2" style="font-size:0.85rem;">
+                <i class="bi bi-file-earmark-text me-1"></i>
+                Found <strong>${total}</strong> course${total !== 1 ? 's' : ''} in the file.
+                Proceed with resetting all of them?
+            </div>
+            <button type="button" class="btn btn-sm btn-danger me-2" id="confirm-reset-btn">
+                <i class="bi bi-arrow-clockwise me-1"></i>Reset
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" id="confirm-cancel-btn">
+                Cancel
+            </button>`;
+        confirmDiv.hidden = false;
+
+        const confirmResetBtn = confirmDiv.querySelector('#confirm-reset-btn');
+        const confirmCancelBtn = confirmDiv.querySelector('#confirm-cancel-btn');
+
+        confirmCancelBtn.addEventListener('click', () => {
+            confirmDiv.hidden = true;
+            confirmDiv.innerHTML = '';
+            uploadBtn.disabled = false;
+        }, { once: true });
+
+        confirmResetBtn.addEventListener('click', async () => {
+            confirmDiv.hidden = true;
+            confirmDiv.innerHTML = '';
+
+            // Clear any previous results
+            resultsCard.hidden = true;
+            resultsBody.innerHTML = '';
+
+            // Setup progress UI
+            progressDiv.hidden = false;
+            progressBar.parentElement.hidden = false;
+            progressBar.style.width = '0%';
+            progressInfo.innerHTML = `Resetting courses.... 0/${total}`;
+
+            const cancelBtn = progressDiv.querySelector('#reset-courses-cancel-btn');
+            let cancelRequested = false;
+            if (cancelBtn) {
+                cancelBtn.hidden = false;
+                cancelBtn.disabled = false;
+                cancelBtn.onclick = async () => {
+                    cancelRequested = true;
+                    cancelBtn.disabled = true;
+                    cancelBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Cancelling...';
+                    progressInfo.innerHTML = 'Cancelling... letting in-flight requests finish.';
+                    try {
+                        await window.axios.cancelResetCourses();
+                    } catch (err) {
+                        console.error('Error cancelling reset courses:', err);
+                    }
+                };
+            }
+
             const data = {
                 domain: domain,
                 token: apiToken,
                 courses: courses
-            }
+            };
 
             let response;
             try {
                 window.progressAPI.onUpdateProgress((progress) => {
+                    const done = Math.min(Math.round(progress / 100 * total), total);
+                    progressInfo.innerHTML = `Resetting courses.... ${done}/${total}`;
                     progressBar.style.width = `${progress}%`;
                 });
 
                 response = await window.axios.resetCourses(data);
-                if (response.successful.length > 0) {
-                    progressInfo.innerHTML = `Successfully reset ${response.successful.length} course(s).`;
-                }
-                if (response.failed.length > 0) {
-                    progressInfo.innerHTML += `Failed to reset ${response.failed.length} course(s).`;
-                    progressBar.parentElement.hidden = true;
-                    errorHandler({ message: `${response.failed[0].reason}` }, progressInfo); // only display the error code for the first failed request
-                    // for (let failure of response.failed) {
-                    // }
-                }
-
-                // for (let response of responses) {
-                //     eContent.querySelector('#response-container').innerHTML += '<p>Course ID: ' + response.course_id + ' ' + response.status + '</p>';
-                // }
+                progressDiv.hidden = true;
+                renderResetResults(response, cancelRequested);
             } catch (error) {
                 errorHandler(error, progressInfo);
             } finally {
                 uploadBtn.disabled = false;
+                if (cancelBtn) {
+                    cancelBtn.hidden = true;
+                    cancelBtn.disabled = true;
+                    cancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
+                }
             }
-        }
+        }, { once: true });
     })
 
     resetBtn.addEventListener('click', async (e) => {
@@ -369,6 +516,8 @@ async function resetCourses(e) {
 
         resetBtn.disabled = true;
         progressDiv.hidden = false;
+        resultsCard.hidden = true;
+        resultsBody.innerHTML = '';
         progressInfo.innerHTML = 'Resetting courses....';
 
         const domain = document.querySelector('#domain').value.trim();
@@ -381,27 +530,20 @@ async function resetCourses(e) {
             courses: courses
         }
 
+        const total = courses.length;
+        progressInfo.innerHTML = `Resetting courses.... 0/${total}`;
+
         let response;
         try {
             window.progressAPI.onUpdateProgress((progress) => {
+                const done = Math.min(Math.round(progress / 100 * total), total);
+                progressInfo.innerHTML = `Resetting courses.... ${done}/${total}`;
                 progressBar.style.width = `${progress}%`;
             });
 
             response = await window.axios.resetCourses(data);
-            if (response.successful.length > 0) {
-                progressInfo.innerHTML = `Successfully reset ${response.successful.length} course(s).`;
-            }
-            if (response.failed.length > 0) {
-                progressInfo.innerHTML += `Failed to reset ${response.failed.length} course(s).`;
-                progressBar.parentElement.hidden = true;
-                for (let failure of response.failed) {
-                    errorHandler({ message: `${failure.reason}` }, progressInfo);
-                }
-            }
-
-            // for (let response of responses) {
-            //     eContent.querySelector('#response-container').innerHTML += '<p>Course ID: ' + response.course_id + ' ' + response.status + '</p>';
-            // }
+            progressDiv.hidden = true;
+            renderResetResults(response, false);
         } catch (error) {
             errorHandler(error, progressInfo);
         } finally {
@@ -912,18 +1054,18 @@ async function createSupportCourse(e) {
         }
         const [, toggleSel, divSel, inputSel] = entry;
         console.log('Selectors:', { toggleSel, divSel, inputSel });
-        
+
         const toggle = createSupportCourseForm.querySelector(toggleSel);
         const div = createSupportCourseForm.querySelector(divSel);
         const input = createSupportCourseForm.querySelector(inputSel);
-        
-        console.log('Elements found:', { 
-            toggle: !!toggle, 
-            div: !!div, 
+
+        console.log('Elements found:', {
+            toggle: !!toggle,
+            div: !!div,
             input: !!input,
             isPositiveInt: isPositiveInt(qty)
         });
-        
+
         if (isPositiveInt(qty)) {
             if (toggle) toggle.checked = true;
             if (div) { div.classList.remove('hidden'); div.classList.add('visible', 'mb-3'); }
@@ -1108,24 +1250,24 @@ async function createSupportCourse(e) {
             contentQtyInput.classList.remove('is-invalid', 'is-valid');
         });
     }
-    
+
     if (contentAddBtn) {
         contentAddBtn.addEventListener('click', (ev) => {
             ev.preventDefault(); ev.stopPropagation();
             const key = contentTypeSel?.value;
             const qty = contentQtyInput?.value?.trim();
             console.log('Add/Update clicked:', { key, qty });
-            
+
             // Clear any previous validation state
             if (contentQtyInput) {
                 contentQtyInput.classList.remove('is-invalid', 'is-valid');
             }
-            
+
             if (!key) {
                 console.warn('No content type selected');
                 return;
             }
-            
+
             if (!qty || qty === '') {
                 console.warn('No quantity entered');
                 // Show validation error on the input field
@@ -1135,7 +1277,7 @@ async function createSupportCourse(e) {
                 }
                 return;
             }
-            
+
             if (!isPositiveInt(qty)) {
                 console.warn('Invalid quantity entered');
                 // Show validation error on the input field
@@ -1145,18 +1287,18 @@ async function createSupportCourse(e) {
                 }
                 return;
             }
-            
+
             // Valid input - show success state
             if (contentQtyInput) {
                 contentQtyInput.classList.add('is-valid');
             }
-            
+
             setContent(key, qty);
             if (contentPublishSwitch && key) publishByType[key] = !!contentPublishSwitch.checked;
             if (typeof saveDefaultsDebounced === 'function') saveDefaultsDebounced();
-            
+
             console.log('Content added:', { key, qty, published: publishByType[key] });
-            
+
             // Clear the input and validation state after a short delay
             setTimeout(() => {
                 if (contentQtyInput) {

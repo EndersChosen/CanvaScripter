@@ -176,29 +176,36 @@ function markLoggingConsentPromptShown() {
 }
 
 async function resolveInitialLoggingPreference() {
-    const saved = getSavedLoggingPreference();
-    if (saved !== null) return saved;
-
-    if (!hasShownLoggingConsentPrompt()) {
-        const logDir = getLogDirectory();
-        const result = await dialog.showMessageBox({
-            type: 'question',
-            buttons: ['Enable Logging', 'Disable Logging'],
-            defaultId: 0,
-            cancelId: 1,
-            noLink: true,
-            title: 'Logging Preference',
-            message: 'CanvaScripter includes built-in debug logging.',
-            detail: `Logs are saved locally on this machine at:\n${logDir}\n\nWould you like to enable debug logging?`
-        });
-
-        const enabled = result.response === 0;
-        setSavedLoggingPreference(enabled);
-        markLoggingConsentPromptShown();
-        return enabled;
+    // If the user previously checked "Don't ask again", honour their saved preference
+    if (hasShownLoggingConsentPrompt()) {
+        const saved = getSavedLoggingPreference();
+        return saved !== null ? saved : true;
     }
 
-    return true;
+    // Otherwise show the prompt every launch
+    const logDir = getLogDirectory();
+    const result = await dialog.showMessageBox({
+        type: 'question',
+        buttons: ['Enable Logging', 'Disable Logging'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+        checkboxLabel: "Don't ask again",
+        checkboxChecked: false,
+        title: 'Logging Preference',
+        message: 'CanvaScripter includes built-in debug logging.',
+        detail: `Logs are saved locally on this machine at:\n${logDir}\n\nWould you like to enable debug logging?`
+    });
+
+    const enabled = result.response === 0;
+    setSavedLoggingPreference(enabled);
+
+    // If the user checked "Don't ask again", suppress future prompts
+    if (result.checkboxChecked) {
+        markLoggingConsentPromptShown();
+    }
+
+    return enabled;
 }
 
 // Helper function to get batch configuration from environment variables
@@ -398,6 +405,19 @@ function createMenu() {
                         const logDir = getLogDirectory();
                         shell.openPath(logDir);
                     }
+                },
+                {
+                    label: 'Reset Logging Prompt',
+                    click: () => {
+                        try { appStore.delete(LOGGING_CONSENT_SHOWN_KEY); } catch { }
+                        dialog.showMessageBox({
+                            type: 'info',
+                            buttons: ['OK'],
+                            title: 'Logging Prompt Reset',
+                            message: 'The logging prompt has been reset.',
+                            detail: 'You will be asked whether to enable debug logging the next time the app launches.'
+                        });
+                    }
                 }
             ]
         },
@@ -521,15 +541,18 @@ app.whenReady().then(async () => {
     });
 
     // CSV Export handlers
-    ipcMain.handle('csv:sendToCSV', async (event, data, filename = 'download.csv') => {
-        logDebug('[csv:sendToCSV] Exporting to CSV', { filename });
+    ipcMain.handle('csv:sendToCSV', async (event, payload, filename = 'failed_reset.csv') => {
+        // payload may be { data, fileName, showSaveDialog } or a raw array
+        const csvData = Array.isArray(payload) ? payload : (payload?.data ?? payload);
+        const resolvedFilename = (Array.isArray(payload) ? filename : payload?.fileName) || filename;
+        logDebug('[csv:sendToCSV] Exporting to CSV', { filename: resolvedFilename });
         try {
             const result = await dialog.showSaveDialog(mainWindow, {
-                defaultPath: filename,
+                defaultPath: resolvedFilename,
                 filters: [{ name: 'CSV', extensions: ['csv'] }]
             });
             if (!result.canceled && result.filePath) {
-                await csvExporter.exportToCSV(data, result.filePath);
+                await csvExporter.exportToCSV(csvData, result.filePath);
                 return { success: true, filePath: result.filePath };
             }
             return { success: false, cancelled: true };

@@ -307,6 +307,94 @@ ${JSON.stringify(summary, null, 2)}`;
         return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
     });
 
+    // Reset courses — shows a file picker and returns a list of numeric course IDs.
+    // Supports plain text (one ID per line or comma-separated) and CSV files.
+    // For CSV: prefers 'canvas_course_id' column, falls back to 'course_id'.
+    // Single-column files with no recognised header are treated as raw ID lists.
+    // Throws a descriptive Error on parse problems so the renderer can display it.
+    ipcMain.handle('fileUpload:resetCourses', async (event) => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openFile'],
+            filters: [
+                { name: 'Text/CSV Files', extensions: ['txt', 'csv'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        });
+
+        if (result.canceled || !result.filePaths.length) {
+            return [];
+        }
+
+        const filePath = result.filePaths[0];
+        rememberPath(allowedReadPaths, event.sender.id, filePath);
+
+        // Strip UTF-8 BOM if present
+        let fileContent = await fs.promises.readFile(filePath, 'utf8');
+        if (fileContent.charCodeAt(0) === 0xFEFF) fileContent = fileContent.slice(1);
+
+        const lines = fileContent.split(/\r?\n|\r/).map(l => l.trim()).filter(l => l.length > 0);
+
+        if (lines.length === 0) return [];
+
+        // Helper: strip surrounding double-quotes from a CSV cell value
+        const unquote = v => v.trim().replace(/^"|"$/g, '');
+
+        // Helper: validate that every value is a positive integer
+        const validateIntegers = (values, columnName) => {
+            const invalid = values.filter(v => {
+                const n = Number(v);
+                return !Number.isInteger(n) || n <= 0;
+            });
+            if (invalid.length > 0) {
+                const preview = invalid.slice(0, 5).join(', ');
+                const suffix = invalid.length > 5 ? ` … (${invalid.length} total)` : '';
+                const col = columnName ? ` in column '${columnName}'` : '';
+                throw new Error(`Non-integer course IDs found${col}: ${preview}${suffix}`);
+            }
+        };
+
+        const isCsv = filePath.toLowerCase().endsWith('.csv') || lines[0].includes(',');
+
+        if (!isCsv) {
+            // Plain text: one ID per line
+            const courses = lines.map(l => l.trim()).filter(v => v.length > 0);
+            validateIntegers(courses);
+            return courses;
+        }
+
+        // --- CSV handling ---
+        const headers = lines[0].split(',').map(h => unquote(h).toLowerCase());
+
+        const canvasIdIdx = headers.indexOf('canvas_course_id');
+        const courseIdIdx = headers.indexOf('course_id');
+
+        if (canvasIdIdx !== -1 || courseIdIdx !== -1) {
+            // Known header found — use canvas_course_id preferentially
+            const colIdx = canvasIdIdx !== -1 ? canvasIdIdx : courseIdIdx;
+            const colName = canvasIdIdx !== -1 ? 'canvas_course_id' : 'course_id';
+
+            const courses = lines.slice(1)
+                .map(l => unquote(l.split(',')[colIdx] || ''))
+                .filter(v => v.length > 0);
+
+            validateIntegers(courses, colName);
+            return courses;
+        }
+
+        if (headers.length === 1) {
+            // Single-column file with no recognised header — treat all rows as IDs
+            const courses = lines.map(l => unquote(l)).filter(v => v.length > 0);
+            validateIntegers(courses);
+            return courses;
+        }
+
+        // Multi-column CSV with no recognised header
+        throw new Error(
+            `Could not find a course ID column. Expected a header named 'canvas_course_id' or 'course_id' ` +
+            `(found: ${headers.slice(0, 5).join(', ')}${headers.length > 5 ? ', …' : ''}).`
+        );
+    });
+
     // CSV parsing handlers
     ipcMain.handle('parseEmailsFromCSV', async (event, csvContent) => {
         try {
