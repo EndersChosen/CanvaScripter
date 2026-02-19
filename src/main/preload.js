@@ -256,6 +256,18 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('preload.js > cancelResetCourses');
         return await ipcRenderer.invoke('axios:cancelResetCourses');
     },
+    restoreCourses: async (data) => {
+        console.log('preload.js > restoreCourses');
+        return await ipcRenderer.invoke('axios:restoreCourses', data);
+    },
+    cancelRestoreCourses: async () => {
+        console.log('preload.js > cancelRestoreCourses');
+        return await ipcRenderer.invoke('axios:cancelRestoreCourses');
+    },
+    checkCoursesDeleted: async (data) => {
+        console.log('preload.js > checkCoursesDeleted');
+        return await ipcRenderer.invoke('axios:checkCoursesDeleted', data);
+    },
     getCourseInfo: async (data) => {
         console.log('preload.js > getCourseInfo');
 
@@ -520,6 +532,9 @@ contextBridge.exposeInMainWorld('fileUpload', {
     },
     resetCourse: async () => {
         return await ipcRenderer.invoke('fileUpload:resetCourses');
+    },
+    restoreCoursesFile: async () => {
+        return await ipcRenderer.invoke('fileUpload:restoreCourses');
     },
     // Step 1: pick and parse emails file, return { fileContents, filePath, ext }
     resetEmails: async (data) => {

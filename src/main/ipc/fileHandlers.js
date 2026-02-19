@@ -395,6 +395,79 @@ ${JSON.stringify(summary, null, 2)}`;
         );
     });
 
+    // Restore courses — shows a file picker and returns a list of numeric course IDs.
+    // Uses the same parsing logic as fileUpload:resetCourses.
+    ipcMain.handle('fileUpload:restoreCourses', async (event) => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openFile'],
+            filters: [
+                { name: 'Text/CSV Files', extensions: ['txt', 'csv'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        });
+
+        if (result.canceled || !result.filePaths.length) {
+            return [];
+        }
+
+        const filePath = result.filePaths[0];
+        rememberPath(allowedReadPaths, event.sender.id, filePath);
+
+        let fileContent = await fs.promises.readFile(filePath, 'utf8');
+        if (fileContent.charCodeAt(0) === 0xFEFF) fileContent = fileContent.slice(1);
+
+        const lines = fileContent.split(/\r?\n|\r/).map(l => l.trim()).filter(l => l.length > 0);
+        if (lines.length === 0) return [];
+
+        const unquote = v => v.trim().replace(/^"|"$/g, '');
+
+        const validateIntegers = (values, columnName) => {
+            const invalid = values.filter(v => {
+                const n = Number(v);
+                return !Number.isInteger(n) || n <= 0;
+            });
+            if (invalid.length > 0) {
+                const preview = invalid.slice(0, 5).join(', ');
+                const suffix = invalid.length > 5 ? ` … (${invalid.length} total)` : '';
+                const col = columnName ? ` in column '${columnName}'` : '';
+                throw new Error(`Non-integer course IDs found${col}: ${preview}${suffix}`);
+            }
+        };
+
+        const isCsv = filePath.toLowerCase().endsWith('.csv') || lines[0].includes(',');
+
+        if (!isCsv) {
+            const courses = lines.map(l => l.trim()).filter(v => v.length > 0);
+            validateIntegers(courses);
+            return courses;
+        }
+
+        const headers = lines[0].split(',').map(h => unquote(h).toLowerCase());
+        const canvasIdIdx = headers.indexOf('canvas_course_id');
+        const courseIdIdx = headers.indexOf('course_id');
+
+        if (canvasIdIdx !== -1 || courseIdIdx !== -1) {
+            const colIdx = canvasIdIdx !== -1 ? canvasIdIdx : courseIdIdx;
+            const colName = canvasIdIdx !== -1 ? 'canvas_course_id' : 'course_id';
+            const courses = lines.slice(1)
+                .map(l => unquote(l.split(',')[colIdx] || ''))
+                .filter(v => v.length > 0);
+            validateIntegers(courses, colName);
+            return courses;
+        }
+
+        if (headers.length === 1) {
+            const courses = lines.map(l => unquote(l)).filter(v => v.length > 0);
+            validateIntegers(courses);
+            return courses;
+        }
+
+        throw new Error(
+            `Could not find a course ID column. Expected a header named 'canvas_course_id' or 'course_id' ` +
+            `(found: ${headers.slice(0, 5).join(', ')}${headers.length > 5 ? ', …' : ''}).`
+        );
+    });
+
     // CSV parsing handlers
     ipcMain.handle('parseEmailsFromCSV', async (event, csvContent) => {
         try {

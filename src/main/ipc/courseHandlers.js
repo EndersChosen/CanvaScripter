@@ -7,7 +7,7 @@
  * - Course associations and blueprint syncing
  */
 
-const { restoreContent, resetCourse, getCourseInfo, createSupportCourse, associateCourses, syncBPCourses } = require('../../shared/canvas-api/courses');
+const { restoreContent, resetCourse, getCourseInfo, createSupportCourse, associateCourses, syncBPCourses, restoreCourseBatch, pollProgressOnce, cancelProgressJob, getCourseState } = require('../../shared/canvas-api/courses');
 const quizzes_classic = require('../../shared/canvas-api/quizzes_classic');
 const quizzes_nq = require('../../shared/canvas-api/quizzes_nq');
 const modules = require('../../shared/canvas-api/modules');
@@ -236,6 +236,166 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
         logDebug('[axios:cancelResetCourses] Cancelling reset courses', { rendererId });
         resetCoursesCancelFlags.set(rendererId, true);
         return { cancelled: true };
+    });
+
+    // Per-renderer cancellation flags for restore-courses operations
+    // Value shape: { cancel: boolean, currentProgressId: number|null }
+    const restoreCoursesCancelFlags = new Map();
+
+    /**
+     * Restore deleted courses in batches of 100.
+     * Uses the Canvas batch update endpoint (PUT /api/v1/accounts/self/courses)
+     * with event=undelete, then polls the returned Progress object.
+     */
+    ipcMain.handle('axios:restoreCourses', async (event, data) => {
+        console.log('courseHandlers.js > restoreCourses');
+
+        const rendererId = event.sender.id;
+        restoreCoursesCancelFlags.set(rendererId, { cancel: false, currentProgressId: null });
+
+        const { domain, token, courseIds } = data;
+
+        // Split course IDs into chunks of 100
+        const chunks = [];
+        for (let i = 0; i < courseIds.length; i += 100) {
+            chunks.push(courseIds.slice(i, i + 100));
+        }
+
+        let successfulCount = 0;
+        const failed = []; // { ids: string[], message: string }
+        let cancelledByUser = false;
+        const totalBatches = chunks.length;
+
+        for (let i = 0; i < chunks.length; i++) {
+            // Check cancellation before starting the next batch
+            const flags = restoreCoursesCancelFlags.get(rendererId);
+            if (flags?.cancel) {
+                cancelledByUser = true;
+                break;
+            }
+
+            const chunkIds = chunks[i];
+
+            try {
+                // Submit the batch — returns a Canvas Progress object
+                const progressObj = await restoreCourseBatch(domain, token, chunkIds);
+                const progressId = progressObj.id;
+
+                // Store current progress ID so the cancel handler can cancel it mid-poll
+                const currentFlags = restoreCoursesCancelFlags.get(rendererId);
+                if (currentFlags) currentFlags.currentProgressId = progressId;
+
+                // Poll until the job reaches a terminal state
+                let finalProgress = null;
+                let batchCancelled = false;
+
+                while (true) {
+                    const flagsNow = restoreCoursesCancelFlags.get(rendererId);
+                    if (flagsNow?.cancel) {
+                        // Ask Canvas to cancel the running job
+                        await cancelProgressJob(domain, token, progressId, 'Cancelled by user');
+                        batchCancelled = true;
+                        cancelledByUser = true;
+                        break;
+                    }
+
+                    const progress = await pollProgressOnce(domain, token, progressId);
+                    finalProgress = progress;
+
+                    if (['completed', 'failed'].includes(progress.workflow_state)) {
+                        break;
+                    }
+
+                    // Wait 1.5 s before next poll
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                }
+
+                if (batchCancelled) break;
+
+                if (finalProgress?.workflow_state === 'completed') {
+                    // Extract count from message like "349 courses processed"
+                    const match = (finalProgress.message || '').match(/(\d+)/);
+                    const count = match ? parseInt(match[1]) : chunkIds.length;
+                    successfulCount += count;
+                } else if (finalProgress?.workflow_state === 'failed') {
+                    failed.push({
+                        ids: chunkIds,
+                        message: finalProgress.message || 'Job failed with no message'
+                    });
+                }
+
+            } catch (error) {
+                const errMsg =
+                    error.response?.data?.errors?.[0]?.message ||
+                    error.response?.data?.message ||
+                    error.message ||
+                    'Unknown error';
+                failed.push({ ids: chunkIds, message: errMsg });
+            }
+
+            // Send progress percentage to renderer after each batch
+            mainWindow.webContents.send('update-progress', ((i + 1) / totalBatches) * 100);
+        }
+
+        restoreCoursesCancelFlags.delete(rendererId);
+
+        return { successfulCount, failed, cancelledByUser };
+    });
+
+    /**
+     * Cancel an in-progress restoreCourses operation.
+     * Sets the cancel flag; the polling loop will call Canvas's progress cancel API.
+     */
+    ipcMain.handle('axios:cancelRestoreCourses', async (event) => {
+        const rendererId = event.sender.id;
+        logDebug('[axios:cancelRestoreCourses] Cancelling restore courses', { rendererId });
+        const flags = restoreCoursesCancelFlags.get(rendererId);
+        if (flags) flags.cancel = true;
+        return { cancelled: true };
+    });
+
+    /**
+     * Check the deleted state of a list of course IDs in parallel.
+     * Runs up to 10 requests concurrently with built-in retry/rate-limit handling.
+     * Returns { deleted: [{id,name}], notDeleted: [{id,name}], errors: [{id,message}] }
+     */
+    ipcMain.handle('axios:checkCoursesDeleted', async (event, data) => {
+        console.log('courseHandlers.js > checkCoursesDeleted');
+        const { domain, token, courseIds } = data;
+        const total = courseIds.length;
+        let checked = 0;
+
+        const requests = courseIds.map(id => ({
+            id: String(id),
+            request: async () => {
+                const result = await getCourseState(domain, token, id);
+                checked++;
+                mainWindow.webContents.send('update-progress', (checked / total) * 100);
+                return result;
+            }
+        }));
+
+        const { successful, failed } = await batchHandler(requests, {
+            batchSize: 10,
+            timeDelay: 1000
+        });
+
+        const deleted = [];
+        const notDeleted = [];
+        const errors = [];
+
+        for (const s of successful) {
+            if (s.value?.workflow_state === 'deleted') {
+                deleted.push({ id: s.id, name: s.value.name });
+            } else {
+                notDeleted.push({ id: s.id, name: s.value.name });
+            }
+        }
+        for (const f of failed) {
+            errors.push({ id: f.id, message: f.reason || 'Unknown error' });
+        }
+
+        return { deleted, notDeleted, errors };
     });
 
     /**

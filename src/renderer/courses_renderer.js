@@ -9,6 +9,9 @@ function courseTemplate(e) {
         case 'restore-content':
             restoreContent(e);
             break;
+        case 'restore-courses':
+            restoreCourses(e);
+            break;
         case 'reset-courses':
             resetCourses(e);
             break;
@@ -186,6 +189,430 @@ async function restoreContent(e) {
         } finally {
             restoreBtn.disabled = false;
         }
+    });
+}
+
+async function restoreCourses(e) {
+    hideEndpoints(e);
+
+    const eContent = document.querySelector('#endpoint-content');
+    let restoreCourseForm = eContent.querySelector('#restore-course-form');
+
+    if (!restoreCourseForm) {
+        restoreCourseForm = document.createElement('form');
+        restoreCourseForm.id = 'restore-course-form';
+
+        restoreCourseForm.innerHTML = `
+            <style>
+                #restore-course-form .card { font-size: 0.875rem; }
+                #restore-course-form .card-header h3 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+                #restore-course-form .card-header small { font-size: 0.75rem; }
+                #restore-course-form .card-body { padding: 0.75rem; }
+                #restore-course-form .form-label,
+                #restore-course-form .form-check-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+                #restore-course-form .form-control { font-size: 0.8rem; padding: 0.25rem 0.5rem; }
+                #restore-course-form .btn { font-size: 0.8rem; padding: 0.35rem 0.75rem; }
+                #restore-course-form .form-check { margin-bottom: 0.5rem; }
+                #restore-course-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+                #restore-course-form .mt-2 { margin-top: 0.5rem !important; }
+                #restore-course-form .mt-3 { margin-top: 0.75rem !important; }
+                #restore-course-form .mb-2 { margin-bottom: 0.5rem !important; }
+                #restore-course-form .mb-3 { margin-bottom: 0.75rem !important; }
+                #restore-course-form .progress { height: 12px !important; }
+                #restore-course-form h5 { font-size: 1rem; }
+                #restore-course-form h6 { font-size: 0.9rem; }
+                #restore-course-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
+                #restore-course-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+                #restore-course-form .badge { font-size: 0.75rem; }
+                #restore-course-form hr { margin: 0.5rem 0; }
+            </style>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Restore Courses
+                    </h3>
+                    <small class="text-muted">Restore deleted courses by undeleting them in Canvas</small>
+                </div>
+                <div class="card-body" id="restore-controls-body">
+                    <div class="row">
+                        <div class="mb-2" id="restore-switches">
+                            <div class="form-check form-switch">
+                                <label class="form-check-label" for="upload-restore-courses-switch">Upload file of courses to restore</label>
+                                <input class="form-check-input" type="checkbox" role="switch" id="upload-restore-courses-switch">
+                            </div>
+                            <div class="form-check form-switch">
+                                <label class="form-check-label" for="manual-restore-courses-switch">Manually enter list of courses</label>
+                                <input class="form-check-input" type="checkbox" role="switch" id="manual-restore-courses-switch">
+                            </div>
+                        </div>
+                        <div id="restore-course-text-div" hidden>
+                            <textarea class="form-control form-control-sm" id="restore-courses-area" rows="3" placeholder="course1,course2,course3, etc."></textarea>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-primary mt-2" id="restoreBtn" disabled hidden>Restore</button>
+                    <button type="button" class="btn btn-sm btn-primary mt-2" id="restoreUploadBtn" disabled hidden>Upload</button>
+                    <div id="restore-upload-confirm-div" hidden></div>
+                </div>
+            </div>
+
+            <!-- Progress Card -->
+            <div class="card mt-2" id="restore-progress-div" hidden>
+                <div class="card-header py-2">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-gear me-1"></i><span id="restore-progress-title">Processing</span>
+                    </h5>
+                </div>
+                <div class="card-body py-2">
+                    <p id="restore-progress-info" class="mb-1"></p>
+                    <div class="progress mb-1">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger mt-2" id="restore-courses-cancel-btn" hidden>
+                        <i class="bi bi-x-circle me-1"></i>Cancel
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results Card -->
+            <div class="card mt-2" id="restore-results-card" hidden>
+                <div class="card-body p-0" id="restore-results-body"></div>
+            </div>`;
+
+        eContent.append(restoreCourseForm);
+    }
+    restoreCourseForm.hidden = false;
+
+    const progressDiv = restoreCourseForm.querySelector('#restore-progress-div');
+    const progressBar = progressDiv.querySelector('.progress-bar');
+    const progressTitle = restoreCourseForm.querySelector('#restore-progress-title');
+    const progressInfo = restoreCourseForm.querySelector('#restore-progress-info');
+    const restoreBtn = restoreCourseForm.querySelector('#restoreBtn');
+    const uploadBtn = restoreCourseForm.querySelector('#restoreUploadBtn');
+    const resultsCard = restoreCourseForm.querySelector('#restore-results-card');
+    const resultsBody = restoreCourseForm.querySelector('#restore-results-body');
+    const confirmDiv = restoreCourseForm.querySelector('#restore-upload-confirm-div');
+
+    // Render a 4-part summary card after restore completes.
+    // response: { successfulCount, failed: [{ids, message}], cancelledByUser }
+    // checkSummary: { totalChecked, notDeletedCount, checkErrorCount }
+    function renderRestoreResults(response, checkSummary = {}) {
+        const { totalChecked = 0, notDeletedCount = 0, checkErrorCount = 0 } = checkSummary;
+        const successCount = response.successfulCount ?? 0;
+        const failedBatches = response.failed ?? [];
+        const failCount = failedBatches.flatMap(b => b.ids ?? []).length;
+        const cancelledByUser = response.cancelledByUser ?? false;
+
+        const hasExtras = checkErrorCount > 0 || cancelledByUser;
+
+        // Summary card (comm-channels style)
+        let html = `
+            <div class="card mb-0">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-check-circle me-2"></i>Restore Summary
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3"><strong>Total courses processed:</strong> <span class="badge bg-primary">${totalChecked}</span></p>
+                    <hr class="my-3">
+                    <p class="mb-2">
+                        <i class="bi bi-arrow-right-circle text-warning me-2"></i>
+                        <strong>Not deleted (skipped):</strong> ${notDeletedCount}
+                    </p>
+                    <p class="mb-2">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        <strong>Successfully restored:</strong> ${successCount}
+                    </p>
+                    <p class="${hasExtras ? 'mb-2' : 'mb-0'}">
+                        <i class="bi bi-x-circle-fill ${failCount > 0 ? 'text-danger' : 'text-secondary'} me-2"></i>
+                        <strong>Failed to restore:</strong> ${failCount}
+                    </p>
+                    ${checkErrorCount > 0 ? `<p class="${cancelledByUser ? 'mb-2' : 'mb-0'}">
+                        <i class="bi bi-question-circle text-warning me-2"></i>
+                        <strong>Could not verify state:</strong> ${checkErrorCount}
+                    </p>` : ''}
+                    ${cancelledByUser ? `<p class="mb-0">
+                        <i class="bi bi-slash-circle text-warning me-2"></i>
+                        <strong>Cancelled by user</strong>
+                    </p>` : ''}
+                </div>
+            </div>`;
+
+        // Failures card
+        if (failedBatches.length > 0) {
+            html += `
+            <div class="card mt-2 mb-0 border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Restore Failures
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-2">`;
+            for (const b of failedBatches) {
+                const ids = (b.ids ?? []).join(', ');
+                const msg = b.message ?? 'Unknown error';
+                html += `<li><strong>[${ids}]:</strong> ${msg}</li>`;
+            }
+            html += `</ul>
+                    <button type="button" class="btn btn-sm btn-outline-danger" id="restore-failures-csv-btn">
+                        <i class="bi bi-download me-1"></i>Download failures CSV
+                    </button>
+                </div>
+            </div>`;
+        }
+
+        resultsBody.innerHTML = html;
+        resultsCard.hidden = false;
+
+        if (failedBatches.length > 0) {
+            const dlBtn = resultsBody.querySelector('#restore-failures-csv-btn');
+            dlBtn.addEventListener('click', async () => {
+                try {
+                    dlBtn.disabled = true;
+                    dlBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Saving...';
+                    const csvData = failedBatches.flatMap(b =>
+                        (b.ids ?? []).map(id => ({ course_id: id, message: b.message ?? '' }))
+                    );
+                    const fileName = `restore_courses_failures_${new Date().toISOString().slice(0, 10)}.csv`;
+                    const result = await window.csv.sendToCSV({ fileName, data: csvData, showSaveDialog: true });
+                    if (result?.filePath) {
+                        dlBtn.innerHTML = '<i class="bi bi-check me-1"></i>Downloaded';
+                        dlBtn.classList.replace('btn-outline-danger', 'btn-success');
+                    } else {
+                        dlBtn.disabled = false;
+                        dlBtn.innerHTML = '<i class="bi bi-download me-1"></i>Download failures CSV';
+                    }
+                } catch (err) {
+                    console.error('Error saving failures CSV:', err);
+                    dlBtn.disabled = false;
+                    dlBtn.innerHTML = '<i class="bi bi-x me-1"></i>Download failed';
+                    dlBtn.classList.replace('btn-outline-danger', 'btn-danger');
+                }
+            });
+        }
+    }
+
+    // Helper: wire up the cancel button for in-progress operations
+    function setupCancelBtn(cancelBtn) {
+        cancelBtn.hidden = false;
+        cancelBtn.disabled = false;
+        cancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
+        cancelBtn.onclick = async () => {
+            cancelBtn.disabled = true;
+            cancelBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Cancelling...';
+            progressInfo.innerHTML = 'Cancelling... letting in-flight requests finish.';
+            try {
+                await window.axios.cancelRestoreCourses();
+            } catch (err) {
+                console.error('Error cancelling restore courses:', err);
+            }
+        };
+    }
+
+    // Helper: check deleted states then show confirmation before restoring.
+    // Both the upload and manual buttons call this after getting raw course IDs.
+    async function runCheckAndConfirm(courseIds, triggerBtn) {
+        const domain = document.querySelector('#domain').value.trim();
+        const apiToken = document.querySelector('#token').value.trim();
+        const total = courseIds.length;
+
+        // --- Phase 1: Check deleted state for all courses ---
+        resultsCard.hidden = true;
+        resultsBody.innerHTML = '';
+        confirmDiv.hidden = true;
+        confirmDiv.innerHTML = '';
+        progressDiv.hidden = false;
+        progressBar.style.width = '0%';
+        progressTitle.textContent = 'Checking Course States';
+        progressInfo.innerHTML = `0 / ${total} checked`;
+
+        let checkResult;
+        try {
+            window.progressAPI.removeAllProgressListeners();
+            const unsub = window.progressAPI.onUpdateProgress((payload) => {
+                const pct = typeof payload === 'number' ? payload : 0;
+                const done = Math.min(Math.round(pct / 100 * total), total);
+                progressInfo.innerHTML = `${done} / ${total} checked`;
+                progressBar.style.width = `${pct}%`;
+            });
+            checkResult = await window.axios.checkCoursesDeleted({ domain, token: apiToken, courseIds });
+            unsub();
+        } catch (err) {
+            progressDiv.hidden = true;
+            progressInfo.innerHTML = '';
+            errorHandler(err, progressInfo);
+            progressDiv.hidden = false;
+            triggerBtn.disabled = false;
+            return;
+        }
+
+        progressDiv.hidden = true;
+
+        const { deleted = [], notDeleted = [], errors: checkErrors = [] } = checkResult;
+        const deletedCount = deleted.length;
+        const notDeletedCount = notDeleted.length;
+        const checkErrorCount = checkErrors.length;
+
+        // --- Phase 2: Show confirmation with check summary ---
+        let confirmHtml = `
+            <div class="alert alert-info py-2 mb-2 mt-2" style="font-size:0.85rem;">
+                <strong>Check Complete</strong> &mdash; ${total} course${total !== 1 ? 's' : ''} checked:
+                <ul class="mb-0 mt-1">
+                    <li><strong>${deletedCount}</strong> deleted &rarr; will be restored</li>
+                    <li><strong>${notDeletedCount}</strong> not deleted &rarr; will be skipped</li>
+                    ${checkErrorCount > 0 ? `<li><strong>${checkErrorCount}</strong> could not be verified (will be skipped)</li>` : ''}
+                </ul>
+            </div>`;
+
+        if (deletedCount === 0) {
+            confirmHtml += `<div class="alert alert-warning py-2" style="font-size:0.85rem;">
+                No deleted courses found. Nothing to restore.
+            </div>
+            <button type="button" class="btn btn-sm btn-secondary" id="confirm-check-dismiss-btn">Dismiss</button>`;
+            confirmDiv.innerHTML = confirmHtml;
+            confirmDiv.hidden = false;
+            confirmDiv.querySelector('#confirm-check-dismiss-btn').addEventListener('click', () => {
+                confirmDiv.hidden = true;
+                confirmDiv.innerHTML = '';
+                triggerBtn.disabled = false;
+            }, { once: true });
+            return;
+        }
+
+        confirmHtml += `
+            <button type="button" class="btn btn-sm btn-primary me-2" id="confirm-do-restore-btn">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Restore ${deletedCount} course${deletedCount !== 1 ? 's' : ''}
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" id="confirm-do-cancel-btn">Cancel</button>`;
+        confirmDiv.innerHTML = confirmHtml;
+        confirmDiv.hidden = false;
+
+        confirmDiv.querySelector('#confirm-do-cancel-btn').addEventListener('click', () => {
+            confirmDiv.hidden = true;
+            confirmDiv.innerHTML = '';
+            triggerBtn.disabled = false;
+        }, { once: true });
+
+        confirmDiv.querySelector('#confirm-do-restore-btn').addEventListener('click', async () => {
+            confirmDiv.hidden = true;
+            confirmDiv.innerHTML = '';
+            await runRestore(
+                deleted.map(d => d.id),
+                triggerBtn,
+                { totalChecked: total, notDeletedCount, checkErrorCount }
+            );
+        }, { once: true });
+    }
+
+    // Helper: run the actual restore after course IDs are confirmed
+    async function runRestore(courseIds, triggerBtn, checkSummary = {}) {
+        const domain = document.querySelector('#domain').value.trim();
+        const apiToken = document.querySelector('#token').value.trim();
+        const total = courseIds.length;
+        const totalBatches = Math.ceil(total / 100);
+
+        resultsCard.hidden = true;
+        resultsBody.innerHTML = '';
+        progressDiv.hidden = false;
+        progressBar.style.width = '0%';
+        progressTitle.textContent = 'Restoring Courses';
+        progressInfo.innerHTML = `Batch 0 of ${totalBatches}`;
+
+        const cancelBtn = progressDiv.querySelector('#restore-courses-cancel-btn');
+        setupCancelBtn(cancelBtn);
+
+        const data = { domain, token: apiToken, courseIds };
+
+        let response;
+        try {
+            window.progressAPI.removeAllProgressListeners();
+            window.progressAPI.onUpdateProgress((progress) => {
+                const pct = typeof progress === 'number' ? progress : 0;
+                const batchesCompleted = Math.min(Math.round(pct / 100 * totalBatches), totalBatches);
+                progressInfo.innerHTML = `Batch ${batchesCompleted} of ${totalBatches}`;
+                progressBar.style.width = `${pct}%`;
+            });
+
+            response = await window.axios.restoreCourses(data);
+            progressDiv.hidden = true;
+            renderRestoreResults(response, checkSummary);
+        } catch (error) {
+            errorHandler(error, progressInfo);
+        } finally {
+            triggerBtn.disabled = false;
+            cancelBtn.hidden = true;
+            cancelBtn.disabled = true;
+            cancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
+        }
+    }
+
+    // --- Switch toggling ---
+    const switches = restoreCourseForm.querySelector('#restore-switches');
+    const courseTextDiv = restoreCourseForm.querySelector('#restore-course-text-div');
+    const courseTextArea = restoreCourseForm.querySelector('#restore-courses-area');
+
+    courseTextArea.addEventListener('input', () => {
+        const manualSwitch = restoreCourseForm.querySelector('#manual-restore-courses-switch');
+        restoreBtn.disabled = courseTextArea.value.trim().length < 1 || !manualSwitch.checked;
+    });
+
+    switches.addEventListener('change', (e) => {
+        const inputs = switches.querySelectorAll('input');
+        for (const input of inputs) {
+            if (input.id !== e.target.id) input.checked = false;
+        }
+        if (!e.target.checked) {
+            restoreBtn.disabled = true;
+            uploadBtn.disabled = true;
+        } else if (e.target.id === 'upload-restore-courses-switch') {
+            restoreBtn.disabled = true;
+            restoreBtn.hidden = true;
+            courseTextDiv.hidden = true;
+            uploadBtn.disabled = false;
+            uploadBtn.hidden = false;
+        } else {
+            restoreBtn.hidden = false;
+            courseTextDiv.hidden = false;
+            uploadBtn.disabled = true;
+            uploadBtn.hidden = true;
+            restoreBtn.disabled = courseTextArea.value.trim().length < 1;
+        }
+    });
+
+    // --- Upload button ---
+    uploadBtn.addEventListener('click', async () => {
+        uploadBtn.disabled = true;
+        progressDiv.hidden = true;
+        confirmDiv.hidden = true;
+        confirmDiv.innerHTML = '';
+
+        let courseIds = [];
+        try {
+            courseIds = await window.fileUpload.restoreCoursesFile();
+        } catch (error) {
+            uploadBtn.disabled = false;
+            progressDiv.hidden = false;
+            errorHandler(error, progressInfo);
+            return;
+        }
+
+        if (!courseIds || courseIds.length === 0) {
+            uploadBtn.disabled = false;
+            return;
+        }
+
+        await runCheckAndConfirm(courseIds, uploadBtn);
+    });
+
+    // --- Manual restore button ---
+    restoreBtn.addEventListener('click', async () => {
+        const rawInput = courseTextArea.value;
+        const courseIds = rawInput.split(/[\n,]/).map(s => s.trim()).filter(s => s.length > 0);
+        if (courseIds.length === 0) return;
+
+        restoreBtn.disabled = true;
+        await runCheckAndConfirm(courseIds, restoreBtn);
     });
 }
 
