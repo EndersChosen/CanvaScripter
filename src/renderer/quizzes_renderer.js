@@ -684,7 +684,7 @@ async function addQuestionsNQ(e) {
         const hasValidQuestionNumber = /^\d+$/.test(questionNumberValue) && parseInt(questionNumberValue) > 0;
         const domain = document.querySelector('#domain')?.value?.trim() || '';
         const token = document.querySelector('#token')?.value?.trim() || '';
-        
+
         createQuestionBtn.disabled = !hasValidCourse || !hasValidQuizId || !hasValidQuestionNumber || !domain || !token;
     }
 
@@ -701,19 +701,19 @@ async function addQuestionsNQ(e) {
     // Add validation for other required fields
     const quizIdInput = addQuestionsNQForm.querySelector('#nq-id');
     const questionNumberInput = addQuestionsNQForm.querySelector('#nq-question-number');
-    
+
     quizIdInput.addEventListener('input', updateAddQuestionsButtonState);
     questionNumberInput.addEventListener('input', updateAddQuestionsButtonState);
 
     // Add listeners for domain and token changes (if they exist)
     const domainInput = document.querySelector('#domain');
     const tokenInput = document.querySelector('#token');
-    
+
     if (domainInput) {
         domainInput.addEventListener('input', updateAddQuestionsButtonState);
         domainInput.addEventListener('change', updateAddQuestionsButtonState);
     }
-    
+
     if (tokenInput) {
         tokenInput.addEventListener('input', updateAddQuestionsButtonState);
         tokenInput.addEventListener('change', updateAddQuestionsButtonState);
@@ -752,7 +752,7 @@ async function addQuestionsNQ(e) {
             if (window.progressAPI && window.progressAPI.onUpdateProgress) {
                 window.progressAPI.onUpdateProgress((msg) => {
                     if (!activeRun || !msg || typeof msg !== 'object') return;
-                    
+
                     if (msg.label === 'Creating quiz items' && typeof msg.processed === 'number' && typeof msg.total === 'number' && msg.total > 0) {
                         const pct = (msg.processed / msg.total) * 100;
                         progressBar.style.width = `${pct}%`;
@@ -1007,188 +1007,188 @@ async function createNewQuiz(e) {
         const courseInput = createNewQuizForm.querySelector('#new-quiz-course-id');
         const createBtn = createNewQuizForm.querySelector('#create-new-quiz-btn');
         const courseHelp = createNewQuizForm.querySelector('#new-quiz-course-help');
-        
+
         // Question type management
         const questionTypeSelect = createNewQuizForm.querySelector('#new-quiz-question-type');
         const questionQtyInput = createNewQuizForm.querySelector('#new-quiz-question-qty');
         const addQuestionBtn = createNewQuizForm.querySelector('#add-question-type-btn');
         const clearQuestionsBtn = createNewQuizForm.querySelector('#clear-question-types-btn');
         const selectedQuestionsDiv = createNewQuizForm.querySelector('#selected-question-types');
-        
+
         const selectedQuestionTypes = new Map(); // type -> qty
 
-    function updateSelectedQuestionTypesDisplay() {
-        if (selectedQuestionTypes.size === 0) {
-            selectedQuestionsDiv.innerHTML = '<span class="text-muted">No question types selected</span>';
-        } else {
-            const items = [];
-            for (const [type, qty] of selectedQuestionTypes.entries()) {
-                const label = questionTypeSelect.querySelector(`option[value="${type}"]`)?.textContent || type;
-                items.push(`<span class="badge bg-primary me-2">${label} x ${qty}</span>`);
-            }
-            selectedQuestionsDiv.innerHTML = items.join('');
-        }
-        updateCreateButtonState();
-    }
-
-    function updateCreateButtonState() {
-        const hasValidCourse = /^\d+$/.test(courseInput.value.trim());
-        const hasQuestions = selectedQuestionTypes.size > 0;
-        const domain = document.querySelector('#domain')?.value?.trim() || '';
-        const token = document.querySelector('#token')?.value?.trim() || '';
-        
-        // For debugging - remove this later
-        console.log('Button validation:', {
-            hasValidCourse,
-            hasQuestions,
-            hasDomain: !!domain,
-            hasToken: !!token,
-            courseValue: courseInput.value.trim(),
-            questionCount: selectedQuestionTypes.size
-        });
-        
-        createBtn.disabled = !hasValidCourse || !hasQuestions || !domain || !token;
-    }
-
-    // Add question type handler
-    addQuestionBtn.addEventListener('click', () => {
-        const type = questionTypeSelect.value;
-        const qty = parseInt(questionQtyInput.value) || 1;
-        
-        if (!type) return;
-        
-        selectedQuestionTypes.set(type, qty);
-        updateSelectedQuestionTypesDisplay();
-        
-        // Reset selection
-        questionTypeSelect.value = '';
-        questionQtyInput.value = '1';
-    });
-
-    // Clear all question types
-    clearQuestionsBtn.addEventListener('click', () => {
-        selectedQuestionTypes.clear();
-        updateSelectedQuestionTypesDisplay();
-    });
-
-    // Course ID validation
-    courseInput.addEventListener('input', () => {
-        const isValid = /^\d+$/.test(courseInput.value.trim());
-        courseInput.classList.toggle('is-invalid', !isValid && courseInput.value.length > 0);
-        courseHelp.classList.toggle('d-none', isValid || courseInput.value.length === 0);
-        updateCreateButtonState();
-    });
-
-    // Add listeners for domain and token changes (if they exist)
-    const domainInput = document.querySelector('#domain');
-    const tokenInput = document.querySelector('#token');
-    
-    if (domainInput) {
-        domainInput.addEventListener('input', updateCreateButtonState);
-        domainInput.addEventListener('change', updateCreateButtonState);
-    }
-    
-    if (tokenInput) {
-        tokenInput.addEventListener('input', updateCreateButtonState);
-        tokenInput.addEventListener('change', updateCreateButtonState);
-    }
-
-    // Initial state
-    updateSelectedQuestionTypesDisplay();
-
-    // Create button handler
-    createBtn.addEventListener('click', async () => {
-        const courseId = courseInput.value.trim();
-        const title = createNewQuizForm.querySelector('#new-quiz-title').value.trim();
-        const count = parseInt(createNewQuizForm.querySelector('#new-quiz-count').value);
-        const description = createNewQuizForm.querySelector('#new-quiz-description').value.trim();
-        const published = createNewQuizForm.querySelector('#new-quiz-published').checked;
-        const shuffleAnswers = createNewQuizForm.querySelector('#new-quiz-shuffle').checked;
-
-        const progressCard = createNewQuizForm.querySelector('#create-new-quiz-progress-card');
-        const progressInfo = createNewQuizForm.querySelector('#create-new-quiz-progress-info');
-        const progressBar = createNewQuizForm.querySelector('#create-new-quiz-progress-bar');
-        const resultsCard = createNewQuizForm.querySelector('#create-new-quiz-results-card');
-        const responseContainer = createNewQuizForm.querySelector('#create-new-quiz-response-container');
-
-        progressCard.hidden = false;
-        resultsCard.hidden = true;
-        createBtn.disabled = true;
-
-        try {
-            const domain = document.querySelector('#domain').value.trim();
-            const token = document.querySelector('#token').value.trim();
-
-            // Convert selected question types to array format for backend
-            const questionTypes = [];
-            for (const [type, qty] of selectedQuestionTypes.entries()) {
-                for (let i = 0; i < qty; i++) {
-                    questionTypes.push(type);
+        function updateSelectedQuestionTypesDisplay() {
+            if (selectedQuestionTypes.size === 0) {
+                selectedQuestionsDiv.innerHTML = '<span class="text-muted">No question types selected</span>';
+            } else {
+                const items = [];
+                for (const [type, qty] of selectedQuestionTypes.entries()) {
+                    const label = questionTypeSelect.querySelector(`option[value="${type}"]`)?.textContent || type;
+                    items.push(`<span class="badge bg-primary me-2">${label} x ${qty}</span>`);
                 }
+                selectedQuestionsDiv.innerHTML = items.join('');
             }
+            updateCreateButtonState();
+        }
 
-            // Step 1: Create New Quizzes
-            progressInfo.textContent = `Creating ${count} New Quiz${count > 1 ? 'es' : ''}...`;
-            progressBar.style.width = '0%';
-            progressBar.setAttribute('aria-valuenow', '0');
+        function updateCreateButtonState() {
+            const hasValidCourse = /^\d+$/.test(courseInput.value.trim());
+            const hasQuestions = selectedQuestionTypes.size > 0;
+            const domain = document.querySelector('#domain')?.value?.trim() || '';
+            const token = document.querySelector('#token')?.value?.trim() || '';
 
-            // Set up progress listener for quiz creation
-            let activeRun = true;
-            if (window.progressAPI && window.progressAPI.onUpdateProgress) {
-                window.progressAPI.onUpdateProgress((msg) => {
-                    if (!activeRun || !msg || typeof msg !== 'object') return;
-                    
-                    if (msg.label === 'Creating new quizzes' && typeof msg.processed === 'number' && typeof msg.total === 'number' && msg.total > 0) {
-                        // Quiz creation progress: 0-50%
-                        const pct = (msg.processed / msg.total) * 50;
-                        progressBar.style.width = `${pct}%`;
-                        progressBar.setAttribute('aria-valuenow', pct);
-                        progressInfo.textContent = `Creating new quizzes... ${msg.processed}/${msg.total}`;
-                    } else if (msg.label === 'Creating quiz items' && typeof msg.processed === 'number' && typeof msg.total === 'number' && msg.total > 0) {
-                        // Question creation progress: 50-100%
-                        const pct = 50 + (msg.processed / msg.total) * 50;
-                        progressBar.style.width = `${pct}%`;
-                        progressBar.setAttribute('aria-valuenow', pct);
-                        progressInfo.textContent = `Creating quiz items... ${msg.processed}/${msg.total}`;
-                    }
-                });
-            }
-
-            const createQuizzesResponse = await window.axios.createNewQuizzes({
-                domain,
-                token,
-                course_id: courseId,
-                title: title || 'New Quiz',
-                count: count,
-                published: published
+            // For debugging - remove this later
+            console.log('Button validation:', {
+                hasValidCourse,
+                hasQuestions,
+                hasDomain: !!domain,
+                hasToken: !!token,
+                courseValue: courseInput.value.trim(),
+                questionCount: selectedQuestionTypes.size
             });
 
-            if (createQuizzesResponse.successful && createQuizzesResponse.successful.length > 0) {
-                progressBar.style.width = '50%';
-                progressBar.setAttribute('aria-valuenow', '50');
-                progressInfo.textContent = `Created ${createQuizzesResponse.successful.length} new quizzes. Adding questions...`;
+            createBtn.disabled = !hasValidCourse || !hasQuestions || !domain || !token;
+        }
 
-                // Step 2: Add question items to each quiz
-                const quizzes = createQuizzesResponse.successful.map(result => result.value);
-                
-                if (questionTypes.length > 0) {
-                    const createItemsResponse = await window.axios.createNewQuizItems({
-                        domain,
-                        token,
-                        course_id: courseId,
-                        quizzes: quizzes,
-                        questionTypes: questionTypes
+        // Add question type handler
+        addQuestionBtn.addEventListener('click', () => {
+            const type = questionTypeSelect.value;
+            const qty = parseInt(questionQtyInput.value) || 1;
+
+            if (!type) return;
+
+            selectedQuestionTypes.set(type, qty);
+            updateSelectedQuestionTypesDisplay();
+
+            // Reset selection
+            questionTypeSelect.value = '';
+            questionQtyInput.value = '1';
+        });
+
+        // Clear all question types
+        clearQuestionsBtn.addEventListener('click', () => {
+            selectedQuestionTypes.clear();
+            updateSelectedQuestionTypesDisplay();
+        });
+
+        // Course ID validation
+        courseInput.addEventListener('input', () => {
+            const isValid = /^\d+$/.test(courseInput.value.trim());
+            courseInput.classList.toggle('is-invalid', !isValid && courseInput.value.length > 0);
+            courseHelp.classList.toggle('d-none', isValid || courseInput.value.length === 0);
+            updateCreateButtonState();
+        });
+
+        // Add listeners for domain and token changes (if they exist)
+        const domainInput = document.querySelector('#domain');
+        const tokenInput = document.querySelector('#token');
+
+        if (domainInput) {
+            domainInput.addEventListener('input', updateCreateButtonState);
+            domainInput.addEventListener('change', updateCreateButtonState);
+        }
+
+        if (tokenInput) {
+            tokenInput.addEventListener('input', updateCreateButtonState);
+            tokenInput.addEventListener('change', updateCreateButtonState);
+        }
+
+        // Initial state
+        updateSelectedQuestionTypesDisplay();
+
+        // Create button handler
+        createBtn.addEventListener('click', async () => {
+            const courseId = courseInput.value.trim();
+            const title = createNewQuizForm.querySelector('#new-quiz-title').value.trim();
+            const count = parseInt(createNewQuizForm.querySelector('#new-quiz-count').value);
+            const description = createNewQuizForm.querySelector('#new-quiz-description').value.trim();
+            const published = createNewQuizForm.querySelector('#new-quiz-published').checked;
+            const shuffleAnswers = createNewQuizForm.querySelector('#new-quiz-shuffle').checked;
+
+            const progressCard = createNewQuizForm.querySelector('#create-new-quiz-progress-card');
+            const progressInfo = createNewQuizForm.querySelector('#create-new-quiz-progress-info');
+            const progressBar = createNewQuizForm.querySelector('#create-new-quiz-progress-bar');
+            const resultsCard = createNewQuizForm.querySelector('#create-new-quiz-results-card');
+            const responseContainer = createNewQuizForm.querySelector('#create-new-quiz-response-container');
+
+            progressCard.hidden = false;
+            resultsCard.hidden = true;
+            createBtn.disabled = true;
+
+            try {
+                const domain = document.querySelector('#domain').value.trim();
+                const token = document.querySelector('#token').value.trim();
+
+                // Convert selected question types to array format for backend
+                const questionTypes = [];
+                for (const [type, qty] of selectedQuestionTypes.entries()) {
+                    for (let i = 0; i < qty; i++) {
+                        questionTypes.push(type);
+                    }
+                }
+
+                // Step 1: Create New Quizzes
+                progressInfo.textContent = `Creating ${count} New Quiz${count > 1 ? 'es' : ''}...`;
+                progressBar.style.width = '0%';
+                progressBar.setAttribute('aria-valuenow', '0');
+
+                // Set up progress listener for quiz creation
+                let activeRun = true;
+                if (window.progressAPI && window.progressAPI.onUpdateProgress) {
+                    window.progressAPI.onUpdateProgress((msg) => {
+                        if (!activeRun || !msg || typeof msg !== 'object') return;
+
+                        if (msg.label === 'Creating new quizzes' && typeof msg.processed === 'number' && typeof msg.total === 'number' && msg.total > 0) {
+                            // Quiz creation progress: 0-50%
+                            const pct = (msg.processed / msg.total) * 50;
+                            progressBar.style.width = `${pct}%`;
+                            progressBar.setAttribute('aria-valuenow', pct);
+                            progressInfo.textContent = `Creating new quizzes... ${msg.processed}/${msg.total}`;
+                        } else if (msg.label === 'Creating quiz items' && typeof msg.processed === 'number' && typeof msg.total === 'number' && msg.total > 0) {
+                            // Question creation progress: 50-100%
+                            const pct = 50 + (msg.processed / msg.total) * 50;
+                            progressBar.style.width = `${pct}%`;
+                            progressBar.setAttribute('aria-valuenow', pct);
+                            progressInfo.textContent = `Creating quiz items... ${msg.processed}/${msg.total}`;
+                        }
                     });
+                }
 
-                    progressBar.style.width = '100%';
-                    progressBar.setAttribute('aria-valuenow', '100');
-                    progressInfo.textContent = 'Quiz creation completed!';
-                    
-                    activeRun = false;
-                    setTimeout(() => {
-                        progressCard.hidden = true;
-                        resultsCard.hidden = false;
-                        responseContainer.innerHTML = `
+                const createQuizzesResponse = await window.axios.createNewQuizzes({
+                    domain,
+                    token,
+                    course_id: courseId,
+                    title: title || 'New Quiz',
+                    count: count,
+                    published: published
+                });
+
+                if (createQuizzesResponse.successful && createQuizzesResponse.successful.length > 0) {
+                    progressBar.style.width = '50%';
+                    progressBar.setAttribute('aria-valuenow', '50');
+                    progressInfo.textContent = `Created ${createQuizzesResponse.successful.length} new quizzes. Adding questions...`;
+
+                    // Step 2: Add question items to each quiz
+                    const quizzes = createQuizzesResponse.successful.map(result => result.value);
+
+                    if (questionTypes.length > 0) {
+                        const createItemsResponse = await window.axios.createNewQuizItems({
+                            domain,
+                            token,
+                            course_id: courseId,
+                            quizzes: quizzes,
+                            questionTypes: questionTypes
+                        });
+
+                        progressBar.style.width = '100%';
+                        progressBar.setAttribute('aria-valuenow', '100');
+                        progressInfo.textContent = 'Quiz creation completed!';
+
+                        activeRun = false;
+                        setTimeout(() => {
+                            progressCard.hidden = true;
+                            resultsCard.hidden = false;
+                            responseContainer.innerHTML = `
                             <div class="alert alert-success">
                                 <i class="bi bi-check-circle me-1"></i>
                                 <strong>Success!</strong> Created ${createQuizzesResponse.successful.length} new quiz${createQuizzesResponse.successful.length > 1 ? 'es' : ''} with ${questionTypes.length} question item${questionTypes.length > 1 ? 's' : ''} each.
@@ -1196,19 +1196,19 @@ async function createNewQuiz(e) {
                                 <strong>Quiz IDs:</strong> ${quizzes.map(q => q.id).join(', ')}
                             </div>
                         `;
-                        createBtn.disabled = false;
-                    }, 1000);
-                } else {
-                    // No questions, just show quiz creation success
-                    progressBar.style.width = '100%';
-                    progressBar.setAttribute('aria-valuenow', '100');
-                    progressInfo.textContent = 'Quiz creation completed!';
-                    
-                    activeRun = false;
-                    setTimeout(() => {
-                        progressCard.hidden = true;
-                        resultsCard.hidden = false;
-                        responseContainer.innerHTML = `
+                            createBtn.disabled = false;
+                        }, 1000);
+                    } else {
+                        // No questions, just show quiz creation success
+                        progressBar.style.width = '100%';
+                        progressBar.setAttribute('aria-valuenow', '100');
+                        progressInfo.textContent = 'Quiz creation completed!';
+
+                        activeRun = false;
+                        setTimeout(() => {
+                            progressCard.hidden = true;
+                            resultsCard.hidden = false;
+                            responseContainer.innerHTML = `
                             <div class="alert alert-success">
                                 <i class="bi bi-check-circle me-1"></i>
                                 <strong>Success!</strong> Created ${createQuizzesResponse.successful.length} new quiz${createQuizzesResponse.successful.length > 1 ? 'es' : ''}.
@@ -1216,26 +1216,26 @@ async function createNewQuiz(e) {
                                 <strong>Quiz IDs:</strong> ${quizzes.map(q => q.id).join(', ')}
                             </div>
                         `;
-                        createBtn.disabled = false;
-                    }, 1000);
+                            createBtn.disabled = false;
+                        }, 1000);
+                    }
+                } else {
+                    throw new Error('Failed to create any quizzes');
                 }
-            } else {
-                throw new Error('Failed to create any quizzes');
-            }
 
-        } catch (error) {
-            console.error('New Quiz creation error:', error);
-            progressCard.hidden = true;
-            resultsCard.hidden = false;
-            responseContainer.innerHTML = `
+            } catch (error) {
+                console.error('New Quiz creation error:', error);
+                progressCard.hidden = true;
+                resultsCard.hidden = false;
+                responseContainer.innerHTML = `
                 <div class="alert alert-danger">
                     <i class="bi bi-exclamation-triangle me-1"></i>
                     <strong>Error:</strong> ${error.message}
                 </div>
             `;
-            createBtn.disabled = false;
-        }
-    });
+                createBtn.disabled = false;
+            }
+        });
 
         // mark listeners as attached
         createNewQuizForm.dataset.bound = 'true';
@@ -1389,11 +1389,11 @@ async function getRespondusQuizzes(e) {
         const searchTerm = searchInput.value.toLowerCase().trim();
         const visibleQuizzes = allQuizzes.filter(quiz => {
             if (!searchTerm) return true;
-            return quiz.title.toLowerCase().includes(searchTerm) || 
-                   quiz.course_id.toString().includes(searchTerm) ||
-                   quiz.id.toString().includes(searchTerm);
+            return quiz.title.toLowerCase().includes(searchTerm) ||
+                quiz.course_id.toString().includes(searchTerm) ||
+                quiz.id.toString().includes(searchTerm);
         });
-        
+
         renderQuizList(visibleQuizzes);
         updateQuizCount(visibleQuizzes.length, allQuizzes.length);
     };
@@ -1407,7 +1407,7 @@ async function getRespondusQuizzes(e) {
     // Function to render quiz list
     const renderQuizList = (quizzes) => {
         quizItemsDiv.innerHTML = '';
-        
+
         if (quizzes.length === 0) {
             quizItemsDiv.innerHTML = `
                 <div class="list-group-item text-center text-muted py-4">
@@ -1579,7 +1579,7 @@ async function getRespondusQuizzes(e) {
     // Function to update Respondus settings
     async function updateRespondusSettings(enable) {
         const checkboxes = respondusQuizForm.querySelectorAll('.respondus-quiz-checkbox:checked');
-        
+
         if (checkboxes.length === 0) {
             responseContainer.innerHTML = `
                 <div class="alert alert-warning">
@@ -1600,14 +1600,14 @@ async function getRespondusQuizzes(e) {
             }
             quizzesByCourse.get(courseId).push(quizId);
         });
-        
+
         enableBtn.disabled = true;
         disableBtn.disabled = true;
         getQuizzesBtn.disabled = true;
         progressDiv.hidden = false;
         responseContainer.innerHTML = '';
         progressBar.style.width = '0%';
-        
+
         const totalQuizzes = checkboxes.length;
         progressInfo.textContent = `${enable ? 'Enabling' : 'Disabling'} Respondus settings for ${totalQuizzes} quiz${totalQuizzes !== 1 ? 'zes' : ''} across ${quizzesByCourse.size} course${quizzesByCourse.size !== 1 ? 's' : ''}...`;
 
@@ -1636,9 +1636,12 @@ async function getRespondusQuizzes(e) {
                         enable
                     });
 
-                    allResults.push(...result);
+                    allResults.push(
+                        ...(result.successful || []).map(r => r.value),
+                        ...(result.failed || []).map(r => ({ success: false, quiz_id: null, error: r.reason }))
+                    );
                     processedQuizzes += quizIds.length;
-                    
+
                 } catch (error) {
                     console.error(`Error updating quizzes in course ${courseID}:`, error);
                     // Mark these quizzes as failed
@@ -1652,29 +1655,47 @@ async function getRespondusQuizzes(e) {
             progressDiv.hidden = true;
 
             const successCount = allResults.filter(r => r.success).length;
-            const failCount = allResults.filter(r => !r.success).length;
+            const failedResults = allResults.filter(r => !r.success);
+            const failCount = failedResults.length;
+            const totalProcessed = allResults.length;
+            const actionLabel = enable ? 'Enabled' : 'Disabled';
+            const actionBadgeClass = enable ? 'bg-success' : 'bg-secondary';
 
-            let alertClass = 'alert-success';
-            let icon = 'bi-check-circle';
-            let message = `Successfully ${enable ? 'enabled' : 'disabled'} Respondus settings for ${successCount} quiz${successCount !== 1 ? 'zes' : ''}.`;
-
-            if (failCount > 0) {
-                alertClass = 'alert-warning';
-                icon = 'bi-exclamation-triangle';
-                message += ` ${failCount} failed.`;
-            }
-
-            responseContainer.innerHTML = `
-                <div class="alert ${alertClass}">
-                    <i class="bi ${icon} me-1"></i>
-                    ${message}
+            let htmlContent = `
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-clipboard-check me-2"></i>Update Summary
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2"><strong>Action:</strong> <span class="badge ${actionBadgeClass}">${actionLabel} Respondus LockDown Browser</span></p>
+                        <p class="mb-3"><strong>Total Processed:</strong> <span class="badge bg-primary">${totalProcessed}</span> quiz${totalProcessed !== 1 ? 'zes' : ''} across ${quizzesByCourse.size} course${quizzesByCourse.size !== 1 ? 's' : ''}</p>
+                        <hr class="my-2">
+                        <p class="mb-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Successfully updated <strong>${successCount}</strong> quiz${successCount !== 1 ? 'zes' : ''}.</p>
+                    </div>
                 </div>
             `;
 
-            // Refresh the quiz list
-            setTimeout(() => {
-                getQuizzesBtn.click();
-            }, 1500);
+            if (failCount > 0) {
+                htmlContent += `
+                    <div class="card border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-exclamation-triangle me-2"></i>Failed Updates
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2"><i class="bi bi-x-circle text-danger me-2"></i><strong>${failCount}</strong> quiz${failCount !== 1 ? 'zes' : ''} failed to update.</p>
+                            <ul class="mb-0 small">
+                                ${failedResults.map(r => `<li>Quiz ID <code>${r.quiz_id}</code>${r.error ? `: ${r.error}` : ''}</li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+
+            responseContainer.innerHTML = htmlContent;
 
         } catch (error) {
             progressDiv.hidden = true;

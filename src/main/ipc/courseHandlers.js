@@ -942,7 +942,20 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
         console.log('courseHandlers.js > updateRespondusQuizzes');
 
         let completedRequests = 0;
-        const totalRequests = data.quizzes.length;
+        const quizList = Array.isArray(data?.quizzes)
+            ? data.quizzes
+            : (Array.isArray(data?.quizIds) ? data.quizIds : []);
+        const totalRequests = quizList.length;
+
+        if (totalRequests === 0) {
+            return [];
+        }
+
+        const courseId = data.course_id || data.courseID;
+        const hasEnableFlag = typeof data.enable === 'boolean';
+        const requireLockdownBrowser = hasEnableFlag
+            ? data.enable
+            : data.require_lockdown_browser;
 
         const updateProgress = () => {
             completedRequests++;
@@ -951,9 +964,10 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
 
         const request = async (requestData) => {
             try {
-                return await quizzes_classic.updateClassicQuiz(requestData);
+                const result = await quizzes_classic.updateRespondusQuiz(requestData);
+                return { success: true, quiz_id: requestData.quiz_id, data: result };
             } catch (error) {
-                throw error;
+                return { success: false, quiz_id: requestData.quiz_id, error: error.message };
             } finally {
                 updateProgress();
             }
@@ -961,16 +975,15 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
 
         const requests = [];
         for (let i = 0; i < totalRequests; i++) {
+            const quiz = quizList[i];
+            const quizId = (quiz && typeof quiz === 'object') ? (quiz.id || quiz.quiz_id) : quiz;
+
             const requestData = {
                 domain: data.domain,
                 token: data.token,
-                course_id: data.course_id,
-                quiz_id: data.quizzes[i].id,
-                quiz: {
-                    require_lockdown_browser: data.require_lockdown_browser,
-                    require_lockdown_browser_for_results: data.require_lockdown_browser_for_results,
-                    require_lockdown_browser_monitor: data.require_lockdown_browser_monitor
-                }
+                course_id: courseId,
+                quiz_id: quizId,
+                enable: requireLockdownBrowser
             };
             requests.push({ id: i + 1, request: () => request(requestData) });
         }
