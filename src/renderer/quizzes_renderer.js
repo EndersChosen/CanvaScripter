@@ -90,35 +90,79 @@ async function createQuiz(e) {
                         </div>
                     </div>           
                     <div id="question-types" class="mt-2">
-                        <h5>Questions</h5>
-                        <div class="row g-3 align-items-end">
-                            <div class="col-6">
-                                <label for="cq-question-type" class="form-label">Question type</label>
-                                <select id="cq-question-type" class="form-select form-select-sm">
-                                    <option value="text_only_question">Text (no points)</option>
-                                    <option value="true_false_question">True/False</option>
-                                    <option value="short_answer_question">Fill in the Blank</option>
-                                    <option value="essay_question">Essay</option>
-                                    <option value="file_upload_question">File Upload</option>
-                                    <option value="fill_in_multiple_blanks_question">Fill in multiple blanks</option>
-                                    <option value="matching_question">Matching</option>
-                                    <option value="multiple_answers_question">Multiple Answers</option>
-                                    <option value="multiple_choice_question">Multiple Choice</option>
-                                    <option value="multiple_dropdowns_question">Multiple Dropdowns</option>
-                                    <option value="numerical_question">Numerical</option>
-                                    <option value="calculated_question">Formula</option>
-                                </select>
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center py-1">
+                                <h5 class="mb-0">Questions</h5>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="cq-select-all-btn">Select All</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="cq-question-clear">Clear All</button>
+                                </div>
                             </div>
-                            <div class="col-3">
-                                <label for="cq-question-qty" class="form-label">Quantity</label>
-                                <input id="cq-question-qty" type="number" min="1" class="form-control form-control-sm" placeholder="e.g., 3">
-                            </div>
-                            <div class="col-auto">
-                                <button type="button" class="btn btn-sm btn-secondary" id="cq-question-add">Add/Update</button>
-                                <button type="button" class="btn btn-sm btn-link" id="cq-question-clear">Clear all</button>
+                            <div class="card-body p-0">
+                                <div class="list-group list-group-flush" id="cq-question-type-list">
+                                    <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                        <input class="form-check-input me-2 cq-qtype-check" type="checkbox" value="text_only_question">
+                                        <span class="flex-grow-1">Text (no points)</span>
+                                        <input type="number" class="form-control form-control-sm cq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                    </label>
+                                    <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                        <input class="form-check-input me-2 cq-qtype-check" type="checkbox" value="true_false_question">
+                                        <span class="flex-grow-1">True/False</span>
+                                        <input type="number" class="form-control form-control-sm cq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                    </label>
+                                    <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                        <input class="form-check-input me-2 cq-qtype-check" type="checkbox" value="short_answer_question">
+                                        <span class="flex-grow-1">Fill in the Blank</span>
+                                        <input type="number" class="form-control form-control-sm cq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                    </label>
+                                    <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                        <input class="form-check-input me-2 cq-qtype-check" type="checkbox" value="essay_question">
+                                        <span class="flex-grow-1">Essay</span>
+                                        <input type="number" class="form-control form-control-sm cq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                    </label>
+                                    <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                        <input class="form-check-input me-2 cq-qtype-check" type="checkbox" value="file_upload_question">
+                                        <span class="flex-grow-1">File Upload</span>
+                                        <input type="number" class="form-control form-control-sm cq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                    </label>
+                                    <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                        <input class="form-check-input me-2 cq-qtype-check" type="checkbox" value="fill_in_multiple_blanks_question">
+                                        <span class="flex-grow-1">Fill in Multiple Blanks</span>
+                                        <input type="number" class="form-control form-control-sm cq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                    </label>
+                                    <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                        <input class="form-check-input me-2 cq-qtype-check" type="checkbox" value="matching_question">
+                                        <span class="flex-grow-1">Matching</span>
+                                        <input type="number" class="form-control form-control-sm cq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                    </label>
+                                    <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                        <input class="form-check-input me-2 cq-qtype-check" type="checkbox" value="multiple_answers_question">
+                                        <span class="flex-grow-1">Multiple Answers</span>
+                                        <input type="number" class="form-control form-control-sm cq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                    </label>
+                                    <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                        <input class="form-check-input me-2 cq-qtype-check" type="checkbox" value="multiple_choice_question">
+                                        <span class="flex-grow-1">Multiple Choice</span>
+                                        <input type="number" class="form-control form-control-sm cq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                    </label>
+                                    <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                        <input class="form-check-input me-2 cq-qtype-check" type="checkbox" value="multiple_dropdowns_question">
+                                        <span class="flex-grow-1">Multiple Dropdowns</span>
+                                        <input type="number" class="form-control form-control-sm cq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                    </label>
+                                    <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                        <input class="form-check-input me-2 cq-qtype-check" type="checkbox" value="numerical_question">
+                                        <span class="flex-grow-1">Numerical</span>
+                                        <input type="number" class="form-control form-control-sm cq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                    </label>
+                                    <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                        <input class="form-check-input me-2 cq-qtype-check" type="checkbox" value="calculated_question">
+                                        <span class="flex-grow-1">Formula</span>
+                                        <input type="number" class="form-control form-control-sm cq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                    </label>
+                                </div>
                             </div>
                         </div>
-                        <div id="cq-question-summary" class="form-text mt-1"></div>
                     </div>           
                 </div>
                 <div class="w-100"></div>
@@ -146,11 +190,11 @@ async function createQuiz(e) {
         const courseID = createQuizForm.querySelector('#course-id');
         const numOfQuizzes = createQuizForm.querySelector('#quiz-number');
 
-        const qTypeSel = createQuizForm.querySelector('#cq-question-type');
-        const qQtyInput = createQuizForm.querySelector('#cq-question-qty');
-        const qAddBtn = createQuizForm.querySelector('#cq-question-add');
-        const qClearBtn = createQuizForm.querySelector('#cq-question-clear');
-        const qSummary = createQuizForm.querySelector('#cq-question-summary');
+        const cqQuestionTypeList = createQuizForm.querySelector('#cq-question-type-list');
+        const cqAllCheckboxes = cqQuestionTypeList.querySelectorAll('.cq-qtype-check');
+        const cqAllQtyInputs = cqQuestionTypeList.querySelectorAll('.cq-qtype-qty');
+        const cqSelectAllBtn = createQuizForm.querySelector('#cq-select-all-btn');
+        const cqClearBtn = createQuizForm.querySelector('#cq-question-clear');
 
         const createBtn = createQuizForm.querySelector('#action-btn');
 
@@ -161,6 +205,24 @@ async function createQuiz(e) {
             return Number.isInteger(n) && n > 0;
         };
 
+        // Build a type -> label lookup from the checklist
+        const cqTypeLabelMap = new Map();
+        cqAllCheckboxes.forEach((cb) => {
+            const label = cb.closest('label').querySelector('span').textContent;
+            cqTypeLabelMap.set(cb.value, label);
+        });
+
+        function syncCqSelectedQuestions() {
+            selectedQuestions.clear();
+            cqAllCheckboxes.forEach((cb, i) => {
+                if (cb.checked) {
+                    const qty = parseInt(cqAllQtyInputs[i].value) || 1;
+                    selectedQuestions.set(cb.value, qty);
+                }
+            });
+            refreshCreateEnabled();
+        }
+
         function refreshCreateEnabled() {
             const okCourse = isPositiveInt(courseID.value.trim());
             const okQuizNum = isPositiveInt(numOfQuizzes.value.trim());
@@ -168,41 +230,49 @@ async function createQuiz(e) {
             createBtn.disabled = !(okCourse && okQuizNum && hasQuestions);
         }
 
-        function renderSummary() {
-            if (selectedQuestions.size === 0) {
-                qSummary.textContent = 'No question types selected';
-            } else {
-                const parts = [];
-                for (const [type, qty] of selectedQuestions.entries()) {
-                    const label = qTypeSel.querySelector(`option[value="${type}"]`)?.textContent || type;
-                    parts.push(`${label} x ${qty}`);
-                }
-                qSummary.textContent = `Selected: ${parts.join(', ')}`;
-            }
-            refreshCreateEnabled();
-        }
-
-        qAddBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const type = qTypeSel.value;
-            const qty = qQtyInput.value.trim();
-            if (!isPositiveInt(qty)) return;
-            selectedQuestions.set(type, Number(qty));
-            renderSummary();
+        // Toggle quantity input enabled state and sync on check/uncheck
+        cqAllCheckboxes.forEach((cb, i) => {
+            cb.addEventListener('change', () => {
+                cqAllQtyInputs[i].disabled = !cb.checked;
+                if (!cb.checked) cqAllQtyInputs[i].value = '1';
+                syncCqSelectedQuestions();
+            });
         });
 
-        qClearBtn.addEventListener('click', (e) => {
+        // Re-sync when quantity changes
+        cqAllQtyInputs.forEach(input => {
+            input.addEventListener('input', syncCqSelectedQuestions);
+        });
+
+        // Prevent label click on the number input from toggling the checkbox
+        cqAllQtyInputs.forEach(input => {
+            input.addEventListener('click', (e) => e.stopPropagation());
+        });
+
+        // Select All button
+        cqSelectAllBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            selectedQuestions.clear();
-            renderSummary();
+            cqAllCheckboxes.forEach((cb, i) => {
+                cb.checked = true;
+                cqAllQtyInputs[i].disabled = false;
+            });
+            syncCqSelectedQuestions();
+        });
+
+        // Clear All button
+        cqClearBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            cqAllCheckboxes.forEach((cb, i) => {
+                cb.checked = false;
+                cqAllQtyInputs[i].disabled = true;
+                cqAllQtyInputs[i].value = '1';
+            });
+            syncCqSelectedQuestions();
         });
 
         courseID.addEventListener('input', refreshCreateEnabled);
         numOfQuizzes.addEventListener('input', refreshCreateEnabled);
-        qQtyInput.addEventListener('input', (e) => {
-            // no-op except possibly enabling add button in future
-        });
-        renderSummary();
+        syncCqSelectedQuestions();
         createBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -259,10 +329,7 @@ async function createQuiz(e) {
             const selectedTypes = Array.from(selectedQuestions.entries())
                 .filter(([, qty]) => Number(qty) > 0)
                 .map(([type, qty]) => ({ type, qty }));
-            const typeLabel = (t) => {
-                const opt = qTypeSel.querySelector(`option[value="${t}"]`);
-                return opt ? opt.textContent : t;
-            };
+            const typeLabel = (t) => cqTypeLabelMap.get(t) || t;
 
             const data = {
                 domain,
@@ -903,58 +970,76 @@ async function createNewQuiz(e) {
                     <div class="row mb-2">
                         <div class="col-12">
                             <div class="card">
-                                <div class="card-header">
+                                <div class="card-header d-flex justify-content-between align-items-center">
                                     <h6 class="card-title mb-0">
                                         <i class="bi bi-question-circle me-1"></i>Question Types
                                     </h6>
-                                </div>
-                                <div class="card-body">
-                                    <div class="row g-3 mb-2">
-                                        <div class="col-md-6">
-                                            <label class="form-label fw-bold" for="new-quiz-question-type">
-                                                Select Question Type
-                                            </label>
-                                            <select id="new-quiz-question-type" class="form-select form-select-sm">
-                                                <option value="">Choose a question type...</option>
-                                                <option value="multiple_choice">Multiple Choice</option>
-                                                <option value="multi_answer">Multiple Answer</option>
-                                                <option value="true_false">True/False</option>
-                                                <option value="essay">Essay</option>
-                                                <option value="fill_in_blank">Fill in the Blank</option>
-                                                <option value="numeric">Numeric</option>
-                                                <option value="matching">Matching</option>
-                                                <option value="categorization">Categorization</option>
-                                                <option value="ordering">Ordering</option>
-                                                <option value="file_upload">File Upload</option>
-                                                <option value="formula">Formula</option>
-                                                <!-- <option value="stimulus">Stimulus</option> -->
-                                            </select>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label fw-bold" for="new-quiz-question-qty">
-                                                Quantity
-                                            </label>
-                                            <input id="new-quiz-question-qty" type="number" class="form-control form-control-sm" 
-                                                   min="1" max="50" value="1" />
-                                        </div>
-                                        <div class="col-md-3 d-flex align-items-end">
-                                            <button type="button" class="btn btn-sm btn-outline-primary w-100" id="add-question-type-btn">
-                                                <i class="bi bi-plus me-1"></i>Add
-                                            </button>
-                                        </div>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="select-all-question-types-btn">
+                                            Select All
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-question-types-btn">
+                                            Clear All
+                                        </button>
                                     </div>
-                                    <div class="row">
-                                        <div class="col-12">
-                                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                                <span class="fw-bold">Selected Question Types:</span>
-                                                <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-question-types-btn">
-                                                    <i class="bi bi-x-circle me-1"></i>Clear All
-                                                </button>
-                                            </div>
-                                            <div id="selected-question-types" class="text-muted">
-                                                No question types selected
-                                            </div>
-                                        </div>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="list-group list-group-flush" id="new-quiz-question-type-list">
+                                        <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                            <input class="form-check-input me-2 nq-qtype-check" type="checkbox" value="multiple_choice">
+                                            <span class="flex-grow-1">Multiple Choice</span>
+                                            <input type="number" class="form-control form-control-sm nq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                        </label>
+                                        <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                            <input class="form-check-input me-2 nq-qtype-check" type="checkbox" value="multi_answer">
+                                            <span class="flex-grow-1">Multiple Answer</span>
+                                            <input type="number" class="form-control form-control-sm nq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                        </label>
+                                        <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                            <input class="form-check-input me-2 nq-qtype-check" type="checkbox" value="true_false">
+                                            <span class="flex-grow-1">True/False</span>
+                                            <input type="number" class="form-control form-control-sm nq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                        </label>
+                                        <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                            <input class="form-check-input me-2 nq-qtype-check" type="checkbox" value="essay">
+                                            <span class="flex-grow-1">Essay</span>
+                                            <input type="number" class="form-control form-control-sm nq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                        </label>
+                                        <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                            <input class="form-check-input me-2 nq-qtype-check" type="checkbox" value="fill_in_blank">
+                                            <span class="flex-grow-1">Fill in the Blank</span>
+                                            <input type="number" class="form-control form-control-sm nq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                        </label>
+                                        <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                            <input class="form-check-input me-2 nq-qtype-check" type="checkbox" value="numeric">
+                                            <span class="flex-grow-1">Numeric</span>
+                                            <input type="number" class="form-control form-control-sm nq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                        </label>
+                                        <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                            <input class="form-check-input me-2 nq-qtype-check" type="checkbox" value="matching">
+                                            <span class="flex-grow-1">Matching</span>
+                                            <input type="number" class="form-control form-control-sm nq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                        </label>
+                                        <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                            <input class="form-check-input me-2 nq-qtype-check" type="checkbox" value="categorization">
+                                            <span class="flex-grow-1">Categorization</span>
+                                            <input type="number" class="form-control form-control-sm nq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                        </label>
+                                        <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                            <input class="form-check-input me-2 nq-qtype-check" type="checkbox" value="ordering">
+                                            <span class="flex-grow-1">Ordering</span>
+                                            <input type="number" class="form-control form-control-sm nq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                        </label>
+                                        <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                            <input class="form-check-input me-2 nq-qtype-check" type="checkbox" value="file_upload">
+                                            <span class="flex-grow-1">File Upload</span>
+                                            <input type="number" class="form-control form-control-sm nq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                        </label>
+                                        <label class="list-group-item list-group-item-action d-flex align-items-center py-1 px-3">
+                                            <input class="form-check-input me-2 nq-qtype-check" type="checkbox" value="formula">
+                                            <span class="flex-grow-1">Formula</span>
+                                            <input type="number" class="form-control form-control-sm nq-qtype-qty" style="width:60px" min="1" max="50" value="1" disabled>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -1009,25 +1094,22 @@ async function createNewQuiz(e) {
         const courseHelp = createNewQuizForm.querySelector('#new-quiz-course-help');
 
         // Question type management
-        const questionTypeSelect = createNewQuizForm.querySelector('#new-quiz-question-type');
-        const questionQtyInput = createNewQuizForm.querySelector('#new-quiz-question-qty');
-        const addQuestionBtn = createNewQuizForm.querySelector('#add-question-type-btn');
+        const questionTypeList = createNewQuizForm.querySelector('#new-quiz-question-type-list');
+        const allCheckboxes = questionTypeList.querySelectorAll('.nq-qtype-check');
+        const allQtyInputs = questionTypeList.querySelectorAll('.nq-qtype-qty');
+        const selectAllBtn = createNewQuizForm.querySelector('#select-all-question-types-btn');
         const clearQuestionsBtn = createNewQuizForm.querySelector('#clear-question-types-btn');
-        const selectedQuestionsDiv = createNewQuizForm.querySelector('#selected-question-types');
 
         const selectedQuestionTypes = new Map(); // type -> qty
 
-        function updateSelectedQuestionTypesDisplay() {
-            if (selectedQuestionTypes.size === 0) {
-                selectedQuestionsDiv.innerHTML = '<span class="text-muted">No question types selected</span>';
-            } else {
-                const items = [];
-                for (const [type, qty] of selectedQuestionTypes.entries()) {
-                    const label = questionTypeSelect.querySelector(`option[value="${type}"]`)?.textContent || type;
-                    items.push(`<span class="badge bg-primary me-2">${label} x ${qty}</span>`);
+        function syncSelectedQuestionTypes() {
+            selectedQuestionTypes.clear();
+            allCheckboxes.forEach((cb, i) => {
+                if (cb.checked) {
+                    const qty = parseInt(allQtyInputs[i].value) || 1;
+                    selectedQuestionTypes.set(cb.value, qty);
                 }
-                selectedQuestionsDiv.innerHTML = items.join('');
-            }
+            });
             updateCreateButtonState();
         }
 
@@ -1037,38 +1119,45 @@ async function createNewQuiz(e) {
             const domain = document.querySelector('#domain')?.value?.trim() || '';
             const token = document.querySelector('#token')?.value?.trim() || '';
 
-            // For debugging - remove this later
-            console.log('Button validation:', {
-                hasValidCourse,
-                hasQuestions,
-                hasDomain: !!domain,
-                hasToken: !!token,
-                courseValue: courseInput.value.trim(),
-                questionCount: selectedQuestionTypes.size
-            });
-
             createBtn.disabled = !hasValidCourse || !hasQuestions || !domain || !token;
         }
 
-        // Add question type handler
-        addQuestionBtn.addEventListener('click', () => {
-            const type = questionTypeSelect.value;
-            const qty = parseInt(questionQtyInput.value) || 1;
-
-            if (!type) return;
-
-            selectedQuestionTypes.set(type, qty);
-            updateSelectedQuestionTypesDisplay();
-
-            // Reset selection
-            questionTypeSelect.value = '';
-            questionQtyInput.value = '1';
+        // Toggle quantity input enabled state and sync on check/uncheck
+        allCheckboxes.forEach((cb, i) => {
+            cb.addEventListener('change', () => {
+                allQtyInputs[i].disabled = !cb.checked;
+                if (!cb.checked) allQtyInputs[i].value = '1';
+                syncSelectedQuestionTypes();
+            });
         });
 
-        // Clear all question types
+        // Re-sync when quantity changes
+        allQtyInputs.forEach(input => {
+            input.addEventListener('input', syncSelectedQuestionTypes);
+        });
+
+        // Prevent label click on the number input from toggling the checkbox
+        allQtyInputs.forEach(input => {
+            input.addEventListener('click', (e) => e.stopPropagation());
+        });
+
+        // Select All button
+        selectAllBtn.addEventListener('click', () => {
+            allCheckboxes.forEach((cb, i) => {
+                cb.checked = true;
+                allQtyInputs[i].disabled = false;
+            });
+            syncSelectedQuestionTypes();
+        });
+
+        // Clear All button
         clearQuestionsBtn.addEventListener('click', () => {
-            selectedQuestionTypes.clear();
-            updateSelectedQuestionTypesDisplay();
+            allCheckboxes.forEach((cb, i) => {
+                cb.checked = false;
+                allQtyInputs[i].disabled = true;
+                allQtyInputs[i].value = '1';
+            });
+            syncSelectedQuestionTypes();
         });
 
         // Course ID validation
@@ -1094,7 +1183,7 @@ async function createNewQuiz(e) {
         }
 
         // Initial state
-        updateSelectedQuestionTypesDisplay();
+        syncSelectedQuestionTypes();
 
         // Create button handler
         createBtn.addEventListener('click', async () => {

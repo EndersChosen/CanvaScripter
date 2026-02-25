@@ -242,11 +242,36 @@ function buildMinimalEntryForType(uiType, position) {
             };
         }
         case 'formula': {
+            // Formula questions require pre-computed generated_solutions.
+            // Canvas will fail to launch the quiz if this array is empty.
+            const formulaStr = '5 + x';
+            const varMin = 1;
+            const varMax = 100;
+            const precision = 0;
+            const answerCount = 3;
+            const generatedSolutions = [];
+            for (let i = 0; i < answerCount; i++) {
+                const xVal = Math.floor(Math.random() * (varMax - varMin + 1)) + varMin;
+                const output = 5 + xVal;
+                generatedSolutions.push({
+                    inputs: [{ name: 'x', value: String(xVal) }],
+                    output: String(output)
+                });
+            }
             return {
                 ...common,
+                item_body: '<p>What is 5 + `x`?</p>',
                 interaction_data: {},
                 properties: {},
-                scoring_data: { value: { formula: '2 + y', numeric: { type: 'marginOfError', margin: '0', margin_type: 'absolute' }, variables: [{ max: '10', min: '1', name: 'y', precision: 0 }], answer_count: '1', generated_solutions: [] } },
+                scoring_data: {
+                    value: {
+                        formula: formulaStr,
+                        numeric: { type: 'marginOfError', margin: '0', margin_type: 'absolute' },
+                        variables: [{ max: String(varMax), min: String(varMin), name: 'x', precision }],
+                        answer_count: String(answerCount),
+                        generated_solutions: generatedSolutions
+                    }
+                },
                 scoring_algorithm: 'Numeric'
             };
         }
