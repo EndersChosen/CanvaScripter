@@ -323,7 +323,7 @@ async function addItemsToNewQuiz(data) {
             console.log(`[new-quiz-items] Skipping unsupported type: ${uiType}`);
             continue;
         }
-        
+
         // Stimulus questions use a different API endpoint
         if (uiType === 'stimulus') {
             const stimulusPayload = {
