@@ -1,6 +1,7 @@
 /**
  * AI Settings Management
- * Centralized interface for managing AI API keys
+ * Allows users to configure their own API keys for multiple providers:
+ * OpenRouter, Anthropic, OpenAI, and Google Gemini.
  */
 
 function aiSettingsTemplate(e) {
@@ -10,7 +11,7 @@ function aiSettingsTemplate(e) {
     showAISettingsUI();
 }
 
-function showAISettingsUI() {
+async function showAISettingsUI() {
     const endpointContent = document.getElementById('endpoint-content');
     if (!endpointContent) return;
 
@@ -23,122 +24,137 @@ function showAISettingsUI() {
     }
 
     settingsContainer.hidden = false;
+
+    // Show loading while fetching provider data
     settingsContainer.innerHTML = `
         <div class="ai-settings-ui">
-            <h3 class="mb-4">
-                <i class="bi bi-robot"></i> AI Integrations
-            </h3>
-            <p class="text-muted mb-4">
-                Manage your API keys for AI-powered features. Keys are stored securely and encrypted locally.
+            <h3 class="mb-4"><i class="bi bi-robot"></i> AI Integrations</h3>
+            <div class="text-center p-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2 text-muted">Loading AI settings...</p>
+            </div>
+        </div>`;
+
+    try {
+        const [providers, status] = await Promise.all([
+            window.ipcRenderer.invoke('ai:getProviders'),
+            window.ipcRenderer.invoke('ai:getStatus'),
+        ]);
+
+        renderAISettings(settingsContainer, providers, status);
+    } catch (err) {
+        settingsContainer.innerHTML = `
+        <div class="ai-settings-ui">
+            <h3 class="mb-4"><i class="bi bi-robot"></i> AI Integrations</h3>
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> Failed to load AI settings: ${err.message}
+            </div>
+        </div>`;
+    }
+}
+
+function renderAISettings(container, providers, status) {
+    const activeId = status.activeProvider;
+
+    const providerCards = providers.map(p => {
+        const s = status.providers[p.id] || {};
+        const isActive = s.isActive;
+        const hasKey = s.hasKey;
+        const maskedKey = s.maskedKey;
+        const selectedModel = s.selectedModel || p.models[0]?.id;
+
+        const modelOptions = p.models.map(m =>
+            `<option value="${m.id}" ${m.id === selectedModel ? 'selected' : ''}>${m.name}</option>`
+        ).join('');
+
+        const statusBadge = hasKey
+            ? `<span class="badge ${isActive ? 'bg-success' : 'bg-secondary'}">
+                ${isActive ? '<i class="bi bi-check-circle-fill"></i> Active' : 'Key saved'}
+               </span>`
+            : `<span class="badge bg-outline-secondary text-muted border">No key</span>`;
+
+        const keyDisplay = hasKey
+            ? `<div class="input-group mb-2">
+                    <span class="input-group-text"><i class="bi bi-key"></i></span>
+                    <input type="text" class="form-control" value="${maskedKey}" readonly>
+                    <button class="btn btn-outline-danger btn-sm ai-delete-key" data-provider="${p.id}" title="Remove key">
+                        <i class="bi bi-trash"></i>
+                    </button>
+               </div>`
+            : `<div class="input-group mb-2">
+                    <span class="input-group-text"><i class="bi bi-key"></i></span>
+                    <input type="password" class="form-control ai-key-input" id="ai-key-${p.id}"
+                        placeholder="${p.keyPlaceholder}" autocomplete="off">
+                    <button class="btn btn-outline-primary btn-sm ai-save-key" data-provider="${p.id}">
+                        <i class="bi bi-save"></i> Save
+                    </button>
+               </div>`;
+
+        const helpLink = p.helpUrl
+            ? `<a href="#" class="small text-decoration-none external-link" data-external-url="${p.helpUrl}">
+                <i class="bi bi-box-arrow-up-right"></i> Get an API key
+               </a>`
+            : '';
+
+        return `
+        <div class="card mb-3 ${isActive ? 'border-success' : ''}">
+            <div class="card-header d-flex justify-content-between align-items-center ${isActive ? 'bg-success bg-opacity-10' : ''}">
+                <div>
+                    <h6 class="mb-0">
+                        ${p.name}
+                        ${statusBadge}
+                    </h6>
+                    <small class="text-muted">${p.description}</small>
+                </div>
+                <div>
+                    ${hasKey
+                ? `<button class="btn btn-sm ${isActive ? 'btn-success' : 'btn-outline-success'} ai-set-active" 
+                            data-provider="${p.id}" ${isActive ? 'disabled' : ''}>
+                            ${isActive ? '<i class="bi bi-check-lg"></i> Active' : 'Set Active'}
+                       </button>`
+                : ''}
+                </div>
+            </div>
+            <div class="card-body">
+                ${keyDisplay}
+                ${helpLink}
+
+                ${hasKey ? `
+                <div class="mt-3">
+                    <label class="form-label small mb-1">Model</label>
+                    <select class="form-select form-select-sm ai-model-select" data-provider="${p.id}">
+                        ${modelOptions}
+                    </select>
+                </div>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    const noProviderWarning = !activeId
+        ? `<div class="alert alert-warning mb-3">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>No active provider.</strong> Add an API key for at least one provider and set it as active to use AI features.
+           </div>`
+        : '';
+
+    container.innerHTML = `
+        <div class="ai-settings-ui">
+            <h3 class="mb-4"><i class="bi bi-robot"></i> AI Integrations</h3>
+
+            ${noProviderWarning}
+
+            <p class="text-muted mb-3">
+                Enter your own API key for one or more providers below. Keys are encrypted and stored locally on your machine.
             </p>
 
-            <!-- OpenAI Settings -->
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-openai"></i> OpenAI (GPT Models)
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div id="openai-status" class="mb-3"></div>
-
-                    <div id="openai-key-display" class="mb-3 d-none">
-                        <label class="form-label text-success">
-                            <i class="bi bi-check-circle-fill"></i> API Key Configured
-                        </label>
-                        <div class="input-group mb-2">
-                            <input type="text" class="form-control" id="openai-masked-key" disabled readonly>
-                            <button class="btn btn-outline-secondary" type="button" id="openai-test-btn">
-                                <i class="bi bi-lightning"></i> Test Connection
-                            </button>
-                            <button class="btn btn-outline-danger" type="button" id="openai-delete-btn">
-                                <i class="bi bi-trash"></i> Remove
-                            </button>
-                        </div>
-                        <div class="form-text">Used by HAR Analyzer, QTI Analyzer, and the AI Assistant (announcement generator, bulk helpers)</div>
-                    </div>
-
-                    <div id="openai-key-input" class="mb-3 d-none">
-                        <label class="form-label">
-                            <i class="bi bi-key"></i> Enter OpenAI API Key
-                        </label>
-                        <div class="input-group">
-                            <input type="password" class="form-control" id="openai-key-field"
-                                   placeholder="sk-...">
-                            <button class="btn btn-outline-secondary" type="button" id="openai-toggle-visibility">
-                                <i class="bi bi-eye"></i>
-                            </button>
-                            <button class="btn btn-primary" type="button" id="openai-save-btn">
-                                <i class="bi bi-save"></i> Save
-                            </button>
-                        </div>
-                        <div class="form-text">
-                            Get your API key from <a href="#" id="openai-link">platform.openai.com/api-keys</a>
-                        </div>
-                    </div>
-
-                    <div id="openai-test-result" class="mt-3"></div>
-                </div>
-            </div>
-
-            <!-- Anthropic Settings -->
-            <div class="card mb-4">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-cpu"></i> Anthropic (Claude Models)
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div id="anthropic-status" class="mb-3"></div>
-
-                    <div id="anthropic-key-display" class="mb-3 d-none">
-                        <label class="form-label text-success">
-                            <i class="bi bi-check-circle-fill"></i> API Key Configured
-                        </label>
-                        <div class="input-group mb-2">
-                            <input type="text" class="form-control" id="anthropic-masked-key" disabled readonly>
-                            <button class="btn btn-outline-secondary" type="button" id="anthropic-test-btn">
-                                <i class="bi bi-lightning"></i> Test Connection
-                            </button>
-                            <button class="btn btn-outline-danger" type="button" id="anthropic-delete-btn">
-                                <i class="bi bi-trash"></i> Remove
-                            </button>
-                        </div>
-                        <div class="form-text">Used by HAR Analyzer, QTI Analyzer, and the AI Assistant when Anthropic is available</div>
-                    </div>
-
-                    <div id="anthropic-key-input" class="mb-3 d-none">
-                        <label class="form-label">
-                            <i class="bi bi-key"></i> Enter Anthropic API Key
-                        </label>
-                        <div class="input-group">
-                            <input type="password" class="form-control" id="anthropic-key-field"
-                                   placeholder="sk-ant-...">
-                            <button class="btn btn-outline-secondary" type="button" id="anthropic-toggle-visibility">
-                                <i class="bi bi-eye"></i>
-                            </button>
-                            <button class="btn btn-success" type="button" id="anthropic-save-btn">
-                                <i class="bi bi-save"></i> Save
-                            </button>
-                        </div>
-                        <div class="form-text">
-                            Get your API key from <a href="#" id="anthropic-link">console.anthropic.com</a>
-                        </div>
-                    </div>
-
-                    <div id="anthropic-test-result" class="mt-3"></div>
-                </div>
-            </div>
+            ${providerCards}
 
             <!-- Usage Information -->
-            <div class="card border-info">
+            <div class="card border-info mt-4">
                 <div class="card-body">
-                    <h6 class="card-title">
-                        <i class="bi bi-info-circle"></i> About AI Integrations
-                    </h6>
-                    <p class="card-text small mb-2">
-                        These keys power AI workflows throughout CanvaScripter:
-                    </p>
+                    <h6 class="card-title"><i class="bi bi-info-circle"></i> Where AI is Used</h6>
                     <ul class="small mb-0">
                         <li><strong>HAR Analyzer:</strong> Generate guided troubleshooting notes for HTTP and authentication issues</li>
                         <li><strong>QTI Analyzer:</strong> Review assessments for Canvas compatibility and improvement ideas</li>
@@ -149,289 +165,123 @@ function showAISettingsUI() {
         </div>
     `;
 
-    // Initialize the UI
-    initializeAISettings();
+    // Attach event listeners
+    setupAISettingsListeners(container);
 }
 
-async function initializeAISettings() {
-    // Load status for both providers
-    await updateProviderStatus('openai');
-    await updateProviderStatus('anthropic');
+function setupAISettingsListeners(container) {
+    // Handle external links
+    container.querySelectorAll('.external-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const url = link.getAttribute('data-external-url');
+            if (url && window.shell) {
+                window.shell.openExternal(url);
+            }
+        });
+    });
 
-    // Set up event listeners
-    setupOpenAIListeners();
-    setupAnthropicListeners();
-    setupExternalLinks();
-}
+    // Save key
+    container.querySelectorAll('.ai-save-key').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const providerId = btn.dataset.provider;
+            const input = document.getElementById(`ai-key-${providerId}`);
+            const key = input?.value?.trim();
+            if (!key) {
+                showAIToast('Please enter an API key.', 'warning');
+                return;
+            }
 
-async function updateProviderStatus(provider) {
-    const prefix = provider;
-    const displaySection = document.getElementById(`${prefix}-key-display`);
-    const inputSection = document.getElementById(`${prefix}-key-input`);
-    const statusDiv = document.getElementById(`${prefix}-status`);
-    const maskedInput = document.getElementById(`${prefix}-masked-key`);
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
-    try {
-        const hasKey = await window.ipcRenderer.invoke('settings:hasApiKey', provider);
-
-        if (hasKey) {
             try {
-                const maskedKey = await window.ipcRenderer.invoke('settings:getMaskedApiKey', provider);
-                maskedInput.value = maskedKey || '****';
-            } catch (e) {
-                console.error(`Failed to get masked key for ${provider}`, e);
-                maskedInput.value = '****';
+                const result = await window.ipcRenderer.invoke('settings:saveApiKey', providerId, key);
+                if (!result.success) throw new Error(result.error || 'Failed to save key');
+
+                // Auto-set as active if no active provider yet
+                const currentStatus = await window.ipcRenderer.invoke('ai:getStatus');
+                if (!currentStatus.activeProvider) {
+                    await window.ipcRenderer.invoke('ai:setActiveProvider', providerId);
+                }
+
+                showAIToast(`${providerId} key saved successfully!`, 'success');
+                // Refresh the UI
+                showAISettingsUI();
+            } catch (err) {
+                showAIToast(`Error: ${err.message}`, 'danger');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-save"></i> Save';
             }
-
-            displaySection.classList.remove('d-none');
-            inputSection.classList.add('d-none');
-            statusDiv.innerHTML = '';
-        } else {
-            displaySection.classList.add('d-none');
-            inputSection.classList.remove('d-none');
-            statusDiv.innerHTML = `
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    No API key configured. Add one below to enable AI features.
-                </div>
-            `;
-        }
-    } catch (error) {
-        console.error(`Error checking ${provider} status:`, error);
-        statusDiv.innerHTML = `
-            <div class="alert alert-danger">
-                <i class="bi bi-x-circle"></i> Error loading API key status
-            </div>
-        `;
-    }
-}
-
-function setupOpenAIListeners() {
-    const provider = 'openai';
-
-    // Toggle visibility
-    const toggleBtn = document.getElementById('openai-toggle-visibility');
-    const keyField = document.getElementById('openai-key-field');
-    toggleBtn.addEventListener('click', () => {
-        if (keyField.type === 'password') {
-            keyField.type = 'text';
-            toggleBtn.innerHTML = '<i class="bi bi-eye-slash"></i>';
-        } else {
-            keyField.type = 'password';
-            toggleBtn.innerHTML = '<i class="bi bi-eye"></i>';
-        }
-    });
-
-    // Save key
-    const saveBtn = document.getElementById('openai-save-btn');
-    const statusDiv = document.getElementById('openai-status');
-    saveBtn.addEventListener('click', async () => {
-        const key = keyField.value.trim();
-        if (!key) {
-            statusDiv.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-x-circle"></i> Please enter an API key
-                </div>
-            `;
-            return;
-        }
-
-        try {
-            await window.ipcRenderer.invoke('settings:saveApiKey', provider, key);
-            keyField.value = '';
-            statusDiv.innerHTML = `
-                <div class="alert alert-success">
-                    <i class="bi bi-check-circle"></i> API key saved successfully!
-                </div>
-            `;
-            setTimeout(() => updateProviderStatus(provider), 1500);
-        } catch (error) {
-            statusDiv.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-x-circle"></i> Failed to save: ${error.message}
-                </div>
-            `;
-        }
+        });
     });
 
     // Delete key
-    const deleteBtn = document.getElementById('openai-delete-btn');
-    deleteBtn.addEventListener('click', async () => {
-        if (!confirm('Are you sure you want to remove the OpenAI API key?')) return;
+    container.querySelectorAll('.ai-delete-key').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const providerId = btn.dataset.provider;
+            if (!confirm(`Remove the API key for ${providerId}?`)) return;
 
-        try {
-            await window.ipcRenderer.invoke('settings:deleteApiKey', provider);
-            await updateProviderStatus(provider);
-            statusDiv.innerHTML = `
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> API key removed
-                </div>
-            `;
-        } catch (error) {
-            statusDiv.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-x-circle"></i> Failed to remove: ${error.message}
-                </div>
-            `;
-        }
+            try {
+                await window.ipcRenderer.invoke('settings:deleteApiKey', providerId);
+
+                // If this was the active provider, clear it
+                const currentStatus = await window.ipcRenderer.invoke('ai:getStatus');
+                if (currentStatus.activeProvider === providerId) {
+                    // Try to activate another provider that has a key
+                    const nextProvider = Object.entries(currentStatus.providers)
+                        .find(([id, s]) => id !== providerId && s.hasKey);
+                    if (nextProvider) {
+                        await window.ipcRenderer.invoke('ai:setActiveProvider', nextProvider[0]);
+                    }
+                }
+
+                showAIToast(`Key removed.`, 'info');
+                showAISettingsUI();
+            } catch (err) {
+                showAIToast(`Error: ${err.message}`, 'danger');
+            }
+        });
     });
 
-    // Test connection
-    const testBtn = document.getElementById('openai-test-btn');
-    const testResultDiv = document.getElementById('openai-test-result');
-    testBtn.addEventListener('click', async () => {
-        testResultDiv.innerHTML = `
-            <div class="alert alert-info">
-                <div class="spinner-border spinner-border-sm me-2"></div>
-                Testing connection...
-            </div>
-        `;
-
-        // Simple test - just check if we can retrieve the key
-        try {
-            const hasKey = await window.ipcRenderer.invoke('settings:hasApiKey', provider);
-            if (hasKey) {
-                testResultDiv.innerHTML = `
-                    <div class="alert alert-success">
-                        <i class="bi bi-check-circle"></i> API key is configured and accessible
-                    </div>
-                `;
-            } else {
-                testResultDiv.innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="bi bi-x-circle"></i> No API key found
-                    </div>
-                `;
+    // Set active provider
+    container.querySelectorAll('.ai-set-active').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const providerId = btn.dataset.provider;
+            try {
+                await window.ipcRenderer.invoke('ai:setActiveProvider', providerId);
+                showAIToast(`${providerId} is now the active AI provider.`, 'success');
+                showAISettingsUI();
+            } catch (err) {
+                showAIToast(`Error: ${err.message}`, 'danger');
             }
-            setTimeout(() => { testResultDiv.innerHTML = ''; }, 3000);
-        } catch (error) {
-            testResultDiv.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-x-circle"></i> Test failed: ${error.message}
-                </div>
-            `;
-        }
+        });
+    });
+
+    // Model selection
+    container.querySelectorAll('.ai-model-select').forEach(select => {
+        select.addEventListener('change', async () => {
+            const providerId = select.dataset.provider;
+            const modelId = select.value;
+            try {
+                await window.ipcRenderer.invoke('ai:setSelectedModel', providerId, modelId);
+            } catch (err) {
+                showAIToast(`Error: ${err.message}`, 'danger');
+            }
+        });
     });
 }
 
-function setupAnthropicListeners() {
-    const provider = 'anthropic';
-
-    // Toggle visibility
-    const toggleBtn = document.getElementById('anthropic-toggle-visibility');
-    const keyField = document.getElementById('anthropic-key-field');
-    toggleBtn.addEventListener('click', () => {
-        if (keyField.type === 'password') {
-            keyField.type = 'text';
-            toggleBtn.innerHTML = '<i class="bi bi-eye-slash"></i>';
-        } else {
-            keyField.type = 'password';
-            toggleBtn.innerHTML = '<i class="bi bi-eye"></i>';
-        }
-    });
-
-    // Save key
-    const saveBtn = document.getElementById('anthropic-save-btn');
-    const statusDiv = document.getElementById('anthropic-status');
-    saveBtn.addEventListener('click', async () => {
-        const key = keyField.value.trim();
-        if (!key) {
-            statusDiv.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-x-circle"></i> Please enter an API key
-                </div>
-            `;
-            return;
-        }
-
-        try {
-            await window.ipcRenderer.invoke('settings:saveApiKey', provider, key);
-            keyField.value = '';
-            statusDiv.innerHTML = `
-                <div class="alert alert-success">
-                    <i class="bi bi-check-circle"></i> API key saved successfully!
-                </div>
-            `;
-            setTimeout(() => updateProviderStatus(provider), 1500);
-        } catch (error) {
-            statusDiv.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-x-circle"></i> Failed to save: ${error.message}
-                </div>
-            `;
-        }
-    });
-
-    // Delete key
-    const deleteBtn = document.getElementById('anthropic-delete-btn');
-    deleteBtn.addEventListener('click', async () => {
-        if (!confirm('Are you sure you want to remove the Anthropic API key?')) return;
-
-        try {
-            await window.ipcRenderer.invoke('settings:deleteApiKey', provider);
-            await updateProviderStatus(provider);
-            statusDiv.innerHTML = `
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> API key removed
-                </div>
-            `;
-        } catch (error) {
-            statusDiv.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-x-circle"></i> Failed to remove: ${error.message}
-                </div>
-            `;
-        }
-    });
-
-    // Test connection
-    const testBtn = document.getElementById('anthropic-test-btn');
-    const testResultDiv = document.getElementById('anthropic-test-result');
-    testBtn.addEventListener('click', async () => {
-        testResultDiv.innerHTML = `
-            <div class="alert alert-info">
-                <div class="spinner-border spinner-border-sm me-2"></div>
-                Testing connection...
-            </div>
-        `;
-
-        // Simple test - just check if we can retrieve the key
-        try {
-            const hasKey = await window.ipcRenderer.invoke('settings:hasApiKey', provider);
-            if (hasKey) {
-                testResultDiv.innerHTML = `
-                    <div class="alert alert-success">
-                        <i class="bi bi-check-circle"></i> API key is configured and accessible
-                    </div>
-                `;
-            } else {
-                testResultDiv.innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="bi bi-x-circle"></i> No API key found
-                    </div>
-                `;
-            }
-            setTimeout(() => { testResultDiv.innerHTML = ''; }, 3000);
-        } catch (error) {
-            testResultDiv.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="bi bi-x-circle"></i> Test failed: ${error.message}
-                </div>
-            `;
-        }
-    });
-}
-
-function setupExternalLinks() {
-    document.getElementById('openai-link').addEventListener('click', (e) => {
-        e.preventDefault();
-        window.ipcRenderer.send('open-external-url', 'https://platform.openai.com/api-keys');
-    });
-
-    document.getElementById('anthropic-link').addEventListener('click', (e) => {
-        e.preventDefault();
-        window.ipcRenderer.send('open-external-url', 'https://console.anthropic.com');
-    });
+function showAIToast(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 420px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => { if (notification.parentNode) notification.remove(); }, 3500);
 }
 
 // Listen for menu trigger
@@ -440,3 +290,4 @@ if (window.ipcRenderer && window.ipcRenderer.on) {
         showAISettingsUI();
     });
 }
+

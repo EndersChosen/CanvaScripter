@@ -4,9 +4,9 @@
  */
 
 const { ipcMain } = require('electron');
-const { getDecryptedKey } = require('./settingsHandlers');
 const OpenAI = require('openai');
-const Anthropic = require('@anthropic-ai/sdk');
+const { getAIClientConfig } = require('../security/aiProviders');
+const { getDecryptedKey, store } = require('./settingsHandlers');
 
 const SENSITIVE_KEY_PATTERN = /(token|authorization|auth|password|secret|api[_-]?key|cookie|set-cookie)/i;
 
@@ -50,18 +50,7 @@ function summarizeResultForLog(result) {
  */
 async function generateAnnouncementTitles(count, message, titleBase) {
     try {
-        // Try Anthropic first, fallback to OpenAI
-        let apiKey = getDecryptedKey('anthropic');
-        let provider = 'anthropic';
-
-        if (!apiKey) {
-            apiKey = getDecryptedKey('openai');
-            provider = 'openai';
-        }
-
-        if (!apiKey) {
-            throw new Error('No AI API key available for title generation');
-        }
+        const aiClient = getAIClientConfig(getDecryptedKey, store);
 
         const prompt = `Generate ${count} unique, creative, and professional announcement titles.
 
@@ -80,40 +69,25 @@ Requirements:
 Example output format:
 ["Important Class Update", "Upcoming Schedule Changes", "Assignment Deadline Reminder", ...]`;
 
-        let responseText = '';
+        const openai = new OpenAI(aiClient.config);
 
-        if (provider === 'openai') {
-            const openai = new OpenAI({ apiKey });
-            const completion = await openai.chat.completions.create({
-                messages: [
-                    { role: 'system', content: 'You are a helpful assistant that generates creative announcement titles. Respond only with a JSON array of strings.' },
-                    { role: 'user', content: prompt }
-                ],
-                model: 'gpt-5-nano',
-                response_format: { type: "json_object" }
-            });
-            responseText = completion.choices[0].message.content;
-            // OpenAI might wrap in an object, extract the array
-            const parsed = JSON.parse(responseText);
-            return Array.isArray(parsed) ? parsed : (parsed.titles || Object.values(parsed)[0]);
-        } else {
-            const anthropic = new Anthropic({ apiKey });
-            const msg = await anthropic.messages.create({
-                model: 'claude-haiku-4-5-20251001',
-                max_tokens: 1024,
-                messages: [{
-                    role: "user",
-                    content: prompt
-                }]
-            });
-            responseText = msg.content[0].text;
-            // Strip markdown if present
-            let cleanedText = responseText.trim();
-            if (cleanedText.startsWith('```')) {
-                cleanedText = cleanedText.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
-            }
-            return JSON.parse(cleanedText);
+        const completion = await openai.chat.completions.create({
+            model: aiClient.model,
+            messages: [
+                { role: 'system', content: 'You are a helpful assistant that generates creative announcement titles. Respond only with a JSON array of strings.' },
+                { role: 'user', content: prompt }
+            ],
+            ...aiClient.requestExtra,
+        });
+
+        const responseText = completion.choices[0].message.content;
+        // Strip markdown if present
+        let cleanedText = responseText.trim();
+        if (cleanedText.startsWith('```')) {
+            cleanedText = cleanedText.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
         }
+        const parsed = JSON.parse(cleanedText);
+        return Array.isArray(parsed) ? parsed : (parsed.titles || Object.values(parsed)[0]);
     } catch (error) {
         console.error('Error generating announcement titles:', error);
         // Fallback to simple numbered titles with base
@@ -801,13 +775,8 @@ function registerAIAssistantHandlers() {
     // Parse user intent using AI
     ipcMain.handle('ai-assistant:parseIntent', async (event, { prompt, model }) => {
         try {
-            const provider = model.includes('gpt') ? 'openai' : 'anthropic';
-            const apiKey = getDecryptedKey(provider);
-
-            if (!apiKey) {
-                const providerName = provider === 'openai' ? 'OpenAI' : 'Anthropic';
-                throw new Error(`API Key missing for ${providerName}. Please configure your ${providerName} API key in the HAR Analyzer settings before using the AI Assistant.`);
-            }
+            const aiClient = getAIClientConfig(getDecryptedKey, store);
+            const apiKey = aiClient.apiKey;
 
             const systemPrompt = `You are a Canvas LMS operations assistant. Parse user requests into structured actions.
 
@@ -1371,41 +1340,18 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
 
             let responseText = '';
 
-            if (provider === 'openai') {
-                const openai = new OpenAI({ apiKey });
-                // Map model identifier to actual API model name
-                const modelMap = {
-                    'gpt-5-nano': 'gpt-5-nano',
-                    'gpt-5.2-pro': 'gpt-5.2-pro'
-                };
-                const apiModel = modelMap[model] || 'gpt-5-nano';
-                const completion = await openai.chat.completions.create({
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: prompt }
-                    ],
-                    model: apiModel,
-                    response_format: { type: "json_object" }
-                });
-                responseText = completion.choices[0].message.content;
-            } else {
-                const anthropic = new Anthropic({ apiKey });
-                // Map model identifier to actual API model name
-                const modelMap = {
-                    'claude-haiku-4.5': 'claude-haiku-4-5-20251001',
-                    'claude-sonnet-4-6': 'claude-sonnet-4-6'
-                };
-                const apiModel = modelMap[model] || 'claude-sonnet-4-6';
-                const msg = await anthropic.messages.create({
-                    model: apiModel,
-                    max_tokens: 2048,
-                    messages: [{
-                        role: "user",
-                        content: `${systemPrompt}\n\nUser request: ${prompt}`
-                    }]
-                });
-                responseText = msg.content[0].text;
-            }
+            const openai = new OpenAI(aiClient.config);
+
+            const completion = await openai.chat.completions.create({
+                model: aiClient.model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: prompt }
+                ],
+                ...aiClient.requestExtra,
+            });
+
+            responseText = completion.choices[0].message.content;
 
             // Strip markdown code blocks if present (```json ... ```)
             let cleanedText = responseText.trim();
@@ -1512,9 +1458,13 @@ If the request is unclear or unsupported, set confidence to 0 and explain in sum
                 }
             }
 
+            // Extract model name from response
+            const modelUsed = completion.model || aiClient.model;
+
             return {
                 success: true,
-                parsed
+                parsed,
+                modelUsed
             };
 
         } catch (error) {

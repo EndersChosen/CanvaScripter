@@ -33,21 +33,11 @@ function showAIAssistantUI() {
                 <h6 class="alert-heading"><i class="bi bi-info-circle"></i> How to Use</h6>
                 <p class="mb-2">Describe what you want to do in natural language. The AI will parse your request and show you a preview before executing.</p>
                 <p class="mb-2"><strong>Example:</strong> "Delete all unpublished assignments from https://myschool.instructure.com/courses/1234"</p>
-                <p class="mb-0"><strong>Note:</strong> API keys for OpenAI or Anthropic are required and can be configured in <a href="#" id="goto-har-settings">HAR Analyzer settings</a>.</p>
+                <p class="mb-0"><strong>Note:</strong> Configure your AI provider and API key in <strong>AI Settings</strong>.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <div class="mb-3">
-                        <label for="ai-assistant-model" class="form-label">AI Model</label>
-                        <select class="form-select" id="ai-assistant-model">
-                            <option value="claude-haiku-4.5" selected>Claude Haiku 4.5</option>
-                            <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                            <option value="gpt-5-nano">GPT 5 nano</option>
-                            <option value="gpt-5.2-pro">GPT 5.2 Pro</option>
-                        </select>
-                    </div>
-
                     <div class="mb-3">
                         <label for="ai-assistant-prompt" class="form-label">What would you like to do?</label>
                         <textarea class="form-control" id="ai-assistant-prompt" rows="3" 
@@ -150,7 +140,6 @@ function showAIAssistantUI() {
 
 function setupAIAssistantListeners() {
     const parseBtn = document.getElementById('ai-assistant-parse');
-    const modelSelect = document.getElementById('ai-assistant-model');
     const promptInput = document.getElementById('ai-assistant-prompt');
     const tokenInput = document.getElementById('ai-assistant-token');
     const previewSection = document.getElementById('ai-assistant-preview');
@@ -174,15 +163,6 @@ function setupAIAssistantListeners() {
         });
     });
 
-    // Link to HAR Analyzer settings
-    const harSettingsLink = document.getElementById('goto-har-settings');
-    if (harSettingsLink) {
-        harSettingsLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            document.getElementById('sidebar-har-analyzer')?.click();
-        });
-    }
-
     // Handle external links (open in system browser)
     document.addEventListener('click', (e) => {
         const link = e.target.closest('.external-link');
@@ -196,7 +176,7 @@ function setupAIAssistantListeners() {
     });
 
     parseBtn.addEventListener('click', async () => {
-        const model = modelSelect.value;
+        const model = 'auto';
         const prompt = promptInput.value.trim();
 
         if (!prompt) {
@@ -224,41 +204,18 @@ function setupAIAssistantListeners() {
                 throw new Error(result.error || 'Failed to parse request');
             }
 
-            const { parsed } = result;
+            const { parsed, modelUsed } = result;
 
             // Show preview
-            showOperationPreview(parsed, tokenInput.value);
+            showOperationPreview(parsed, tokenInput.value, modelUsed);
 
         } catch (error) {
-            const isApiKeyError = error.message.includes('API Key missing');
-            const provider = error.message.includes('openai') ? 'OpenAI' : 'Anthropic';
-
             previewSection.innerHTML = `
                 <div class="alert alert-danger">
                     <h6 class="alert-heading"><i class="bi bi-exclamation-octagon"></i> Analysis Failed</h6>
-                    <p class="mb-2">${error.message}</p>
-                    ${isApiKeyError ? `
-                        <hr>
-                        <p class="mb-2"><strong>To add your ${provider} API key:</strong></p>
-                        <ol class="mb-2">
-                            <li>Click <a href="#" id="goto-har-settings-error">HAR Analyzer</a> in the sidebar</li>
-                            <li>Enter your ${provider} API key in the settings section</li>
-                            <li>Click Save</li>
-                            <li>Return here to try again</li>
-                        </ol>
-                        <p class="mb-0"><small>Your API key is encrypted and stored securely on your local machine.</small></p>
-                    ` : ''}
+                    <p class="mb-0">${error.message}</p>
                 </div>
             `;
-
-            // Add click handler for error link
-            const errorLink = document.getElementById('goto-har-settings-error');
-            if (errorLink) {
-                errorLink.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    document.getElementById('sidebar-har-analyzer')?.click();
-                });
-            }
         }
     });
 }
@@ -281,7 +238,16 @@ function showAIAssistantToast(message, type = 'success') {
     }, 3000);
 }
 
-function showOperationPreview(parsed, token) {
+function formatModelName(modelId) {
+    if (!modelId) return null;
+    // Clean up model identifiers like "openai/gpt-5-nano" -> "GPT-5 Nano"
+    const name = modelId.includes('/') ? modelId.split('/').pop() : modelId;
+    return name
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function showOperationPreview(parsed, token, modelUsed) {
     const previewSection = document.getElementById('ai-assistant-preview');
 
     if (parsed.confidence < 0.5) {
@@ -365,6 +331,7 @@ function showOperationPreview(parsed, token) {
                         </div>
                     </div>
                 </div>
+                ${modelUsed ? `<div class="text-muted small mb-3"><i class="bi bi-cpu"></i> Model: ${formatModelName(modelUsed)}</div>` : ''}
                 
                 <div class="d-flex gap-2">
                     <button id="ai-assistant-execute" class="btn btn-success" ${!token ? 'disabled' : ''}>
@@ -434,9 +401,8 @@ function showOperationPreview(parsed, token) {
 
             // Get original prompt
             const promptInput = document.getElementById('ai-assistant-prompt');
-            const modelSelect = document.getElementById('ai-assistant-model');
             const originalPrompt = promptInput.value.trim();
-            const model = modelSelect.value;
+            const model = 'auto';
 
             // Combine original prompt with feedback
             const enhancedPrompt = `${originalPrompt}
@@ -469,7 +435,7 @@ Please re-analyze the request taking into account the user's correction.`;
                 }
 
                 // Show updated preview
-                showOperationPreview(result.parsed, token);
+                showOperationPreview(result.parsed, token, result.modelUsed);
 
             } catch (error) {
                 previewSection.innerHTML = `

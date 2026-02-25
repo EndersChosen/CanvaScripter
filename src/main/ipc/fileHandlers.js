@@ -13,7 +13,8 @@ const { ipcMain, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
-const Anthropic = require('@anthropic-ai/sdk');
+const { getAIClientConfig } = require('../security/aiProviders');
+const { getDecryptedKey, store } = require('./settingsHandlers');
 
 /**
  * Classify a MIME type string into a human-readable resource category.
@@ -189,8 +190,6 @@ function registerFileHandlers({ mainWindow, security, parsers, harAnalyzer }) {
         }
     });
 
-    const { getDecryptedKey } = require('./settingsHandlers');
-
     // AI HAR analysis
     ipcMain.handle('har:analyzeAi', async (event, { filePath, model, prompt }) => {
         try {
@@ -217,52 +216,27 @@ Please answer the user's question and analyze the HAR summary below specifically
 ${JSON.stringify(summary, null, 2)}`;
             }
 
-            let responseText = '';
+            const aiClient = getAIClientConfig(getDecryptedKey, store);
 
-            if (model.startsWith('gpt')) {
-                const apiKey = getDecryptedKey('openai');
-                if (!apiKey) throw new Error('API Key missing. Please entering it in the AI Advisor setttings.');
+            const openai = new OpenAI(aiClient.config);
 
-                const openai = new OpenAI({ apiKey });
-                // Mapping custom user request to actual available model
-                const modelMapper = {
-                    'gpt-5-nano': 'gpt-5-nano',
-                    'gpt-5.2-pro': 'gpt-5.2-pro'
-                };
-                const targetModel = modelMapper[model] || 'gpt-5-nano';
+            const createParams = {
+                model: aiClient.model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userContent }
+                ],
+                ...aiClient.requestExtra,
+            };
 
-                const completion = await openai.chat.completions.create({
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userContent }
-                    ],
-                    model: targetModel,
-                });
-                responseText = completion.choices[0].message.content;
+            const completion = await openai.chat.completions.create(createParams);
 
-            } else if (model.startsWith('claude')) {
-                const apiKey = getDecryptedKey('anthropic');
-                if (!apiKey) throw new Error('API Key missing. Please enter it in the AI Advisor settings.');
-
-                const anthropic = new Anthropic({ apiKey });
-                // Mapping custom user request to actual available model
-                const modelMapper = {
-                    'claude-haiku-4.5': 'claude-haiku-4-5-20251001',
-                    'claude-sonnet-4-6': 'claude-sonnet-4-6'
-                };
-                const targetModel = modelMapper[model] || 'claude-sonnet-4-6';
-
-                const msg = await anthropic.messages.create({
-                    model: targetModel,
-                    max_tokens: 4096,
-                    messages: [{ role: "user", content: `${systemPrompt}\n\n${userContent}` }],
-                });
-                responseText = msg.content[0].text;
-            } else {
-                throw new Error(`Unsupported model selected: ${model}`);
-            }
-
-            return responseText;
+            // Return both the content and the model used
+            const modelUsed = completion.model || aiClient.model;
+            return {
+                content: completion.choices[0].message.content,
+                modelUsed
+            };
 
         } catch (error) {
             console.error('AI Analysis Error:', error);

@@ -68,47 +68,20 @@ function showHARAnalyzerUI() {
                         <div class="card-body">
                             <h5 class="card-title">AI-Powered HAR Diagnostics</h5>
                              <p class="card-text text-muted">
-                                Upload a HAR file and use an LLM to identify complex issues, anomalies, or provide a summary.
+                                Upload a HAR file and use AI to identify complex issues, anomalies, or provide a summary.
+                                Configure your AI provider in <strong>AI Settings</strong>.
                             </p>
-                            
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label for="ai-model-select" class="form-label">Select AI Model</label>
-                                    <select class="form-select" id="ai-model-select">
-                                        <option value="claude-haiku-4.5">Claude Haiku 4.5</option>
-                                        <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                                        <option value="gpt-5-nano">GPT 5 nano</option>
-                                        <option value="gpt-5.2-pro">GPT 5.2 Pro</option>
-                                    </select>
-                                </div>
-                            </div>
 
                             <div class="mb-3">
                                 <label for="ai-prompt-input" class="form-label">Issue Summary & Instructions (Optional)</label>
                                 <textarea class="form-control" id="ai-prompt-input" rows="3" placeholder="Describe the issue you're facing or what you want the AI to look for..."></textarea>
                             </div>
-
-                            <div id="api-key-section" class="mb-3 d-none">
-                                <label for="api-key-input" class="form-label text-danger">API Key Required</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="api-key-input" placeholder="Enter API Key">
-                                    <button class="btn btn-outline-secondary" type="button" id="save-api-key">Save Key</button>
-                                </div>
-                                <div class="form-text">Your API key will be stored securely locally.</div>
-                            </div>
                             
-                            <div id="api-key-display-section" class="mb-3 d-none">
-                                <label class="form-label text-success">API Key Stored</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="masked-api-key" disabled readonly value="">
-                                    <button class="btn btn-outline-danger" type="button" id="delete-api-key">Remove</button>
-                                </div>
-                                <div class="form-text">Key is saved. Remove to update.</div>
+                            <div id="ai-status-msg" class="mb-3">
+                                <span class="text-muted"><i class="bi bi-info-circle"></i> An AI provider API key must be configured in AI Settings.</span>
                             </div>
-                            
-                            <div id="ai-status-msg" class="mb-3"></div>
 
-                            <button id="select-har-file-ai" class="btn btn-primary" disabled>
+                            <button id="select-har-file-ai" class="btn btn-primary">
                                 <i class="bi bi-robot"></i> Select & Analyze with AI
                             </button>
                         </div>
@@ -138,115 +111,21 @@ function showHARAnalyzerUI() {
         }
     });
 
-    // 2. AI Model Selection & Key Management
-    const modelSelect = document.getElementById('ai-model-select');
-    const apiKeySection = document.getElementById('api-key-section');
-    const apiKeyInput = document.getElementById('api-key-input');
-    const saveKeyBtn = document.getElementById('save-api-key');
-
-    // New elements for viewing/deleting keys
-    const apiKeyDisplaySection = document.getElementById('api-key-display-section');
-    const maskedApiKeyInput = document.getElementById('masked-api-key');
-    const deleteKeyBtn = document.getElementById('delete-api-key');
-
+    // 2. AI Analysis Execution (uses the user's configured AI provider)
     const analyzeBtn = document.getElementById('select-har-file-ai');
-    const statusMsg = document.getElementById('ai-status-msg');
 
-    async function checkKeyStatus() {
-        const model = modelSelect.value;
-        const provider = model.includes('gpt') ? 'openai' : 'anthropic';
-
-        try {
-            const hasKey = await window.ipcRenderer.invoke('settings:hasApiKey', provider);
-
-            if (hasKey) {
-                // Key exists: Show display section, hide input section
-                if (maskedApiKeyInput) {
-                    // Try to get masked key, handle potential errors peacefully
-                    try {
-                        const maskedKey = await window.ipcRenderer.invoke('settings:getMaskedApiKey', provider);
-                        maskedApiKeyInput.value = maskedKey || '****';
-                    } catch (e) {
-                        console.error('Failed to get masked key', e);
-                        maskedApiKeyInput.value = '**** (Error retrieving)';
-                    }
-                }
-
-                if (apiKeySection) apiKeySection.classList.add('d-none');
-                if (apiKeyDisplaySection) apiKeyDisplaySection.classList.remove('d-none');
-
-                if (analyzeBtn) analyzeBtn.disabled = false;
-                if (statusMsg) statusMsg.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> API Key found. Ready to analyze.</span>';
-            } else {
-                // No key: Show input section, hide display section
-                if (apiKeySection) apiKeySection.classList.remove('d-none');
-                if (apiKeyDisplaySection) apiKeyDisplaySection.classList.add('d-none');
-
-                if (analyzeBtn) analyzeBtn.disabled = true;
-                if (statusMsg) statusMsg.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-triangle"></i> API Key missing. Please enter it above.</span>';
-            }
-        } catch (err) {
-            console.error('Error checking API key:', err);
-        }
-    }
-
-    // Check on load/change
-    modelSelect.addEventListener('change', checkKeyStatus);
-
-    // Also check when tab is shown
-    const aiTab = document.getElementById('ai-analyzer-tab');
-    aiTab.addEventListener('shown.bs.tab', checkKeyStatus);
-
-    // Delete Key handler
-    if (deleteKeyBtn) {
-        deleteKeyBtn.addEventListener('click', async () => {
-            const model = modelSelect.value;
-            const provider = model.includes('gpt') ? 'openai' : 'anthropic';
-
-            if (confirm('Are you sure you want to remove the stored API key?')) {
-                try {
-                    await window.ipcRenderer.invoke('settings:deleteApiKey', provider);
-                    await checkKeyStatus();
-                } catch (err) {
-                    statusMsg.innerHTML = `<span class="text-danger">Failed to delete key: ${err.message}</span>`;
-                }
-            }
-        });
-    }
-
-    // Save Key handler
-    saveKeyBtn.addEventListener('click', async () => {
-        const key = apiKeyInput.value.trim();
-        if (!key) return;
-
-        const model = modelSelect.value;
-        const provider = model.includes('gpt') ? 'openai' : 'anthropic';
-
-        try {
-            await window.ipcRenderer.invoke('settings:saveApiKey', provider, key);
-            apiKeyInput.value = '';
-            await checkKeyStatus();
-        } catch (err) {
-            statusMsg.innerHTML = `<span class="text-danger">Failed to save key: ${err.message}</span>`;
-        }
-    });
-
-
-    // 3. AI Analysis Execution
     analyzeBtn.addEventListener('click', async () => {
         try {
             const result = await window.ipcRenderer.invoke('har:selectFile');
             if (result.canceled) return;
 
-            const model = document.getElementById('ai-model-select').value;
             const prompt = document.getElementById('ai-prompt-input').value;
 
             showHarAiLoadingState();
 
-            // Invoke AI analysis (Implementation needed in main process)
             const analysis = await window.ipcRenderer.invoke('har:analyzeAi', {
                 filePath: result.filePath,
-                model: model,
+                model: 'auto',
                 prompt: prompt
             });
 
@@ -292,19 +171,33 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function formatModelName(modelId) {
+    if (!modelId) return null;
+    const name = modelId.includes('/') ? modelId.split('/').pop() : modelId;
+    return name
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+}
+
 function displayHarAiResults(analysis) {
     const resultsDiv = document.getElementById('har-ai-results');
-    // Simple display for now, assuming analysis returns a markdown string or object with content
-    const content = typeof analysis === 'string' ? analysis : (analysis.content || JSON.stringify(analysis, null, 2));
+    // Handle both old (string) and new ({ content, modelUsed }) response formats
+    let content, modelUsed;
+    if (typeof analysis === 'string') {
+        content = analysis;
+    } else if (analysis && typeof analysis === 'object') {
+        content = analysis.content || JSON.stringify(analysis, null, 2);
+        modelUsed = analysis.modelUsed;
+    }
     const safeContent = escapeHtml(content);
+    const modelTag = modelUsed ? `<div class="text-muted small mt-2"><i class="bi bi-cpu"></i> Model: ${formatModelName(modelUsed)}</div>` : '';
 
-    // Convert newlines to breaks if it's plain text, or render markdown if we had a renderer
-    // For now, let's wrap in a pre tag or basic div
     resultsDiv.innerHTML = `
         <div class="card">
             <div class="card-header bg-success text-white">AI Analysis Result</div>
             <div class="card-body">
                 <div class="ai-response-content" style="white-space: pre-wrap;">${safeContent}</div>
+                ${modelTag}
             </div>
         </div>
     `;

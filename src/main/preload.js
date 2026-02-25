@@ -729,6 +729,14 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
     'settings:deleteApiKey',
     'settings:getMaskedApiKey',
 
+    // AI Provider Settings
+    'ai:getProviders',
+    'ai:getActiveProvider',
+    'ai:setActiveProvider',
+    'ai:getSelectedModel',
+    'ai:setSelectedModel',
+    'ai:getStatus',
+
     // AI Assistant
     'ai-assistant:parseIntent',
     'ai-assistant:getOperationDetails',
