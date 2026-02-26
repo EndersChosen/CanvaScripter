@@ -1790,6 +1790,9 @@ function noSubmissionAssignments(e) {
     }
     noSubmissionAssignmentsForm.hidden = false;
 
+    if (noSubmissionAssignmentsForm.dataset.bound === 'true') return;
+    noSubmissionAssignmentsForm.dataset.bound = 'true';
+
 
     const courseID = document.querySelector('#course-id');
     courseID.addEventListener('change', (e) => {
@@ -2025,6 +2028,9 @@ function unpublishedAssignments(e) {
         eContent.append(deleteUnpublishedAssignmentsForm);
     }
     deleteUnpublishedAssignmentsForm.hidden = false;
+
+    if (deleteUnpublishedAssignmentsForm.dataset.bound === 'true') return;
+    deleteUnpublishedAssignmentsForm.dataset.bound = 'true';
 
     const courseID = deleteUnpublishedAssignmentsForm.querySelector('#course-id');
     courseID.addEventListener('change', (e) => {
@@ -2363,6 +2369,10 @@ function nonModuleAssignments(e) {
         eContent.append(deleteAssignmentsNotInModulesForm);
     }
     deleteAssignmentsNotInModulesForm.hidden = false;
+
+    if (deleteAssignmentsNotInModulesForm.dataset.bound === 'true') return;
+    deleteAssignmentsNotInModulesForm.dataset.bound = 'true';
+
     //checks for valid input in the course id field
 
     const courseID = deleteAssignmentsNotInModulesForm.querySelector('#course');
@@ -2643,6 +2653,9 @@ function deleteOldAssignments(e) {
     }
     deleteOldAssignmentsForm.hidden = false;
 
+    if (deleteOldAssignmentsForm.dataset.bound === 'true') return;
+    deleteOldAssignmentsForm.dataset.bound = 'true';
+
     const courseID = deleteOldAssignmentsForm.querySelector('#course-id');
     // const dueDate = deleteOldAssignmentsForm.querySelector('#due-date-input');
     const dateSwitches = deleteOldAssignmentsForm.querySelector('#date-switches');
@@ -2888,6 +2901,9 @@ function deleteAssignmentsFromImport(e) {
     }
     deleteAssignmentsFromImportForm.hidden = false;
 
+    if (deleteAssignmentsFromImportForm.dataset.bound === 'true') return;
+    deleteAssignmentsFromImportForm.dataset.bound = 'true';
+
     const courseID = deleteAssignmentsFromImportForm.querySelector('#course-id');
     const importID = deleteAssignmentsFromImportForm.querySelector('#import-id');
 
@@ -3096,6 +3112,9 @@ function keepAssignmentsInGroup(e) {
         eContent.append(keepAssignmentsInGroupForm);
     }
     keepAssignmentsInGroupForm.hidden = false;
+
+    if (keepAssignmentsInGroupForm.dataset.bound === 'true') return;
+    keepAssignmentsInGroupForm.dataset.bound = 'true';
 
     keepAssignmentsInGroupForm.addEventListener('change', (e) => {
         e.preventDefault();
@@ -4022,6 +4041,9 @@ function deleteAssignmentsInGroup(e) {
     }
     deleteAssignmentsInGroupForm.hidden = false;
 
+    if (deleteAssignmentsInGroupForm.dataset.bound === 'true') return;
+    deleteAssignmentsInGroupForm.dataset.bound = 'true';
+
     // Objectives:
     // 1. Get inputs
     // 2. Try to delete group and all assignments in it
@@ -4257,6 +4279,9 @@ function deleteNoDueDateAssignments(e) {
         eContent.append(form);
     }
     form.hidden = false;
+
+    if (form.dataset.bound === 'true') return;
+    form.dataset.bound = 'true';
 
     function renderResults(finalAssignments) {
         // wipe and render results card with count and delete capability

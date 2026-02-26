@@ -218,6 +218,9 @@ async function getPageViews(e) {
     }
     getPageViewsForm.hidden = false;
 
+    if (getPageViewsForm.dataset.bound === 'true') return;
+    getPageViewsForm.dataset.bound = 'true';
+
     const uID = getPageViewsForm.querySelector('#user-id');
     const userIds = getPageViewsForm.querySelector('#user-ids');
     const userFile = getPageViewsForm.querySelector('#user-file');
@@ -789,6 +792,9 @@ function userNotifications(e) {
         eContent.append(userNotificationsForm);
     }
     userNotificationsForm.hidden = false;
+
+    if (userNotificationsForm.dataset.bound === 'true') return;
+    userNotificationsForm.dataset.bound = 'true';
 
     const userID = userNotificationsForm.querySelector('#user-id');
     const commChannelID = userNotificationsForm.querySelector('#comm-channel-id');

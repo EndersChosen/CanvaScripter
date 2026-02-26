@@ -144,6 +144,9 @@ function sectionsTemplate(e) {
   }
   form.hidden = false;
 
+  if (form.dataset.bound === 'true') return;
+  form.dataset.bound = 'true';
+
   const createBtn = form.querySelector('#create-btn');
   const progressCard = form.querySelector('#progress-card');
   const progressBar = form.querySelector('#progress-bar');

@@ -103,6 +103,9 @@ async function restoreContent(e) {
     }
     restoreContentForm.hidden = false;
 
+    if (restoreContentForm.dataset.bound === 'true') return;
+    restoreContentForm.dataset.bound = 'true';
+
     const courseID = restoreContentForm.querySelector('#course-id');
     courseID.addEventListener('change', (e) => {
         e.preventDefault();
@@ -197,6 +200,7 @@ async function restoreCourses(e) {
 
     const eContent = document.querySelector('#endpoint-content');
     let restoreCourseForm = eContent.querySelector('#restore-course-form');
+    const restoreFormJustCreated = !restoreCourseForm;
 
     if (!restoreCourseForm) {
         restoreCourseForm = document.createElement('form');
@@ -294,9 +298,9 @@ async function restoreCourses(e) {
 
     // Render a 4-part summary card after restore completes.
     // response: { successfulCount, failed: [{ids, message}], cancelledByUser }
-    // checkSummary: { totalChecked, notDeletedCount, checkErrorCount }
+    // checkSummary: { totalChecked, notDeletedCount, checkErrorCount, checkErrors }
     function renderRestoreResults(response, checkSummary = {}) {
-        const { totalChecked = 0, notDeletedCount = 0, checkErrorCount = 0 } = checkSummary;
+        const { totalChecked = 0, notDeletedCount = 0, checkErrorCount = 0, checkErrors = [] } = checkSummary;
         const successCount = response.successfulCount ?? 0;
         const failedBatches = response.failed ?? [];
         const failCount = failedBatches.flatMap(b => b.ids ?? []).length;
@@ -327,10 +331,17 @@ async function restoreCourses(e) {
                         <i class="bi bi-x-circle-fill ${failCount > 0 ? 'text-danger' : 'text-secondary'} me-2"></i>
                         <strong>Failed to restore:</strong> ${failCount}
                     </p>
-                    ${checkErrorCount > 0 ? `<p class="${cancelledByUser ? 'mb-2' : 'mb-0'}">
+                    ${checkErrorCount > 0 ? `<p class="${cancelledByUser || checkErrors.length > 0 ? 'mb-2' : 'mb-0'}">
                         <i class="bi bi-question-circle text-warning me-2"></i>
                         <strong>Could not verify state:</strong> ${checkErrorCount}
                     </p>` : ''}
+                    ${checkErrors.length > 0 ? `<div class="${cancelledByUser ? 'mb-2' : 'mb-0'}">
+                        <i class="bi bi-exclamation-triangle text-danger me-2"></i>
+                        <strong>Check errors:</strong>
+                        <ul class="mb-0 mt-1" style="font-size:0.8rem;">
+                            ${[...new Set(checkErrors.map(e => e.message || 'Unknown error'))].map(msg => `<li>${msg}</li>`).join('')}
+                        </ul>
+                    </div>` : ''}
                     ${cancelledByUser ? `<p class="mb-0">
                         <i class="bi bi-slash-circle text-warning me-2"></i>
                         <strong>Cancelled by user</strong>
@@ -455,19 +466,35 @@ async function restoreCourses(e) {
         const checkErrorCount = checkErrors.length;
 
         // --- Phase 2: Show confirmation with check summary ---
+
+        // Deduplicate check error messages for display
+        const uniqueCheckErrors = checkErrors.length > 0
+            ? [...new Set(checkErrors.map(e => e.message || 'Unknown error'))]
+            : [];
+
         let confirmHtml = `
-            <div class="alert alert-info py-2 mb-2 mt-2" style="font-size:0.85rem;">
+            <div class="alert ${checkErrorCount > 0 && deletedCount === 0 && notDeletedCount === 0 ? 'alert-danger' : 'alert-info'} py-2 mb-2 mt-2" style="font-size:0.85rem;">
                 <strong>Check Complete</strong> &mdash; ${total} course${total !== 1 ? 's' : ''} checked:
                 <ul class="mb-0 mt-1">
                     <li><strong>${deletedCount}</strong> deleted &rarr; will be restored</li>
                     <li><strong>${notDeletedCount}</strong> not deleted &rarr; will be skipped</li>
-                    ${checkErrorCount > 0 ? `<li><strong>${checkErrorCount}</strong> could not be verified (will be skipped)</li>` : ''}
+                    ${checkErrorCount > 0 ? `<li class="text-danger"><strong>${checkErrorCount}</strong> could not be verified (will be skipped)</li>` : ''}
                 </ul>
+                ${uniqueCheckErrors.length > 0 ? `
+                <hr class="my-2">
+                <strong>Error details:</strong>
+                <ul class="mb-0 mt-1">
+                    ${uniqueCheckErrors.map(msg => `<li class="text-danger">${msg}</li>`).join('')}
+                </ul>` : ''}
             </div>`;
 
         if (deletedCount === 0) {
-            confirmHtml += `<div class="alert alert-warning py-2" style="font-size:0.85rem;">
-                No deleted courses found. Nothing to restore.
+            const alertType = checkErrorCount > 0 ? 'alert-danger' : 'alert-warning';
+            const alertMsg = checkErrorCount > 0
+                ? `All ${checkErrorCount} course${checkErrorCount !== 1 ? 's' : ''} failed verification. Check your domain and token.`
+                : 'No deleted courses found. Nothing to restore.';
+            confirmHtml += `<div class="alert ${alertType} py-2" style="font-size:0.85rem;">
+                ${alertMsg}
             </div>
             <button type="button" class="btn btn-sm btn-secondary" id="confirm-check-dismiss-btn">Dismiss</button>`;
             confirmDiv.innerHTML = confirmHtml;
@@ -500,7 +527,7 @@ async function restoreCourses(e) {
             await runRestore(
                 deleted.map(d => d.id),
                 triggerBtn,
-                { totalChecked: total, notDeletedCount, checkErrorCount }
+                { totalChecked: total, notDeletedCount, checkErrorCount, checkErrors }
             );
         }, { once: true });
     }
@@ -552,68 +579,71 @@ async function restoreCourses(e) {
     const courseTextDiv = restoreCourseForm.querySelector('#restore-course-text-div');
     const courseTextArea = restoreCourseForm.querySelector('#restore-courses-area');
 
-    courseTextArea.addEventListener('input', () => {
-        const manualSwitch = restoreCourseForm.querySelector('#manual-restore-courses-switch');
-        restoreBtn.disabled = courseTextArea.value.trim().length < 1 || !manualSwitch.checked;
-    });
+    // Only attach event listeners once (when the form is first created)
+    if (restoreFormJustCreated) {
+        courseTextArea.addEventListener('input', () => {
+            const manualSwitch = restoreCourseForm.querySelector('#manual-restore-courses-switch');
+            restoreBtn.disabled = courseTextArea.value.trim().length < 1 || !manualSwitch.checked;
+        });
 
-    switches.addEventListener('change', (e) => {
-        const inputs = switches.querySelectorAll('input');
-        for (const input of inputs) {
-            if (input.id !== e.target.id) input.checked = false;
-        }
-        if (!e.target.checked) {
-            restoreBtn.disabled = true;
+        switches.addEventListener('change', (e) => {
+            const inputs = switches.querySelectorAll('input');
+            for (const input of inputs) {
+                if (input.id !== e.target.id) input.checked = false;
+            }
+            if (!e.target.checked) {
+                restoreBtn.disabled = true;
+                uploadBtn.disabled = true;
+            } else if (e.target.id === 'upload-restore-courses-switch') {
+                restoreBtn.disabled = true;
+                restoreBtn.hidden = true;
+                courseTextDiv.hidden = true;
+                uploadBtn.disabled = false;
+                uploadBtn.hidden = false;
+            } else {
+                restoreBtn.hidden = false;
+                courseTextDiv.hidden = false;
+                uploadBtn.disabled = true;
+                uploadBtn.hidden = true;
+                restoreBtn.disabled = courseTextArea.value.trim().length < 1;
+            }
+        });
+
+        // --- Upload button ---
+        uploadBtn.addEventListener('click', async () => {
             uploadBtn.disabled = true;
-        } else if (e.target.id === 'upload-restore-courses-switch') {
+            progressDiv.hidden = true;
+            confirmDiv.hidden = true;
+            confirmDiv.innerHTML = '';
+
+            let courseIds = [];
+            try {
+                courseIds = await window.fileUpload.restoreCoursesFile();
+            } catch (error) {
+                uploadBtn.disabled = false;
+                progressDiv.hidden = false;
+                errorHandler(error, progressInfo);
+                return;
+            }
+
+            if (!courseIds || courseIds.length === 0) {
+                uploadBtn.disabled = false;
+                return;
+            }
+
+            await runCheckAndConfirm(courseIds, uploadBtn);
+        });
+
+        // --- Manual restore button ---
+        restoreBtn.addEventListener('click', async () => {
+            const rawInput = courseTextArea.value;
+            const courseIds = rawInput.split(/[\n,]/).map(s => s.trim()).filter(s => s.length > 0);
+            if (courseIds.length === 0) return;
+
             restoreBtn.disabled = true;
-            restoreBtn.hidden = true;
-            courseTextDiv.hidden = true;
-            uploadBtn.disabled = false;
-            uploadBtn.hidden = false;
-        } else {
-            restoreBtn.hidden = false;
-            courseTextDiv.hidden = false;
-            uploadBtn.disabled = true;
-            uploadBtn.hidden = true;
-            restoreBtn.disabled = courseTextArea.value.trim().length < 1;
-        }
-    });
-
-    // --- Upload button ---
-    uploadBtn.addEventListener('click', async () => {
-        uploadBtn.disabled = true;
-        progressDiv.hidden = true;
-        confirmDiv.hidden = true;
-        confirmDiv.innerHTML = '';
-
-        let courseIds = [];
-        try {
-            courseIds = await window.fileUpload.restoreCoursesFile();
-        } catch (error) {
-            uploadBtn.disabled = false;
-            progressDiv.hidden = false;
-            errorHandler(error, progressInfo);
-            return;
-        }
-
-        if (!courseIds || courseIds.length === 0) {
-            uploadBtn.disabled = false;
-            return;
-        }
-
-        await runCheckAndConfirm(courseIds, uploadBtn);
-    });
-
-    // --- Manual restore button ---
-    restoreBtn.addEventListener('click', async () => {
-        const rawInput = courseTextArea.value;
-        const courseIds = rawInput.split(/[\n,]/).map(s => s.trim()).filter(s => s.length > 0);
-        if (courseIds.length === 0) return;
-
-        restoreBtn.disabled = true;
-        await runCheckAndConfirm(courseIds, restoreBtn);
-    });
+            await runCheckAndConfirm(courseIds, restoreBtn);
+        });
+    }
 }
 
 async function resetCourses(e) {
@@ -621,6 +651,7 @@ async function resetCourses(e) {
 
     const eContent = document.querySelector('#endpoint-content');
     let resetCourseForm = eContent.querySelector('#reset-course-form');
+    const resetFormJustCreated = !resetCourseForm;
 
     if (!resetCourseForm) {
         resetCourseForm = document.createElement('form');
@@ -772,86 +803,89 @@ async function resetCourses(e) {
     }
     const courseTextDiv = resetCourseForm.querySelector('#course-text-div');
     const courseTextArea = resetCourseForm.querySelector('#reset-courses-area');
-    courseTextArea.addEventListener('input', (e) => {
-        const inputSwitch = resetCourseForm.querySelector('#manual-courses-reset-switch');
-        if (courseTextArea.value.length < 1 || !inputSwitch.checked) {
-            resetBtn.disabled = true;
-        } else {
-            resetBtn.disabled = false;
-        }
-    });
     const switches = resetCourseForm.querySelector('#reset-switches');
-    switches.addEventListener('change', (e) => {
-        const inputs = switches.querySelectorAll('input');
 
-        // disable all inputs other than the one that's checked
-        for (let input of inputs) {
-            if (input.id !== e.target.id) {
-                input.checked = false;
+    // Only attach event listeners once (when the form is first created)
+    if (resetFormJustCreated) {
+        courseTextArea.addEventListener('input', (e) => {
+            const inputSwitch = resetCourseForm.querySelector('#manual-courses-reset-switch');
+            if (courseTextArea.value.length < 1 || !inputSwitch.checked) {
+                resetBtn.disabled = true;
+            } else {
+                resetBtn.disabled = false;
             }
-        }
+        });
+        switches.addEventListener('change', (e) => {
+            const inputs = switches.querySelectorAll('input');
 
-        // if nothing is checked disable and hide all buttons
-        if (!e.target.checked) {
+            // disable all inputs other than the one that's checked
             for (let input of inputs) {
-                input.checked = false;
+                if (input.id !== e.target.id) {
+                    input.checked = false;
+                }
             }
-            resetBtn.disabled = true;
+
+            // if nothing is checked disable and hide all buttons
+            if (!e.target.checked) {
+                for (let input of inputs) {
+                    input.checked = false;
+                }
+                resetBtn.disabled = true;
+                uploadBtn.disabled = true;
+            } else if (e.target.id === 'upload-courses-switch') {
+                resetBtn.disabled = true;
+                resetBtn.hidden = true;
+                courseTextDiv.hidden = true;
+                uploadBtn.disabled = false;
+                uploadBtn.hidden = false;
+            } else {
+                resetBtn.hidden = false;
+                courseTextDiv.hidden = false;
+                uploadBtn.disabled = true;
+                uploadBtn.hidden = true;
+            }
+        })
+
+        uploadBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
             uploadBtn.disabled = true;
-        } else if (e.target.id === 'upload-courses-switch') {
-            resetBtn.disabled = true;
-            resetBtn.hidden = true;
-            courseTextDiv.hidden = true;
-            uploadBtn.disabled = false;
-            uploadBtn.hidden = false;
-        } else {
-            resetBtn.hidden = false;
-            courseTextDiv.hidden = false;
-            uploadBtn.disabled = true;
-            uploadBtn.hidden = true;
-        }
-    })
+            progressInfo.innerHTML = '';
+            progressDiv.hidden = true;
 
-    uploadBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+            const domain = document.querySelector('#domain').value.trim();
+            const apiToken = document.querySelector('#token').value.trim();
 
-        uploadBtn.disabled = true;
-        progressInfo.innerHTML = '';
-        progressDiv.hidden = true;
+            let courses = [];
+            try {
+                courses = await window.fileUpload.resetCourse();
+            } catch (error) {
+                uploadBtn.disabled = false;
+                progressDiv.hidden = false;
+                errorHandler(error, progressInfo);
+                return;
+            }
 
-        const domain = document.querySelector('#domain').value.trim();
-        const apiToken = document.querySelector('#token').value.trim();
+            // User cancelled the file picker
+            if (!courses || courses.length === 0) {
+                uploadBtn.disabled = false;
+                return;
+            }
 
-        let courses = [];
-        try {
-            courses = await window.fileUpload.resetCourse();
-        } catch (error) {
-            uploadBtn.disabled = false;
-            progressDiv.hidden = false;
-            errorHandler(error, progressInfo);
-            return;
-        }
+            // --- Show summary + confirmation ---
+            const total = courses.length;
 
-        // User cancelled the file picker
-        if (!courses || courses.length === 0) {
-            uploadBtn.disabled = false;
-            return;
-        }
+            // Find or create a confirmation container
+            let confirmDiv = resetCourseForm.querySelector('#upload-confirm-div');
+            if (!confirmDiv) {
+                confirmDiv = document.createElement('div');
+                confirmDiv.id = 'upload-confirm-div';
+                confirmDiv.className = 'mt-2';
+                progressDiv.parentElement.insertBefore(confirmDiv, progressDiv);
+            }
 
-        // --- Show summary + confirmation ---
-        const total = courses.length;
-
-        // Find or create a confirmation container
-        let confirmDiv = resetCourseForm.querySelector('#upload-confirm-div');
-        if (!confirmDiv) {
-            confirmDiv = document.createElement('div');
-            confirmDiv.id = 'upload-confirm-div';
-            confirmDiv.className = 'mt-2';
-            progressDiv.parentElement.insertBefore(confirmDiv, progressDiv);
-        }
-
-        confirmDiv.innerHTML = `
+            confirmDiv.innerHTML = `
             <div class="alert alert-info py-2 mb-2" style="font-size:0.85rem;">
                 <i class="bi bi-file-earmark-text me-1"></i>
                 Found <strong>${total}</strong> course${total !== 1 ? 's' : ''} in the file.
@@ -863,54 +897,102 @@ async function resetCourses(e) {
             <button type="button" class="btn btn-sm btn-secondary" id="confirm-cancel-btn">
                 Cancel
             </button>`;
-        confirmDiv.hidden = false;
+            confirmDiv.hidden = false;
 
-        const confirmResetBtn = confirmDiv.querySelector('#confirm-reset-btn');
-        const confirmCancelBtn = confirmDiv.querySelector('#confirm-cancel-btn');
+            const confirmResetBtn = confirmDiv.querySelector('#confirm-reset-btn');
+            const confirmCancelBtn = confirmDiv.querySelector('#confirm-cancel-btn');
 
-        confirmCancelBtn.addEventListener('click', () => {
-            confirmDiv.hidden = true;
-            confirmDiv.innerHTML = '';
-            uploadBtn.disabled = false;
-        }, { once: true });
+            confirmCancelBtn.addEventListener('click', () => {
+                confirmDiv.hidden = true;
+                confirmDiv.innerHTML = '';
+                uploadBtn.disabled = false;
+            }, { once: true });
 
-        confirmResetBtn.addEventListener('click', async () => {
-            confirmDiv.hidden = true;
-            confirmDiv.innerHTML = '';
+            confirmResetBtn.addEventListener('click', async () => {
+                confirmDiv.hidden = true;
+                confirmDiv.innerHTML = '';
 
-            // Clear any previous results
+                // Clear any previous results
+                resultsCard.hidden = true;
+                resultsBody.innerHTML = '';
+
+                // Setup progress UI
+                progressDiv.hidden = false;
+                progressBar.parentElement.hidden = false;
+                progressBar.style.width = '0%';
+                progressInfo.innerHTML = `Resetting courses.... 0/${total}`;
+
+                const cancelBtn = progressDiv.querySelector('#reset-courses-cancel-btn');
+                let cancelRequested = false;
+                if (cancelBtn) {
+                    cancelBtn.hidden = false;
+                    cancelBtn.disabled = false;
+                    cancelBtn.onclick = async () => {
+                        cancelRequested = true;
+                        cancelBtn.disabled = true;
+                        cancelBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Cancelling...';
+                        progressInfo.innerHTML = 'Cancelling... letting in-flight requests finish.';
+                        try {
+                            await window.axios.cancelResetCourses();
+                        } catch (err) {
+                            console.error('Error cancelling reset courses:', err);
+                        }
+                    };
+                }
+
+                const data = {
+                    domain: domain,
+                    token: apiToken,
+                    courses: courses
+                };
+
+                let response;
+                try {
+                    window.progressAPI.onUpdateProgress((progress) => {
+                        const done = Math.min(Math.round(progress / 100 * total), total);
+                        progressInfo.innerHTML = `Resetting courses.... ${done}/${total}`;
+                        progressBar.style.width = `${progress}%`;
+                    });
+
+                    response = await window.axios.resetCourses(data);
+                    progressDiv.hidden = true;
+                    renderResetResults(response, cancelRequested);
+                } catch (error) {
+                    errorHandler(error, progressInfo);
+                } finally {
+                    uploadBtn.disabled = false;
+                    if (cancelBtn) {
+                        cancelBtn.hidden = true;
+                        cancelBtn.disabled = true;
+                        cancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
+                    }
+                }
+            }, { once: true });
+        })
+
+        resetBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+
+            resetBtn.disabled = true;
+            progressDiv.hidden = false;
             resultsCard.hidden = true;
             resultsBody.innerHTML = '';
+            progressInfo.innerHTML = 'Resetting courses....';
 
-            // Setup progress UI
-            progressDiv.hidden = false;
-            progressBar.parentElement.hidden = false;
-            progressBar.style.width = '0%';
-            progressInfo.innerHTML = `Resetting courses.... 0/${total}`;
-
-            const cancelBtn = progressDiv.querySelector('#reset-courses-cancel-btn');
-            let cancelRequested = false;
-            if (cancelBtn) {
-                cancelBtn.hidden = false;
-                cancelBtn.disabled = false;
-                cancelBtn.onclick = async () => {
-                    cancelRequested = true;
-                    cancelBtn.disabled = true;
-                    cancelBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Cancelling...';
-                    progressInfo.innerHTML = 'Cancelling... letting in-flight requests finish.';
-                    try {
-                        await window.axios.cancelResetCourses();
-                    } catch (err) {
-                        console.error('Error cancelling reset courses:', err);
-                    }
-                };
-            }
+            const domain = document.querySelector('#domain').value.trim();
+            const apiToken = document.querySelector('#token').value.trim();
+            const courses = resetCourseForm.querySelector('#reset-courses-area').value.split(/[\n,]/).map(course => course.trim());
 
             const data = {
                 domain: domain,
                 token: apiToken,
                 courses: courses
-            };
+            }
+
+            const total = courses.length;
+            progressInfo.innerHTML = `Resetting courses.... 0/${total}`;
 
             let response;
             try {
@@ -922,61 +1004,14 @@ async function resetCourses(e) {
 
                 response = await window.axios.resetCourses(data);
                 progressDiv.hidden = true;
-                renderResetResults(response, cancelRequested);
+                renderResetResults(response, false);
             } catch (error) {
                 errorHandler(error, progressInfo);
             } finally {
-                uploadBtn.disabled = false;
-                if (cancelBtn) {
-                    cancelBtn.hidden = true;
-                    cancelBtn.disabled = true;
-                    cancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
-                }
+                resetBtn.disabled = false;
             }
-        }, { once: true });
-    })
-
-    resetBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-
-        resetBtn.disabled = true;
-        progressDiv.hidden = false;
-        resultsCard.hidden = true;
-        resultsBody.innerHTML = '';
-        progressInfo.innerHTML = 'Resetting courses....';
-
-        const domain = document.querySelector('#domain').value.trim();
-        const apiToken = document.querySelector('#token').value.trim();
-        const courses = resetCourseForm.querySelector('#reset-courses-area').value.split(/[\n,]/).map(course => course.trim());
-
-        const data = {
-            domain: domain,
-            token: apiToken,
-            courses: courses
-        }
-
-        const total = courses.length;
-        progressInfo.innerHTML = `Resetting courses.... 0/${total}`;
-
-        let response;
-        try {
-            window.progressAPI.onUpdateProgress((progress) => {
-                const done = Math.min(Math.round(progress / 100 * total), total);
-                progressInfo.innerHTML = `Resetting courses.... ${done}/${total}`;
-                progressBar.style.width = `${progress}%`;
-            });
-
-            response = await window.axios.resetCourses(data);
-            progressDiv.hidden = true;
-            renderResetResults(response, false);
-        } catch (error) {
-            errorHandler(error, progressInfo);
-        } finally {
-            resetBtn.disabled = false;
-        }
-    })
+        })
+    } // end resetFormJustCreated
 
     // adding response container
     // const eResponse = document.createElement('div');
@@ -1419,6 +1454,9 @@ async function createSupportCourse(e) {
         eContent.append(createSupportCourseForm);
     }
     createSupportCourseForm.hidden = false;
+
+    if (createSupportCourseForm.dataset.bound === 'true') return;
+    createSupportCourseForm.dataset.bound = 'true';
 
     // Helpers
     function isPositiveInt(val) {
@@ -2382,6 +2420,9 @@ async function createAssociatedCourses(e) {
         eContent.append(createAssociatedCoursesForm);
     }
     createAssociatedCoursesForm.hidden = false;
+
+    if (createAssociatedCoursesForm.dataset.bound === 'true') return;
+    createAssociatedCoursesForm.dataset.bound = 'true';
 
 
     const associateBtn = createAssociatedCoursesForm.querySelector('#associateBtn');

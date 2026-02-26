@@ -500,6 +500,9 @@ async function deleteAllClassicQuizzes(e) {
     }
     deleteQuizForm.hidden = false;
 
+    if (deleteQuizForm.dataset.bound === 'true') return;
+    deleteQuizForm.dataset.bound = 'true';
+
     const checkQuizBtn = deleteQuizForm.querySelector('#check-quiz-btn');
     // check the see if the course ID is valid
     const courseIDInput = deleteQuizForm.querySelector('#course-id');
@@ -701,6 +704,9 @@ async function addQuestionsNQ(e) {
         eContent.append(addQuestionsNQForm);
     }
     addQuestionsNQForm.hidden = false;
+
+    if (addQuestionsNQForm.dataset.bound === 'true') return;
+    addQuestionsNQForm.dataset.bound = 'true';
 
     function checkCourseID(courseIDField, container) {
         const trimmedValue = courseIDField.value.trim();
@@ -1439,6 +1445,9 @@ async function getRespondusQuizzes(e) {
         eContent.append(respondusQuizForm);
     }
     respondusQuizForm.hidden = false;
+
+    if (respondusQuizForm.dataset.bound === 'true') return;
+    respondusQuizForm.dataset.bound = 'true';
 
     const courseIDInput = respondusQuizForm.querySelector('#respondus-course-id');
     const getQuizzesBtn = respondusQuizForm.querySelector('#get-respondus-btn');

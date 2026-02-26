@@ -90,6 +90,9 @@ async function deleteModules(e) {
     }
     createModuleDeleteForm.hidden = false;
 
+    if (createModuleDeleteForm.dataset.bound === 'true') return;
+    createModuleDeleteForm.dataset.bound = 'true';
+
     const courseID = createModuleDeleteForm.querySelector('#course-id');
     const checkModulesBtn = createModuleDeleteForm.querySelector('#check-modules-btn');
 
@@ -189,7 +192,7 @@ async function deleteModules(e) {
                 removeBtn.disabled = false;
                 cancelBtn.disabled = false;
             }
-            
+
             removeBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -317,6 +320,9 @@ async function createModules(e) {
         eContent.append(createModuleForm);
     }
     createModuleForm.hidden = false;
+
+    if (createModuleForm.dataset.bound === 'true') return;
+    createModuleForm.dataset.bound = 'true';
 
     // disable the button until the course id and how many modules are entered
     const courseID = createModuleForm.querySelector('#course-id');
@@ -469,6 +475,9 @@ async function reLockModules(e) {
         eContent.append(reLockModulesForm);
     }
     reLockModulesForm.hidden = false;
+
+    if (reLockModulesForm.dataset.bound === 'true') return;
+    reLockModulesForm.dataset.bound = 'true';
 
     const courseID = reLockModulesForm.querySelector('#course-id');
     const relockAllCheckbox = reLockModulesForm.querySelector('#relock-all-modules');

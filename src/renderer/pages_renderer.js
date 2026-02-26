@@ -143,6 +143,9 @@ function pagesTemplate(e) {
   }
   form.hidden = false;
 
+  if (form.dataset.bound === 'true') return;
+  form.dataset.bound = 'true';
+
   const createBtn = form.querySelector('#create-btn');
   const progressCard = form.querySelector('#progress-card');
   const progressBar = form.querySelector('#progress-bar');
@@ -503,6 +506,9 @@ function deletePagesTemplate(e) {
   }
 
   form.hidden = false;
+
+  if (form.dataset.bound === 'true') return;
+  form.dataset.bound = 'true';
 
   // Elements
   const courseIdInput = form.querySelector('#course-id');
