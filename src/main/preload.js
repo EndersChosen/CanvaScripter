@@ -224,6 +224,23 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('preload.js > cancelBulkEnroll');
         return await ipcRenderer.invoke('axios:cancelBulkEnroll');
     },
+    manualEnroll: async (data) => {
+        console.log('preload.js > manualEnroll');
+        return await ipcRenderer.invoke('axios:manualEnroll', data);
+    },
+    onManualEnrollProgress: (callback) => {
+        const handler = (_event, payload) => callback(payload);
+        ipcRenderer.on('progress:manualEnrollment', handler);
+        return () => ipcRenderer.removeListener('progress:manualEnrollment', handler);
+    },
+    getCourseSections: async (data) => {
+        console.log('preload.js > getCourseSections');
+        return await ipcRenderer.invoke('enrollment:getCourseSections', data);
+    },
+    getCourseRoles: async (data) => {
+        console.log('preload.js > getCourseRoles');
+        return await ipcRenderer.invoke('enrollment:getCourseRoles', data);
+    },
     deleteTheThings: async (data) => {
         console.log('preload.js > deleteTheThings');
 

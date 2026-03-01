@@ -2,185 +2,218 @@
 
 function enrollmentTemplate(e) {
     switch (e.target.id) {
-        case 'bulk-enrollment':
-            bulkEnrollmentUI(e);
+        case 'add-enrollments':
+            addEnrollmentsUI(e);
             break;
         default:
             break;
     }
 }
 
-function bulkEnrollmentUI(e) {
+function addEnrollmentsUI(e) {
     hideEndpoints(e);
 
     const eContent = document.querySelector('#endpoint-content');
-    let form = eContent.querySelector('#bulk-enrollment-form');
+    let wrapper = eContent.querySelector('#add-enrollments-wrapper');
 
-    if (!form) {
-        form = document.createElement('form');
-        form.id = 'bulk-enrollment-form';
-        form.innerHTML = `
+    if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.id = 'add-enrollments-wrapper';
+        wrapper.innerHTML = `
             <style>
-                #bulk-enrollment-form .card { font-size: 0.875rem; }
-                #bulk-enrollment-form .card-header h3 { font-size: 1.1rem; margin-bottom: 0.25rem; }
-                #bulk-enrollment-form .card-header small { font-size: 0.75rem; }
-                #bulk-enrollment-form .card-body { padding: 0.75rem; }
-                #bulk-enrollment-form .form-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
-                #bulk-enrollment-form .form-control, #bulk-enrollment-form .form-select { 
-                    font-size: 0.8rem; 
-                    padding: 0.25rem 0.5rem;
-                    height: auto;
+                #add-enrollments-wrapper .mode-toggle {
+                    display: flex; gap: 0.5rem; margin-bottom: 0.75rem;
                 }
-                #bulk-enrollment-form .btn { 
-                    font-size: 0.8rem; 
-                    padding: 0.35rem 0.75rem;
+                #add-enrollments-wrapper .mode-toggle .btn { font-size: 0.85rem; padding: 0.35rem 1rem; }
+                #add-enrollments-wrapper .mode-toggle .btn.active {
+                    font-weight: 600;
                 }
-                #bulk-enrollment-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
-                #bulk-enrollment-form .form-check-label { font-size: 0.8rem; }
-                #bulk-enrollment-form .form-check-input { font-size: 0.8rem; }
-                #bulk-enrollment-form .mt-2 { margin-top: 0.5rem !important; }
-                #bulk-enrollment-form .mt-3 { margin-top: 0.75rem !important; }
-                #bulk-enrollment-form .mb-2 { margin-bottom: 0.5rem !important; }
-                #bulk-enrollment-form .mb-3 { margin-bottom: 0.75rem !important; }
-                #bulk-enrollment-form .mb-4 { margin-bottom: 1rem !important; }
-                #bulk-enrollment-form .progress { height: 12px !important; }
-                #bulk-enrollment-form h5 { font-size: 1rem; }
-                #bulk-enrollment-form h6 { font-size: 0.9rem; }
-                #bulk-enrollment-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
-                #bulk-enrollment-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
-                #bulk-enrollment-form .badge { font-size: 0.75rem; }
-                #bulk-enrollment-form hr { margin: 0.5rem 0; }
-                #bulk-enrollment-form .row { margin-bottom: 0.75rem; }
-                #bulk-enrollment-form .g-3 { gap: 0.5rem !important; }
             </style>
-            <div class="card">
+            <div class="card mb-2">
                 <div class="card-header bg-secondary-subtle">
-                    <h3 class="card-title mb-0 text-dark">
-                        <i class="bi bi-person-plus me-1"></i>Bulk Enrollment
+                    <h3 class="card-title mb-0 text-dark" style="font-size: 1.1rem;">
+                        <i class="bi bi-person-plus me-1"></i>Add Enrollments
                     </h3>
-                    <small class="text-muted">Enroll multiple users using CSV or TXT file</small>
+                    <small class="text-muted">Create or enroll users in a Canvas course</small>
                 </div>
-                <div class="card-body">
-                    <div class="row g-3 mb-2">
-                        <div class="col-12">
-                            <label class="form-label fw-bold" for="enrollment-file">
-                                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Enrollment File
-                            </label>
-                            <input type="file" class="form-control form-control-sm" id="enrollment-file" 
-                                   accept=".csv,.txt" />
-                            <div id="file-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
-                                <i class="bi bi-exclamation-triangle me-1"></i>Please select a CSV or TXT file.
-                            </div>
-                            <div class="form-text text-muted">
-                                <i class="bi bi-info-circle me-1"></i>CSV or TXT file with enrollment data. File must contain course_id or section_id for each enrollment.
-                            </div>
-                        </div>
+                <div class="card-body" style="padding: 0.75rem;">
+                    <div class="mode-toggle">
+                        <button type="button" class="btn btn-sm btn-outline-primary active" id="mode-from-file">From File</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="mode-manual">Manual</button>
                     </div>
-
-                    <div class="row g-3 mb-2">
-                        <div class="col-12">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-sliders me-1"></i>Enrollment State
-                            </label>
-                            <div class="d-flex gap-3 flex-wrap">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="enrollment-state" 
-                                           id="state-active" value="active" checked>
-                                    <label class="form-check-label" for="state-active">
-                                        Active
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="enrollment-state" 
-                                           id="state-inactive" value="inactive">
-                                    <label class="form-check-label" for="state-inactive">
-                                        Inactive
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="enrollment-state" 
-                                           id="state-delete" value="delete">
-                                    <label class="form-check-label" for="state-delete">
-                                        Delete
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="enrollment-state" 
-                                           id="state-conclude" value="conclude">
-                                    <label class="form-check-label" for="state-conclude">
-                                        Conclude
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="enrollment-state" 
-                                           id="state-deactivate" value="deactivate">
-                                    <label class="form-check-label" for="state-deactivate">
-                                        Deactivate
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="form-text text-muted">
-                                <i class="bi bi-info-circle me-1"></i>Delete, Conclude, and Deactivate require <strong>course_id</strong> and <strong>enrollment_id</strong> in your file and cannot use section_id.
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="file-preview" class="alert alert-info mt-2" style="display: none;">
-                        <h6 class="mb-2"><i class="bi bi-file-check me-1"></i>File Preview</h6>
-                        <p id="preview-text" class="mb-0"></p>
-                    </div>
-                    
-                    <div class="row mb-2">
-                        <div class="col-md-6">
-                            <div class="d-grid">
-                                <button type="button" class="btn btn-sm btn-success" id="enroll-btn" disabled>
-                                    <i class="bi bi-person-plus-fill me-2"></i>Process Enrollments
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="enroll-error" class="alert alert-danger mt-1" hidden>
-                        <i class="bi bi-exclamation-triangle me-2"></i><span id="enroll-error-text"></span>
-                    </div>
+                    <div id="enrollment-mode-content"></div>
                 </div>
-            </div>
-
-            <!-- Progress Card -->
-            <div class="card mt-2" id="enrollment-progress-card" hidden>
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-gear me-2"></i>Processing Enrollments
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <p id="enrollment-progress-info" class="mb-2"></p>
-                    <div class="progress mb-2" style="height: 12px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                             id="enrollment-progress-bar" style="width:0%" role="progressbar" 
-                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                        </div>
-                    </div>
-                    <small class="text-muted" id="enrollment-progress-detail"></small>
-                    <div class="mt-2">
-                        <button type="button" class="btn btn-sm btn-outline-danger" id="enrollment-cancel-btn" hidden>
-                            <i class="bi bi-x-circle me-1"></i>Cancel Processing
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Results Card -->
-            <div class="card mt-2" id="enrollment-results-card" hidden>
-                <div class="card-body" id="enrollment-response"></div>
             </div>
         `;
-        eContent.appendChild(form);
+        eContent.appendChild(wrapper);
 
-        // Setup event listeners
-        setupEnrollmentFormListeners();
+        // Wire up toggle buttons
+        const fromFileBtn = wrapper.querySelector('#mode-from-file');
+        const manualBtn = wrapper.querySelector('#mode-manual');
+        const modeContent = wrapper.querySelector('#enrollment-mode-content');
+
+        const showMode = (mode) => {
+            fromFileBtn.classList.toggle('active', mode === 'file');
+            manualBtn.classList.toggle('active', mode === 'manual');
+            // Hide everything first
+            Array.from(modeContent.children).forEach(c => c.hidden = true);
+
+            if (mode === 'file') {
+                renderFromFileSection(modeContent);
+            } else {
+                renderManualSection(modeContent);
+            }
+        };
+
+        fromFileBtn.addEventListener('click', () => showMode('file'));
+        manualBtn.addEventListener('click', () => showMode('manual'));
+
+        // Default to From File
+        showMode('file');
     }
 
-    form.hidden = false;
+    wrapper.hidden = false;
+}
+
+// ==================== From File Section ====================
+
+function renderFromFileSection(container) {
+    let form = container.querySelector('#bulk-enrollment-form');
+    if (form) {
+        form.hidden = false;
+        return;
+    }
+
+    form = document.createElement('form');
+    form.id = 'bulk-enrollment-form';
+    form.innerHTML = `
+        <style>
+            #bulk-enrollment-form .form-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+            #bulk-enrollment-form .form-control, #bulk-enrollment-form .form-select { 
+                font-size: 0.8rem; padding: 0.25rem 0.5rem; height: auto;
+            }
+            #bulk-enrollment-form .btn { font-size: 0.8rem; padding: 0.35rem 0.75rem; }
+            #bulk-enrollment-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+            #bulk-enrollment-form .form-check-label { font-size: 0.8rem; }
+            #bulk-enrollment-form .form-check-input { font-size: 0.8rem; }
+            #bulk-enrollment-form .mt-2 { margin-top: 0.5rem !important; }
+            #bulk-enrollment-form .mt-3 { margin-top: 0.75rem !important; }
+            #bulk-enrollment-form .mb-2 { margin-bottom: 0.5rem !important; }
+            #bulk-enrollment-form .mb-3 { margin-bottom: 0.75rem !important; }
+            #bulk-enrollment-form .mb-4 { margin-bottom: 1rem !important; }
+            #bulk-enrollment-form .progress { height: 12px !important; }
+            #bulk-enrollment-form h5 { font-size: 1rem; }
+            #bulk-enrollment-form h6 { font-size: 0.9rem; }
+            #bulk-enrollment-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
+            #bulk-enrollment-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+            #bulk-enrollment-form .badge { font-size: 0.75rem; }
+            #bulk-enrollment-form hr { margin: 0.5rem 0; }
+            #bulk-enrollment-form .row { margin-bottom: 0.75rem; }
+            #bulk-enrollment-form .g-3 { gap: 0.5rem !important; }
+        </style>
+        <div class="row g-3 mb-2">
+            <div class="col-12">
+                <label class="form-label fw-bold" for="enrollment-file">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Enrollment File
+                </label>
+                <input type="file" class="form-control form-control-sm" id="enrollment-file" 
+                       accept=".csv,.txt" />
+                <div id="file-help" class="form-text text-danger" style="min-height: 1.25rem; visibility: hidden;">
+                    <i class="bi bi-exclamation-triangle me-1"></i>Please select a CSV or TXT file.
+                </div>
+                <div class="form-text text-muted">
+                    <i class="bi bi-info-circle me-1"></i>CSV or TXT file with enrollment data. File must contain course_id or section_id for each enrollment.
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-2">
+            <div class="col-12">
+                <label class="form-label fw-bold">
+                    <i class="bi bi-sliders me-1"></i>Enrollment State
+                </label>
+                <div class="d-flex gap-3 flex-wrap">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="enrollment-state" 
+                               id="state-active" value="active" checked>
+                        <label class="form-check-label" for="state-active">Active</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="enrollment-state" 
+                               id="state-inactive" value="inactive">
+                        <label class="form-check-label" for="state-inactive">Inactive</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="enrollment-state" 
+                               id="state-delete" value="delete">
+                        <label class="form-check-label" for="state-delete">Delete</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="enrollment-state" 
+                               id="state-conclude" value="conclude">
+                        <label class="form-check-label" for="state-conclude">Conclude</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="enrollment-state" 
+                               id="state-deactivate" value="deactivate">
+                        <label class="form-check-label" for="state-deactivate">Deactivate</label>
+                    </div>
+                </div>
+                <div class="form-text text-muted">
+                    <i class="bi bi-info-circle me-1"></i>Delete, Conclude, and Deactivate require <strong>course_id</strong> and <strong>enrollment_id</strong> in your file and cannot use section_id.
+                </div>
+            </div>
+        </div>
+
+        <div id="file-preview" class="alert alert-info mt-2" style="display: none;">
+            <h6 class="mb-2"><i class="bi bi-file-check me-1"></i>File Preview</h6>
+            <p id="preview-text" class="mb-0"></p>
+        </div>
+        
+        <div class="row mb-2">
+            <div class="col-md-6">
+                <div class="d-grid">
+                    <button type="button" class="btn btn-sm btn-success" id="enroll-btn" disabled>
+                        <i class="bi bi-person-plus-fill me-2"></i>Process Enrollments
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div id="enroll-error" class="alert alert-danger mt-1" hidden>
+            <i class="bi bi-exclamation-triangle me-2"></i><span id="enroll-error-text"></span>
+        </div>
+
+        <!-- Progress Card -->
+        <div class="card mt-2" id="enrollment-progress-card" hidden>
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-gear me-2"></i>Processing Enrollments
+                </h5>
+            </div>
+            <div class="card-body">
+                <p id="enrollment-progress-info" class="mb-2"></p>
+                <div class="progress mb-2" style="height: 12px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         id="enrollment-progress-bar" style="width:0%" role="progressbar" 
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+                <small class="text-muted" id="enrollment-progress-detail"></small>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-danger" id="enrollment-cancel-btn" hidden>
+                        <i class="bi bi-x-circle me-1"></i>Cancel Processing
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Card -->
+        <div class="card mt-2" id="enrollment-results-card" hidden>
+            <div class="card-body" id="enrollment-response"></div>
+        </div>
+    `;
+    container.appendChild(form);
+    setupEnrollmentFormListeners();
 }
 
 function setupEnrollmentFormListeners() {
@@ -653,6 +686,593 @@ function displayEnrollmentError(error) {
     </div>
   `;
     resultsCard.hidden = false;
+}
+
+// ==================== Manual Enrollment Section ====================
+
+function renderManualSection(container) {
+    let form = container.querySelector('#manual-enrollment-form');
+    if (form) {
+        form.hidden = false;
+        return;
+    }
+
+    form = document.createElement('form');
+    form.id = 'manual-enrollment-form';
+    form.innerHTML = `
+        <style>
+            #manual-enrollment-form .form-label { font-size: 0.8rem; margin-bottom: 0.25rem; }
+            #manual-enrollment-form .form-control, #manual-enrollment-form .form-select { 
+                font-size: 0.8rem; padding: 0.25rem 0.5rem; height: auto;
+            }
+            #manual-enrollment-form .btn { font-size: 0.8rem; padding: 0.35rem 0.75rem; }
+            #manual-enrollment-form .form-text { font-size: 0.7rem; margin-top: 0.15rem; }
+            #manual-enrollment-form .mt-2 { margin-top: 0.5rem !important; }
+            #manual-enrollment-form .mb-2 { margin-bottom: 0.5rem !important; }
+            #manual-enrollment-form .progress { height: 12px !important; }
+            #manual-enrollment-form h5 { font-size: 1rem; }
+            #manual-enrollment-form h6 { font-size: 0.9rem; }
+            #manual-enrollment-form p { margin-bottom: 0.5rem; font-size: 0.85rem; }
+            #manual-enrollment-form .alert { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+            #manual-enrollment-form .row { margin-bottom: 0.75rem; }
+            #manual-enrollment-form .g-3 { gap: 0.5rem !important; }
+            #manual-enrollment-form .form-check-label { font-size: 0.8rem; }
+            #manual-enrollment-form .form-check-input { font-size: 0.8rem; }
+            #manual-enrollment-form .spinner-border-sm { width: 0.9rem; height: 0.9rem; border-width: 0.15em; }
+        </style>
+
+        <!-- Course ID + Fetch Button -->
+        <div class="row g-3 mb-2">
+            <div class="col-md-6">
+                <label class="form-label fw-bold" for="manual-course-id">
+                    <i class="bi bi-journal-code me-1"></i>Course ID
+                </label>
+                <div class="input-group input-group-sm">
+                    <input type="text" class="form-control form-control-sm" id="manual-course-id" 
+                           placeholder="e.g., 12345" />
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="manual-fetch-btn" disabled>
+                        <i class="bi bi-arrow-clockwise me-1"></i>Load
+                    </button>
+                </div>
+                <div class="form-text text-muted">
+                    <i class="bi bi-info-circle me-1"></i>Enter a Course ID and click <strong>Load</strong> to fetch sections and roles.
+                </div>
+                <div id="manual-fetch-status" class="form-text" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Section Dropdown -->
+        <div class="row g-3 mb-2">
+            <div class="col-md-6">
+                <label class="form-label fw-bold" for="manual-section-select">
+                    <i class="bi bi-collection me-1"></i>Section
+                </label>
+                <select class="form-select form-select-sm" id="manual-section-select" disabled>
+                    <option value="">Default (no section override)</option>
+                </select>
+                <div class="form-text text-muted">
+                    <i class="bi bi-info-circle me-1"></i>Optionally enroll users into a specific section.
+                </div>
+            </div>
+        </div>
+
+        <!-- Email -->
+        <div class="row g-3 mb-2" id="manual-email-row">
+            <div class="col-md-6">
+                <label class="form-label fw-bold" for="manual-email">
+                    <i class="bi bi-envelope me-1"></i>Email
+                </label>
+                <input type="text" class="form-control form-control-sm" id="manual-email" 
+                       placeholder="e.g., yourname@instructure.com" />
+                <div class="form-text text-muted">
+                    <i class="bi bi-info-circle me-1"></i>Your Instructure email. Used to create emails for the new users.
+                </div>
+            </div>
+        </div>
+
+        <!-- New Users Toggle -->
+        <div class="row g-3 mb-2">
+            <div class="col-md-6">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="manual-new-users" checked>
+                    <label class="form-check-label fw-bold" for="manual-new-users">
+                        <i class="bi bi-person-plus me-1"></i>Create New Users
+                    </label>
+                </div>
+                <div class="form-text text-muted">
+                    <i class="bi bi-info-circle me-1"></i>Uncheck to enroll existing Canvas users by their user IDs.
+                </div>
+            </div>
+        </div>
+
+        <!-- New Users Mode: Students + Teachers count OR custom role + count -->
+        <div id="manual-new-users-section">
+            <div class="row g-3 mb-2">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold" for="manual-role-select">
+                        <i class="bi bi-person-badge me-1"></i>Role
+                    </label>
+                    <select class="form-select form-select-sm" id="manual-role-select">
+                        <option value="StudentEnrollment" data-base="StudentEnrollment" selected>Student</option>
+                        <option value="TeacherEnrollment" data-base="TeacherEnrollment">Teacher</option>
+                    </select>
+                    <div class="form-text text-muted">
+                        <i class="bi bi-info-circle me-1"></i>Select a role for the new users. Load course info to see all available roles.
+                    </div>
+                </div>
+            </div>
+            <div class="row g-3 mb-2">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold" for="manual-user-count">
+                        <i class="bi bi-people me-1"></i>Number of Users
+                    </label>
+                    <input type="text" class="form-control form-control-sm" id="manual-user-count" 
+                           placeholder="1" value="1" />
+                    <div id="manual-user-count-error" class="form-text" style="color: red;" hidden>Must be a positive number</div>
+                </div>
+            </div>
+            <div class="row g-3 mb-2">
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="manual-quick-add-btn"
+                                title="Quickly add 5 students + 1 teacher">
+                            <i class="bi bi-lightning me-1"></i>Quick Add (5S + 1T)
+                        </button>
+                        <span class="form-text text-muted mb-0">Creates 5 students and 1 teacher</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Existing Users Mode: User IDs + Role -->
+        <div id="manual-existing-users-section" hidden>
+            <div class="row g-3 mb-2">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold" for="manual-existing-role-select">
+                        <i class="bi bi-person-badge me-1"></i>Role
+                    </label>
+                    <select class="form-select form-select-sm" id="manual-existing-role-select">
+                        <option value="StudentEnrollment" data-base="StudentEnrollment" selected>Student</option>
+                        <option value="TeacherEnrollment" data-base="TeacherEnrollment">Teacher</option>
+                    </select>
+                    <div class="form-text text-muted">
+                        <i class="bi bi-info-circle me-1"></i>Select a role for the enrolled users.
+                    </div>
+                </div>
+            </div>
+            <div class="row g-3 mb-2">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold" for="manual-user-ids">
+                        <i class="bi bi-person-lines-fill me-1"></i>User IDs
+                    </label>
+                    <input type="text" class="form-control form-control-sm" id="manual-user-ids" 
+                           placeholder="e.g., 12345 or 12345, 67890" />
+                    <div id="manual-user-ids-error" class="form-text" style="color: red;" hidden>Must be a number or comma-separated numbers</div>
+                    <div class="form-text text-muted">
+                        <i class="bi bi-info-circle me-1"></i>Enter a single Canvas user ID or comma-separated IDs.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="row mb-2">
+            <div class="col-md-6">
+                <div class="d-grid">
+                    <button type="button" class="btn btn-sm btn-success" id="manual-enroll-btn" disabled>
+                        <i class="bi bi-person-plus-fill me-2"></i>Create &amp; Enroll Users
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div id="manual-enroll-error" class="alert alert-danger mt-1" hidden>
+            <i class="bi bi-exclamation-triangle me-2"></i><span id="manual-enroll-error-text"></span>
+        </div>
+
+        <!-- Progress Card -->
+        <div class="card mt-2" id="manual-enrollment-progress-card" hidden>
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-gear me-2"></i>Processing Manual Enrollment
+                </h5>
+            </div>
+            <div class="card-body">
+                <p id="manual-enrollment-progress-info" class="mb-2"></p>
+                <div class="progress mb-2" style="height: 12px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         id="manual-enrollment-progress-bar" style="width:0%" role="progressbar" 
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+                <small class="text-muted" id="manual-enrollment-progress-detail"></small>
+            </div>
+        </div>
+
+        <!-- Results Card -->
+        <div class="card mt-2" id="manual-enrollment-results-card" hidden>
+            <div class="card-body" id="manual-enrollment-response"></div>
+        </div>
+    `;
+    container.appendChild(form);
+    setupManualEnrollmentListeners();
+}
+
+function setupManualEnrollmentListeners() {
+    const courseIdInput = document.getElementById('manual-course-id');
+    const fetchBtn = document.getElementById('manual-fetch-btn');
+    const fetchStatus = document.getElementById('manual-fetch-status');
+    const sectionSelect = document.getElementById('manual-section-select');
+    const emailInput = document.getElementById('manual-email');
+    const emailRow = document.getElementById('manual-email-row');
+    const newUsersCheckbox = document.getElementById('manual-new-users');
+    const newUsersSection = document.getElementById('manual-new-users-section');
+    const existingUsersSection = document.getElementById('manual-existing-users-section');
+    const roleSelect = document.getElementById('manual-role-select');
+    const existingRoleSelect = document.getElementById('manual-existing-role-select');
+    const userCountInput = document.getElementById('manual-user-count');
+    const userCountError = document.getElementById('manual-user-count-error');
+    const userIdsInput = document.getElementById('manual-user-ids');
+    const userIdsError = document.getElementById('manual-user-ids-error');
+    const enrollBtn = document.getElementById('manual-enroll-btn');
+    const quickAddBtn = document.getElementById('manual-quick-add-btn');
+
+    let loadedCourseId = null;
+    let loadedRoles = []; // { id, name, base_role_type }
+
+    // ---- Helpers ----
+    const isPositiveInt = (val) => {
+        const v = String(val).trim();
+        if (v.length === 0) return false;
+        const n = Number(v);
+        return Number.isInteger(n) && n > 0;
+    };
+
+    const isValidUserIds = (val) => {
+        return /^[0-9]+(\s*,\s*[0-9]+)*$/.test(val.trim());
+    };
+
+    // ---- Validate form ----
+    const validate = () => {
+        const courseId = courseIdInput.value.trim();
+        const isNew = newUsersCheckbox.checked;
+        let valid = true;
+
+        if (!courseId || isNaN(Number(courseId))) valid = false;
+
+        if (isNew) {
+            const email = emailInput.value.trim();
+            if (!email) valid = false;
+
+            const count = userCountInput.value.trim();
+            if (!isPositiveInt(count)) {
+                userCountError.hidden = false;
+                valid = false;
+            } else {
+                userCountError.hidden = true;
+            }
+        } else {
+            const ids = userIdsInput.value.trim();
+            if (!ids || !isValidUserIds(ids)) {
+                if (ids) userIdsError.hidden = false;
+                valid = false;
+            } else {
+                userIdsError.hidden = true;
+            }
+        }
+
+        enrollBtn.disabled = !valid;
+    };
+
+    // ---- Enable Fetch button when course ID is entered ----
+    courseIdInput.addEventListener('input', () => {
+        const v = courseIdInput.value.trim();
+        fetchBtn.disabled = !v || isNaN(Number(v));
+        validate();
+    });
+
+    // ---- Fetch sections & roles ----
+    fetchBtn.addEventListener('click', async () => {
+        const domain = document.getElementById('domain').value.trim();
+        const token = document.getElementById('token').value.trim();
+        const courseId = courseIdInput.value.trim();
+
+        if (!domain || !token) {
+            fetchStatus.style.display = 'block';
+            fetchStatus.className = 'form-text text-danger';
+            fetchStatus.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Please enter Canvas domain and API token in Settings.';
+            return;
+        }
+
+        fetchBtn.disabled = true;
+        fetchStatus.style.display = 'block';
+        fetchStatus.className = 'form-text text-info';
+        fetchStatus.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Loading sections & roles...';
+
+        try {
+            const [sections, roles] = await Promise.all([
+                window.axios.getCourseSections({ domain, token, courseId }),
+                window.axios.getCourseRoles({ domain, token, courseId })
+            ]);
+
+            // Populate sections dropdown
+            sectionSelect.innerHTML = '<option value="">Default (no section override)</option>';
+            if (sections && sections.length > 0) {
+                sections.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = s.name;
+                    sectionSelect.appendChild(opt);
+                });
+                sectionSelect.disabled = false;
+            }
+
+            // Populate both role dropdowns
+            loadedRoles = roles || [];
+            const populateRoleDropdown = (selectEl) => {
+                selectEl.innerHTML = '';
+                if (loadedRoles.length > 0) {
+                    loadedRoles.forEach(role => {
+                        const opt = document.createElement('option');
+                        opt.value = role.base_role_type;
+                        opt.dataset.roleId = role.id;
+                        opt.dataset.base = role.base_role_type;
+                        opt.textContent = role.name;
+                        selectEl.appendChild(opt);
+                    });
+                } else {
+                    // Fallback defaults
+                    selectEl.innerHTML = `
+                        <option value="StudentEnrollment" data-base="StudentEnrollment">Student</option>
+                        <option value="TeacherEnrollment" data-base="TeacherEnrollment">Teacher</option>
+                    `;
+                }
+            };
+
+            populateRoleDropdown(roleSelect);
+            populateRoleDropdown(existingRoleSelect);
+
+            loadedCourseId = courseId;
+            fetchStatus.className = 'form-text text-success';
+            fetchStatus.innerHTML = `<i class="bi bi-check-circle me-1"></i>Loaded ${sections.length} section(s) and ${loadedRoles.length} role(s).`;
+        } catch (error) {
+            fetchStatus.className = 'form-text text-danger';
+            fetchStatus.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>${error.message || error || 'Failed to load course info.'}`;
+        } finally {
+            fetchBtn.disabled = false;
+        }
+    });
+
+    // ---- New Users toggle ----
+    newUsersCheckbox.addEventListener('change', () => {
+        const isNew = newUsersCheckbox.checked;
+        newUsersSection.hidden = !isNew;
+        existingUsersSection.hidden = isNew;
+        emailRow.hidden = !isNew;
+        enrollBtn.innerHTML = isNew
+            ? '<i class="bi bi-person-plus-fill me-2"></i>Create &amp; Enroll Users'
+            : '<i class="bi bi-person-plus-fill me-2"></i>Enroll Users';
+        validate();
+    });
+
+    // ---- Input listeners for validation ----
+    [emailInput, userCountInput, userIdsInput].forEach(el => {
+        el.addEventListener('input', validate);
+    });
+
+    // ---- Quick Add button (5 students + 1 teacher) ----
+    quickAddBtn.addEventListener('click', async () => {
+        const domain = document.getElementById('domain').value.trim();
+        const token = document.getElementById('token').value.trim();
+        const courseId = courseIdInput.value.trim();
+        const email = emailInput.value.trim();
+
+        if (!domain || !token) {
+            showManualError('Please enter Canvas domain and API token in Settings.');
+            return;
+        }
+        if (!courseId) {
+            showManualError('Please enter a Course ID.');
+            return;
+        }
+        if (!email) {
+            showManualError('Please enter your email.');
+            return;
+        }
+
+        const emailMatch = email.match(/^[^@]+/);
+        const emailPrefix = emailMatch ? emailMatch[0] : email;
+        const sectionId = sectionSelect.value || null;
+
+        // Get role_id for Student and Teacher if roles are loaded
+        let studentRoleId = null;
+        let teacherRoleId = null;
+        if (loadedRoles.length > 0) {
+            const studentRole = loadedRoles.find(r => r.base_role_type === 'StudentEnrollment');
+            const teacherRole = loadedRoles.find(r => r.base_role_type === 'TeacherEnrollment');
+            if (studentRole) studentRoleId = studentRole.id;
+            if (teacherRole) teacherRoleId = teacherRole.id;
+        }
+
+        await executeManualEnroll({
+            domain, token, courseId, emailPrefix,
+            numStudents: 5,
+            numTeachers: 1,
+            sectionId,
+            roleId: null,          // use default Student/Teacher flow
+            roleType: null,
+            isNewUsers: true,
+            existingUserIds: null,
+            userCount: null
+        });
+    });
+
+    // ---- Main Enroll button ----
+    enrollBtn.addEventListener('click', async () => {
+        const domain = document.getElementById('domain').value.trim();
+        const token = document.getElementById('token').value.trim();
+        const courseId = courseIdInput.value.trim();
+        const sectionId = sectionSelect.value || null;
+        const isNew = newUsersCheckbox.checked;
+
+        if (!domain || !token) {
+            showManualError('Please enter Canvas domain and API token in Settings.');
+            return;
+        }
+
+        if (isNew) {
+            const email = emailInput.value.trim();
+            const emailMatch = email.match(/^[^@]+/);
+            const emailPrefix = emailMatch ? emailMatch[0] : email;
+            const count = parseInt(userCountInput.value.trim(), 10) || 0;
+            const selectedOption = roleSelect.options[roleSelect.selectedIndex];
+            const roleType = selectedOption.value;
+            const roleId = selectedOption.dataset.roleId || null;
+
+            await executeManualEnroll({
+                domain, token, courseId, emailPrefix,
+                numStudents: 0,
+                numTeachers: 0,
+                sectionId,
+                roleId,
+                roleType,
+                isNewUsers: true,
+                existingUserIds: null,
+                userCount: count
+            });
+        } else {
+            const idsText = userIdsInput.value.trim();
+            const userIds = idsText.split(',').map(id => parseInt(id.trim(), 10)).filter(n => !isNaN(n));
+            const selectedOption = existingRoleSelect.options[existingRoleSelect.selectedIndex];
+            const roleType = selectedOption.value;
+            const roleId = selectedOption.dataset.roleId || null;
+
+            await executeManualEnroll({
+                domain, token, courseId,
+                emailPrefix: null,
+                numStudents: 0, numTeachers: 0,
+                sectionId,
+                roleId,
+                roleType,
+                isNewUsers: false,
+                existingUserIds: userIds,
+                userCount: 0
+            });
+        }
+    });
+
+    // ---- Execute the manual enrollment ----
+    async function executeManualEnroll(params) {
+        document.getElementById('manual-enroll-error').hidden = true;
+
+        const progressCard = document.getElementById('manual-enrollment-progress-card');
+        const resultsCard = document.getElementById('manual-enrollment-results-card');
+        const progressBar = document.getElementById('manual-enrollment-progress-bar');
+        const progressInfo = document.getElementById('manual-enrollment-progress-info');
+        const progressDetail = document.getElementById('manual-enrollment-progress-detail');
+
+        progressCard.hidden = false;
+        resultsCard.hidden = true;
+        enrollBtn.disabled = true;
+        quickAddBtn.disabled = true;
+        progressBar.style.width = '0%';
+        progressInfo.textContent = 'Processing...';
+        progressDetail.textContent = 'Preparing...';
+
+        try {
+            const result = await window.axios.manualEnroll(params);
+
+            const responseDiv = document.getElementById('manual-enrollment-response');
+            let html = `
+                <h5 class="mb-3">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Manual Enrollment Results
+                </h5>
+            `;
+
+            if (result.usersCreated > 0) {
+                html += `
+                    <div class="alert alert-success">
+                        <strong>${result.usersCreated}</strong> user(s) created successfully.
+                    </div>
+                `;
+            }
+            if (result.usersEnrolled > 0) {
+                html += `
+                    <div class="alert alert-success">
+                        <strong>${result.usersEnrolled}</strong> user(s) enrolled successfully.
+                    </div>
+                `;
+            }
+            if (result.usersFailed > 0) {
+                html += `
+                    <div class="alert alert-danger">
+                        <strong>${result.usersFailed}</strong> user creation(s) failed.
+                    </div>
+                `;
+            }
+            if (result.enrollFailed > 0) {
+                html += `
+                    <div class="alert alert-danger">
+                        <strong>${result.enrollFailed}</strong> enrollment(s) failed.
+                    </div>
+                `;
+            }
+            if (result.errors && result.errors.length > 0) {
+                html += `<div class="mt-2"><h6>Error Details:</h6><ul>`;
+                result.errors.slice(0, 10).forEach(err => {
+                    html += `<li>${err}</li>`;
+                });
+                html += `</ul></div>`;
+                if (result.errors.length > 10) {
+                    html += `<p class="text-muted">...and ${result.errors.length - 10} more error(s).</p>`;
+                }
+            }
+
+            responseDiv.innerHTML = html;
+            resultsCard.hidden = false;
+
+        } catch (error) {
+            const responseDiv = document.getElementById('manual-enrollment-response');
+            responseDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <h6 class="mb-2"><i class="bi bi-exclamation-triangle me-1"></i>Error</h6>
+                    <p class="mb-0">${error.message || error || 'An unknown error occurred.'}</p>
+                </div>
+            `;
+            resultsCard.hidden = false;
+        } finally {
+            progressCard.hidden = true;
+            enrollBtn.disabled = false;
+            quickAddBtn.disabled = false;
+            validate();
+        }
+    }
+
+    function showManualError(msg) {
+        const errDiv = document.getElementById('manual-enroll-error');
+        document.getElementById('manual-enroll-error-text').textContent = msg;
+        errDiv.hidden = false;
+    }
+
+    // Initial validation
+    validate();
+}
+
+// Setup progress listener for manual enrollment
+if (window.axios && window.axios.onManualEnrollProgress) {
+    window.axios.onManualEnrollProgress((data) => {
+        const progressBar = document.getElementById('manual-enrollment-progress-bar');
+        const progressInfo = document.getElementById('manual-enrollment-progress-info');
+        const progressDetail = document.getElementById('manual-enrollment-progress-detail');
+
+        if (progressBar && progressInfo && progressDetail) {
+            const percentage = data?.percent || 0;
+            progressBar.style.width = `${percentage}%`;
+            progressBar.setAttribute('aria-valuenow', String(percentage));
+            progressInfo.textContent = data?.label || 'Processing...';
+            progressDetail.textContent = data?.detail || '';
+        }
+    });
 }
 
 // Setup progress listener for bulk enrollment

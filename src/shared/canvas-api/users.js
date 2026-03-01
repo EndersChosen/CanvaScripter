@@ -218,9 +218,23 @@ async function addUsers(data) {
     }
 }
 
-// enroll a user in a course
+// enroll a user in a course (or section)
 async function enrollUser(data) {
-    const url = `https://${data.domain}/api/v1/courses/${data.course_id}/enrollments`;
+    // If a section_id is provided, enroll via the sections endpoint; otherwise use courses
+    const url = data.section_id
+        ? `https://${data.domain}/api/v1/sections/${data.section_id}/enrollments`
+        : `https://${data.domain}/api/v1/courses/${data.course_id}/enrollments`;
+
+    const enrollmentPayload = {
+        user_id: data.user_id,
+        type: data.type,
+        enrollment_state: 'active'
+    };
+
+    // Support custom role_id (overrides base type with a custom Canvas role)
+    if (data.role_id) {
+        enrollmentPayload.role_id = data.role_id;
+    }
 
     const axiosConfig = {
         method: 'post',
@@ -229,11 +243,7 @@ async function enrollUser(data) {
             'Authorization': `Bearer ${data.token}`
         },
         data: {
-            enrollment: {
-                user_id: data.user_id,
-                type: data.type,
-                enrollment_state: 'active'
-            }
+            enrollment: enrollmentPayload
         }
     };
 

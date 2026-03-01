@@ -51,7 +51,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
                     const payload = {
                         domain: it.domain, token: it.token, course_id: it.course_id,
                         title: it.title, message: it.message, published: !!it.published,
-                        threaded: it.threaded, delayed_post_at: it.delayed_post_at
+                        threaded: it.threaded === 'true' || it.threaded === true ? 'threaded' : 'not_threaded', delayed_post_at: it.delayed_post_at
                     };
                     const resp = await discussions.createDiscussion(payload);
                     return resp;
