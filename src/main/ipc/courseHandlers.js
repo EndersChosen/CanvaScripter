@@ -1033,7 +1033,8 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
                     token: data.token,
                     course_id: data.course_id,
                     quiz_title: data.title,
-                    published: data.published
+                    published: data.published,
+                    instructions: data.instructions
                 };
                 requests.push({ id: i + 1, request: () => request(requestData) });
             }

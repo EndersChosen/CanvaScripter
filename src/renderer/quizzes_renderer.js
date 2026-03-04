@@ -949,11 +949,11 @@ async function createNewQuiz(e) {
                     
                     <div class="row g-3 mb-2">
                         <div class="col-md-6">
-                            <label class="form-label fw-bold" for="new-quiz-description">
-                                <i class="bi bi-text-paragraph me-1"></i>Description (optional)
+                            <label class="form-label fw-bold" for="new-quiz-instructions">
+                                <i class="bi bi-text-paragraph me-1"></i>Instructions (optional)
                             </label>
-                            <textarea id="new-quiz-description" class="form-control form-control-sm" rows="3" 
-                                      placeholder="Quiz description or instructions"></textarea>
+                            <textarea id="new-quiz-instructions" class="form-control form-control-sm" rows="3" 
+                                      placeholder="Quiz instructions for students"></textarea>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
@@ -1200,7 +1200,7 @@ async function createNewQuiz(e) {
             const courseId = courseInput.value.trim();
             const title = createNewQuizForm.querySelector('#new-quiz-title').value.trim();
             const count = parseInt(createNewQuizForm.querySelector('#new-quiz-count').value);
-            const description = createNewQuizForm.querySelector('#new-quiz-description').value.trim();
+            const instructions = createNewQuizForm.querySelector('#new-quiz-instructions').value.trim();
             const published = createNewQuizForm.querySelector('#new-quiz-published').checked;
             const shuffleAnswers = createNewQuizForm.querySelector('#new-quiz-shuffle').checked;
 
@@ -1259,7 +1259,8 @@ async function createNewQuiz(e) {
                     course_id: courseId,
                     title: title || 'New Quiz',
                     count: count,
-                    published: published
+                    published: published,
+                    instructions: instructions
                 });
 
                 if (createQuizzesResponse.successful && createQuizzesResponse.successful.length > 0) {

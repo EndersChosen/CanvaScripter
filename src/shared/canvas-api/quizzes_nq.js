@@ -17,7 +17,7 @@ async function createNewQuiz(data) {
                 published: data.published ?? true,
                 grading_type: data.grading_type ?? 'points',
                 points_possible: 10, // default total points for the quiz
-                // Additional quiz settings can be added here if needed
+                instructions: data.instructions || '',
             },
         },
     };
