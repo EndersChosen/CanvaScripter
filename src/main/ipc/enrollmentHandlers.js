@@ -7,6 +7,7 @@ const axios = require('axios');
 const { ipcMain } = require('electron');
 const { addUsers, enrollUser, createUsers } = require('../../shared/canvas-api/users');
 const { batchHandler } = require('../../shared/batchHandler');
+const { serializeErrorForIPC } = require('../../shared/errorUtils');
 
 // Track cancellation state per renderer
 const cancellationState = new Map();
@@ -269,7 +270,7 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             return allSections.map(s => ({ id: s.id, name: s.name }));
         } catch (error) {
             logDebug('[enrollment:getCourseSections] Error', { error: error.message });
-            throw error.response?.data?.message || error.message || 'Failed to fetch sections';
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -315,7 +316,7 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             return courseRoles;
         } catch (error) {
             logDebug('[enrollment:getCourseRoles] Error', { error: error.message });
-            throw error.response?.data?.message || error.message || 'Failed to fetch roles';
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -531,7 +532,7 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             logDebug('[axios:manualEnroll] Manual enrollment error', {
                 error: error.message || String(error)
             });
-            throw error.message || error;
+            throw serializeErrorForIPC(error);
         }
     });
 

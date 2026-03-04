@@ -13,6 +13,7 @@ const folders = require('../../shared/canvas-api/folders');
 const groupCategories = require('../../shared/canvas-api/group_categories');
 const grading_standards = require('../../shared/canvas-api/grading_standards');
 const { getPageViews, updateNotifications } = require('../../shared/canvas-api/users');
+const { serializeErrorForIPC } = require('../../shared/errorUtils');
 
 // State management for cancellation tracking
 const { operationCancelFlags } = require('./operationCancelStore');
@@ -212,7 +213,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
             };
         } catch (error) {
             console.error('Error getting announcements:', error);
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -316,7 +317,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
             return result;
         } catch (error) {
             console.error('Error in axios:getPagesGraphQL:', error);
-            throw error;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -416,7 +417,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
         try {
             return await imports.getImportedAssets(data);
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -428,7 +429,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
         try {
             return await imports.listContentMigrations(data);
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -619,7 +620,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
             return result;
         } catch (error) {
             console.error('Error deleting grading standards:', error);
-            throw error.message;
+            throw serializeErrorForIPC(error);
         } finally {
             // Clean up flag
             deleteCancelFlags.delete(senderId);
@@ -639,7 +640,7 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
             // Pass mainWindow reference for progress updates
             response = await getPageViews(data, mainWindow);
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
 
         // Handle different response types from the enhanced getPageViews function

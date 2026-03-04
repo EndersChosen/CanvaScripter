@@ -13,6 +13,7 @@ const quizzes_nq = require('../../shared/canvas-api/quizzes_nq');
 const modules = require('../../shared/canvas-api/modules');
 const { addUsers, enrollUser } = require('../../shared/canvas-api/users');
 const { batchHandler } = require('../../shared/batchHandler');
+const { serializeErrorForIPC } = require('../../shared/errorUtils');
 
 // ==================== Helper Functions ====================
 
@@ -496,7 +497,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
 
         } catch (error) {
             progressDone(mainWindow);
-            throw error.message || error;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -551,7 +552,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
             return migrationRequest;
         } catch (error) {
             progressDone(mainWindow);
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -564,7 +565,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
         try {
             return await getCourseInfo(data);
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -645,7 +646,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
 
         } catch (error) {
             progressDone(mainWindow);
-            throw error.message || error;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -702,7 +703,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
             const quizzes = await quizzes_classic.getClassicQuizzes(data);
             return quizzes;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -820,7 +821,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
 
             return batchResponse;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -879,7 +880,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
         try {
             return await quizzes_classic.updateClassicQuiz(data);
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -931,7 +932,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
         try {
             return await quizzes_classic.getRespondusQuizzes(data);
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -1040,7 +1041,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
             const batchResponse = await batchHandler(requests, getBatchConfig());
             return batchResponse;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -1091,7 +1092,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
             const batchResponse = await batchHandler(requests, getBatchConfig());
             return batchResponse;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -1107,7 +1108,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
             const courseModules = await modules.getModules(data);
             return courseModules;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -1121,7 +1122,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
             const courseModules = await modules.getModulesSimple(data);
             return courseModules;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -1210,7 +1211,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
             const batchResponse = await batchHandler(requests, getBatchConfig());
             return batchResponse;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 

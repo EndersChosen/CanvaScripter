@@ -33,18 +33,48 @@ function hideEndpoints(e) {
 function errorHandler(error, progressInfo, container = null) {
     console.error(error);
 
-    // Extract status code from error message
-    const statusCode = error.message.match(/(?<=status code )[0-9]+/);
-    const statusNum = statusCode ? parseInt(statusCode[0]) : null;
+    // Normalize error to ensure we always have a .message string
+    if (typeof error === 'string') {
+        error = new Error(error);
+    } else if (!error || typeof error.message !== 'string') {
+        error = new Error(String(error ?? 'Unknown error'));
+    }
+
+    // Try to parse structured IPC error JSON from the message
+    // Format: '...Error invoking remote method ...: {"__ipcError":true,"status":401,"code":"ERR_BAD_REQUEST","message":"...","apiMessage":"..."}'
+    let ipcMeta = null;
+    const jsonStart = error.message.indexOf('{"__ipcError":');
+    if (jsonStart !== -1) {
+        try {
+            ipcMeta = JSON.parse(error.message.slice(jsonStart));
+            if (!ipcMeta || !ipcMeta.__ipcError) ipcMeta = null;
+        } catch { ipcMeta = null; }
+    }
+
+    // Extract status code — prefer structured IPC data, fall back to regex parsing
+    const statusNum = ipcMeta?.status || (() => {
+        const m = error.message.match(/(?<=status code )\d+/);
+        return m ? parseInt(m[0]) : null;
+    })();
+    const errorCode = ipcMeta?.code || null;
+    const apiMessage = ipcMeta?.apiMessage || null;
+    const rawMessage = ipcMeta?.message || error.message;
+
+    // Detect token errors from apiMessage or raw message
+    const isInvalidToken = !statusNum && (
+        (apiMessage || rawMessage).toLowerCase().includes('invalid access token') ||
+        (apiMessage || rawMessage).toLowerCase().includes('expired access token') ||
+        (apiMessage || rawMessage).toLowerCase().includes('invalid api key')
+    );
 
     // Detect network errors
-    const isNetworkError = !statusNum && (
-        error.message.includes('ENOTFOUND') ||
-        error.message.includes('ECONNREFUSED') ||
-        error.message.includes('ECONNRESET') ||
-        error.message.includes('ETIMEDOUT') ||
-        error.message.includes('network error') ||
-        error.message.includes('getaddrinfo')
+    const isNetworkError = !statusNum && !isInvalidToken && (
+        rawMessage.includes('ENOTFOUND') ||
+        rawMessage.includes('ECONNREFUSED') ||
+        rawMessage.includes('ECONNRESET') ||
+        rawMessage.includes('ETIMEDOUT') ||
+        rawMessage.includes('network error') ||
+        rawMessage.includes('getaddrinfo')
     );
 
     let errorTitle = 'Request Failed';
@@ -52,17 +82,24 @@ function errorHandler(error, progressInfo, container = null) {
 
     if (isNetworkError) {
         errorTitle = 'Network Connection Error';
-        if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
+        if (rawMessage.includes('ENOTFOUND') || rawMessage.includes('getaddrinfo')) {
             errorInfo = 'Cannot reach the server. Check your Canvas domain - make sure it\'s spelled correctly and doesn\'t include "https://" (e.g., use "myschool.instructure.com" not "https://myschool.instructure.com").';
-        } else if (error.message.includes('ECONNREFUSED')) {
+        } else if (rawMessage.includes('ECONNREFUSED')) {
             errorInfo = 'Connection refused by server. The Canvas domain may be incorrect or the server may be down.';
-        } else if (error.message.includes('ETIMEDOUT')) {
+        } else if (rawMessage.includes('ETIMEDOUT')) {
             errorInfo = 'Connection timed out. Check your internet connection or try again later.';
         } else {
             errorInfo = 'Network error occurred. Check your internet connection and Canvas domain.';
         }
+    } else if (isInvalidToken) {
+        errorTitle = 'Authentication Error';
+        errorInfo = 'Your API token is invalid or expired. Please check your token and try again.';
     } else if (statusNum) {
-        errorTitle = `HTTP Error ${statusNum}`;
+        // Build title with HTTP status and error code if available
+        errorTitle = errorCode
+            ? `HTTP ${statusNum}: ${errorCode}`
+            : `HTTP Error ${statusNum}`;
+
         switch (statusNum) {
             case 400:
                 errorInfo = 'Bad request. Check that all required fields are filled out correctly.';
@@ -106,14 +143,24 @@ function errorHandler(error, progressInfo, container = null) {
         errorInfo = 'An unexpected error occurred. Check the console for more details, or contact technical support if this persists.';
     }
 
-    // Extract the most relevant part of the error message
-    const lastIndex = error.message.lastIndexOf(':');
-    const errorMessage = lastIndex > 0 ? error.message.slice(lastIndex + 1).trim() : error.message;
+    // Build the error message line
+    // Prefer the axios message (e.g. "Request failed with status code 401"), append API error if different
+    let errorMessage;
+    if (ipcMeta) {
+        // Use the original request error message
+        errorMessage = ipcMeta.message || 'Unknown error';
+        // Append the Canvas API error text if available and different
+        if (apiMessage && apiMessage !== errorMessage) {
+            errorMessage += ` — ${apiMessage}`;
+        }
+    } else {
+        // Legacy: extract most relevant part from the raw Electron IPC message
+        const lastIndex = error.message.lastIndexOf(':');
+        errorMessage = lastIndex > 0 ? error.message.slice(lastIndex + 1).trim() : error.message;
+    }
 
     // If a container is provided, create a professional error card
     if (container) {
-        const errorCardId = `error-card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
         const errorCard = document.createElement('div');
         errorCard.className = 'card mt-3';
         errorCard.innerHTML = `

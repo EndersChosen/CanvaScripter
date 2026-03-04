@@ -1293,10 +1293,12 @@ function deleteAssignmentsCombined(e) {
                 updateCount();
             } catch (error) {
                 console.error('Error fetching assignments:', error);
-                progressDiv.hidden = true;
                 if (String(error).includes('canceled') || String(error).includes('abort')) {
+                    progressDiv.hidden = true;
                     progressInfo.innerHTML = '<span class="text-warning">Cancelled.</span>';
                 } else {
+                    progressInfo.innerHTML = '';
+                    if (spinner) spinner.hidden = true;
                     errorHandler(error, progressInfo);
                 }
                 checkBtn.disabled = false;

@@ -7,6 +7,7 @@
 
 const StateManager = require('../state/stateManager');
 const axios = require('axios');
+const { serializeErrorForIPC } = require('../../shared/errorUtils');
 
 /**
  * Register all Permissions IPC handlers
@@ -186,7 +187,7 @@ function registerPermissionsHandlers(ipcMain, logDebug, getBatchConfig) {
                 return { success: false, cancelled: true, error: 'Operation cancelled' };
             }
 
-            throw error;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -342,7 +343,7 @@ function registerPermissionsHandlers(ipcMain, logDebug, getBatchConfig) {
                 return { success: false, cancelled: true, error: 'Operation cancelled' };
             }
 
-            throw error;
+            throw serializeErrorForIPC(error);
         }
     });
 

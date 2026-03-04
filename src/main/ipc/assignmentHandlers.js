@@ -10,6 +10,7 @@
 const assignmentGroups = require('../../shared/canvas-api/assignment_groups');
 const assignments = require('../../shared/canvas-api/assignments');
 const { batchHandler } = require('../../shared/batchHandler');
+const { serializeErrorForIPC } = require('../../shared/errorUtils');
 
 // ==================== State Management ====================
 
@@ -213,7 +214,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             const aGroups = await assignmentGroups.getEmptyAssignmentGroups(data);
             return aGroups;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -386,7 +387,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             const groups = await assignmentGroups.getAssignmentGroups(data.domain, data.course_id, data.token);
             return { groups };
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -400,7 +401,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             const result = await assignmentGroups.getAssignmentGroupById(data);
             return result;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -415,7 +416,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             return response.data;
         } catch (error) {
             console.error('deleteAssignmentGroupAssignments failed:', error?.message || String(error));
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -437,7 +438,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             return result;
         } catch (error) {
             console.error('getNoSubmissionAssignments failed:', error?.message || String(error));
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -455,7 +456,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             );
             return results;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -473,7 +474,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             );
             return results;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -487,7 +488,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             const response = await assignments.getOldAssignmentsGraphQL(data);
             return response;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -505,7 +506,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             );
             return results;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -547,7 +548,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
                     combinedFetchControllers.delete(senderId);
                 }
             } catch { /* ignore */ }
-            throw error.message || error;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -593,7 +594,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             const importedAssignments = await assignments.getImportedAssignments(data);
             return importedAssignments;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -607,7 +608,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             const result = await assignments.getAssignmentsInModules(data);
             return result;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -623,7 +624,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             const response = await assignments.getAssignmentsInOtherGroups(data);
             return response;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -641,7 +642,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             );
             return results;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -736,7 +737,7 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
             );
             return assignmentsInGroup;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 

@@ -50,22 +50,81 @@ async function restoreDeletedConversations(e) {
                 #restore-deleted-conversations-form .mt-2 { margin-top: 0.5rem !important; }
                 #restore-deleted-conversations-form .mt-3 { margin-top: 0.5rem !important; }
                 #restore-deleted-conversations-form .mt-1 { margin-top: 0.25rem !important; }
+                #rdc-manual-table th { font-size: 0.8rem; padding: 0.35rem 0.5rem; }
+                #rdc-manual-table td { padding: 0.25rem 0.35rem; vertical-align: middle; }
+                #rdc-manual-table .form-control { font-size: 0.8rem; padding: 0.2rem 0.4rem; }
+                #rdc-manual-table .btn-remove-row { padding: 0.15rem 0.4rem; font-size: 0.75rem; }
+                #rdc-manual-table .row-number { font-size: 0.75rem; color: #888; width: 30px; text-align: center; }
             </style>
             <div class="card">
                 <div class="card-header bg-secondary-subtle">
                     <h3 class="card-title mb-0 text-dark">
                         <i class="bi bi-chat-dots me-1"></i>Restore Deleted Conversations
                     </h3>
-                    <small class="text-muted">Upload CSV, ZIP of CSVs, or JSON with objects: { message_id, user_id, conversation_id }</small>
+                    <small class="text-muted">Restore deleted conversations by manual entry or file upload</small>
                 </div>
                 <div class="card-body">
-                    <div class="row align-items-center mt-2">
-                        <div class="col-auto">
-                            <button id="rdc-upload" type="button" class="btn btn-sm btn-secondary">Choose CSV/ZIP/JSON</button>
+                    <!-- Input Mode Selection -->
+                    <div class="row mb-2">
+                        <div class="col-12">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-input-cursor me-1"></i>Input Method
+                            </label>
+                            <div class="btn-group w-100" role="group" aria-label="Input method selection" id="rdc-mode-options">
+                                <input type="radio" class="btn-check" name="rdc-input-mode" id="rdc-mode-manual" value="manual" checked>
+                                <label class="btn btn-sm btn-outline-primary" for="rdc-mode-manual">
+                                    <i class="bi bi-pencil-square me-1"></i>Manual
+                                </label>
+                                <input type="radio" class="btn-check" name="rdc-input-mode" id="rdc-mode-file" value="file">
+                                <label class="btn btn-sm btn-outline-primary" for="rdc-mode-file">
+                                    <i class="bi bi-file-earmark-arrow-up me-1"></i>File Upload
+                                </label>
+                            </div>
                         </div>
-                        <div class="col-auto">
-                            <span id="rdc-upload-info" class="form-text"></span>
+                    </div>
+                    <!-- Manual Entry Section -->
+                    <div id="rdc-manual-section">
+                        <label class="form-label fw-bold mb-1">Enter conversation records</label>
+                        <div style="max-height: 280px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem;">
+                            <table id="rdc-manual-table" class="table table-sm table-bordered mb-0" style="font-size: 0.85rem;">
+                                <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                                    <tr>
+                                        <th class="row-number">#</th>
+                                        <th>Message ID</th>
+                                        <th>User ID</th>
+                                        <th>Conversation ID</th>
+                                        <th style="width: 40px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rdc-manual-tbody">
+                                    <tr>
+                                        <td class="row-number">1</td>
+                                        <td><input type="text" class="form-control rdc-msg-id" placeholder="e.g. 123456" inputmode="numeric"></td>
+                                        <td><input type="text" class="form-control rdc-usr-id" placeholder="e.g. 789012" inputmode="numeric"></td>
+                                        <td><input type="text" class="form-control rdc-conv-id" placeholder="e.g. 345678" inputmode="numeric"></td>
+                                        <td><button type="button" class="btn btn-sm btn-outline-danger btn-remove-row" title="Remove row"><i class="bi bi-x"></i></button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
+                        <div class="d-flex align-items-center gap-2 mt-1">
+                            <button id="rdc-add-row" type="button" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-plus-circle me-1"></i>Add Row
+                            </button>
+                            <span id="rdc-row-count" class="form-text">1 row</span>
+                        </div>
+                    </div>
+                    <!-- File Upload Section -->
+                    <div id="rdc-file-section" hidden>
+                        <div class="row align-items-center mt-2">
+                            <div class="col-auto">
+                                <button id="rdc-upload" type="button" class="btn btn-sm btn-secondary">Choose CSV/ZIP/JSON</button>
+                            </div>
+                            <div class="col-auto">
+                                <span id="rdc-upload-info" class="form-text"></span>
+                            </div>
+                        </div>
+                        <div class="form-text mt-1">Upload CSV, ZIP of CSVs, or JSON with objects: { message_id, user_id, conversation_id }</div>
                     </div>
                     <div class="row mt-2">
                         <div class="col-auto">
@@ -98,6 +157,12 @@ async function restoreDeletedConversations(e) {
     const cancelBtn = form.querySelector('#rdc-cancel');
     const clearBtn = form.querySelector('#rdc-clear');
     const progressDiv = form.querySelector('#rdc-progress-div');
+    const manualSection = form.querySelector('#rdc-manual-section');
+    const fileSection = form.querySelector('#rdc-file-section');
+    const manualTbody = form.querySelector('#rdc-manual-tbody');
+    const addRowBtn = form.querySelector('#rdc-add-row');
+    const rowCountSpan = form.querySelector('#rdc-row-count');
+    const modeRadios = form.querySelectorAll('input[name="rdc-input-mode"]');
     const progressBar = progressDiv.querySelector('.progress-bar');
     const progressInfo = form.querySelector('#rdc-progress-info');
     const responseDiv = form.querySelector('#rdc-response');
@@ -183,6 +248,85 @@ async function restoreDeletedConversations(e) {
     }
 
     if (form.dataset.bound !== 'true') {
+        // ── Manual table helpers ──
+        function createManualRow() {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="row-number"></td>
+                <td><input type="text" class="form-control rdc-msg-id" placeholder="e.g. 123456" inputmode="numeric"></td>
+                <td><input type="text" class="form-control rdc-usr-id" placeholder="e.g. 789012" inputmode="numeric"></td>
+                <td><input type="text" class="form-control rdc-conv-id" placeholder="e.g. 345678" inputmode="numeric"></td>
+                <td><button type="button" class="btn btn-sm btn-outline-danger btn-remove-row" title="Remove row"><i class="bi bi-x"></i></button></td>
+            `;
+            return tr;
+        }
+        function renumberRows() {
+            const rows = manualTbody.querySelectorAll('tr');
+            rows.forEach((tr, i) => { tr.querySelector('.row-number').textContent = i + 1; });
+            rowCountSpan.textContent = `${rows.length} row${rows.length !== 1 ? 's' : ''}`;
+        }
+        function updateManualRestoreState() {
+            const mode = form.querySelector('input[name="rdc-input-mode"]:checked').value;
+            if (mode !== 'manual') return;
+            const rows = manualTbody.querySelectorAll('tr');
+            let hasAnyValue = false;
+            rows.forEach(tr => {
+                const m = tr.querySelector('.rdc-msg-id')?.value.trim();
+                const u = tr.querySelector('.rdc-usr-id')?.value.trim();
+                const c = tr.querySelector('.rdc-conv-id')?.value.trim();
+                if (m || u || c) hasAnyValue = true;
+            });
+            restoreBtn.disabled = !hasAnyValue;
+        }
+
+        // Add Row button
+        addRowBtn.addEventListener('click', (evt) => {
+            evt.preventDefault();
+            const tr = createManualRow();
+            manualTbody.appendChild(tr);
+            renumberRows();
+            tr.querySelector('.rdc-msg-id').focus();
+        });
+
+        // Remove Row (delegated)
+        manualTbody.addEventListener('click', (evt) => {
+            const btn = evt.target.closest('.btn-remove-row');
+            if (!btn) return;
+            const tr = btn.closest('tr');
+            if (manualTbody.querySelectorAll('tr').length <= 1) {
+                // Don't remove last row, just clear it
+                tr.querySelectorAll('input').forEach(inp => { inp.value = ''; });
+            } else {
+                tr.remove();
+            }
+            renumberRows();
+            updateManualRestoreState();
+        });
+
+        // Track input changes for enabling Restore button
+        manualTbody.addEventListener('input', () => { updateManualRestoreState(); });
+
+        // Mode toggle: Manual vs File Upload
+        modeRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                const mode = form.querySelector('input[name="rdc-input-mode"]:checked').value;
+                manualSection.hidden = mode !== 'manual';
+                fileSection.hidden = mode !== 'file';
+                // Reset records when switching modes
+                records = [];
+                restoreBtn.disabled = true;
+                uploadInfo.textContent = '';
+                // Reset manual table to one empty row
+                manualTbody.innerHTML = '';
+                manualTbody.appendChild(createManualRow());
+                renumberRows();
+                responseDiv.innerHTML = '';
+                progressInfo.innerHTML = '';
+                progressBar.style.width = '0%';
+                progressDiv.hidden = true;
+            });
+        });
+
         uploadBtn.addEventListener('click', async (evt) => {
             evt.preventDefault(); evt.stopPropagation();
             uploadBtn.disabled = true; uploadInfo.textContent = ''; records = [];
@@ -238,7 +382,47 @@ async function restoreDeletedConversations(e) {
         });
 
         restoreBtn.addEventListener('click', async (evt) => {
-            evt.preventDefault(); evt.stopPropagation(); if (records.length === 0) return;
+            evt.preventDefault(); evt.stopPropagation();
+            const currentMode = form.querySelector('input[name="rdc-input-mode"]:checked').value;
+
+            // ── Manual mode: parse rows from the table ──
+            if (currentMode === 'manual') {
+                const tableRows = manualTbody.querySelectorAll('tr');
+                records = [];
+                const invalidRows = [];
+                tableRows.forEach((tr, i) => {
+                    const msgVal = tr.querySelector('.rdc-msg-id')?.value.trim();
+                    const usrVal = tr.querySelector('.rdc-usr-id')?.value.trim();
+                    const convVal = tr.querySelector('.rdc-conv-id')?.value.trim();
+                    // Skip completely empty rows
+                    if (!msgVal && !usrVal && !convVal) return;
+                    const message_id = parseCanvasId(msgVal);
+                    const user_id = parseCanvasId(usrVal);
+                    const conversation_id = parseCanvasId(convVal);
+                    if (message_id && user_id && conversation_id) {
+                        records.push({ message_id, user_id, conversation_id, _sourceFile: 'Manual Entry', _rowNumber: i + 1 });
+                    } else {
+                        const missing = [];
+                        if (!message_id) missing.push('Message ID');
+                        if (!user_id) missing.push('User ID');
+                        if (!conversation_id) missing.push('Conversation ID');
+                        invalidRows.push({ row: i + 1, missing });
+                    }
+                });
+                if (records.length === 0) {
+                    progressDiv.hidden = false; progressBar.style.width = '0%';
+                    let msg = 'No valid records found. Each row must have numeric values for all three fields.';
+                    if (invalidRows.length > 0) msg += `<br><small>${invalidRows.length} row(s) have invalid or missing values.</small>`;
+                    progressInfo.innerHTML = msg;
+                    return;
+                }
+                if (invalidRows.length > 0) {
+                    responseDiv.innerHTML = `<div class="text-warning"><small><i class="bi bi-exclamation-triangle me-1"></i>${invalidRows.length} row(s) skipped (missing or non-numeric values)</small></div>`;
+                }
+            }
+
+            // ── File Upload mode: existing CSV/ZIP/JSON restore logic ──
+            if (records.length === 0) return;
             const domain = document.querySelector('#domain').value.trim();
             const token = document.querySelector('#token').value.trim();
             const isNum = (v) => /^\d+$/.test(String(v).trim());
@@ -342,6 +526,10 @@ async function restoreDeletedConversations(e) {
             evt.preventDefault(); evt.stopPropagation();
             records = []; uploadInfo.textContent = ''; restoreBtn.disabled = true; cancelBtn.disabled = true;
             responseDiv.innerHTML = ''; progressInfo.innerHTML = ''; progressBar.style.width = '0%'; progressDiv.hidden = true;
+            // Reset manual table to one empty row
+            manualTbody.innerHTML = '';
+            manualTbody.appendChild(createManualRow());
+            renumberRows();
             delete form.dataset.sourceDir; delete form.dataset.sourceName;
         });
         form.dataset.bound = 'true';
@@ -739,11 +927,13 @@ async function getDeletedConversations(e) {
                     lastUserIdForCsv = '';
                 }
             } catch (error) {
-                singleProgressCard.hidden = true;
                 if (String(error?.name) === 'AbortError' || String(error?.message).includes('Aborted')) {
+                    singleProgressCard.hidden = true;
                     singleProgressInfo.innerHTML = 'Cancelled.';
-                } else
+                } else {
+                    singleProgressInfo.innerHTML = '';
                     errorHandler(error, singleProgressInfo);
+                }
             } finally {
                 searchBtn.disabled = false; cancelSingleBtn.disabled = true;
             }

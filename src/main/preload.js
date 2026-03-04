@@ -259,6 +259,14 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('preload.js > cancelRestoreDeletedConversations');
         return await ipcRenderer.invoke('axios:cancelRestoreDeletedConversations');
     },
+    restoreDeletedConversationsByIds: async (data) => {
+        console.log('preload.js > restoreDeletedConversationsByIds');
+        return await ipcRenderer.invoke('axios:restoreDeletedConversationsByIds', data);
+    },
+    cancelRestoreDeletedConversationsByIds: async () => {
+        console.log('preload.js > cancelRestoreDeletedConversationsByIds');
+        return await ipcRenderer.invoke('axios:cancelRestoreDeletedConversationsByIds');
+    },
     restoreContent: async (data) => {
         console.log('preload.js > restoreContent');
 

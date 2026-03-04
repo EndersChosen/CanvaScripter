@@ -5,11 +5,13 @@
  */
 
 const convos = require('../../shared/canvas-api/conversations');
+const { serializeErrorForIPC } = require('../../shared/errorUtils');
 
 // Per-renderer state tracking
 const getConvosControllers = new Map(); // senderId -> AbortController
 const getDeletedConvosControllers = new Map(); // senderId -> AbortController
 const restoreConvosCancelFlags = new Map(); // senderId -> boolean
+const restoreConvosByIdCancelFlags = new Map(); // senderId -> boolean
 const deleteConvosCancelFlags = new Map(); // senderId -> boolean
 
 /**
@@ -136,7 +138,7 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow, getBatchCon
                 }
             } catch { }
             logDebug('[axios:getConvos] Error', { error: error.message });
-            throw error.message || error;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -185,7 +187,7 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow, getBatchCon
                 }
             } catch { }
             logDebug('[axios:getDeletedConversations] Error', { error: error.message });
-            throw error.message || error;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -288,6 +290,64 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow, getBatchCon
         logDebug('[axios:cancelRestoreDeletedConversations] Cancelling restoration', { senderId });
         try {
             restoreConvosCancelFlags.set(senderId, true);
+            return { cancelled: true };
+        } catch (e) {
+            return { cancelled: false };
+        }
+    });
+
+    // Restore deleted conversations by conversation_id only (manual entry)
+    ipcMain.handle('axios:restoreDeletedConversationsByIds', async (event, data) => {
+        logDebug('[axios:restoreDeletedConversationsByIds] Starting restoration by IDs', { count: data.conversationIds?.length });
+        const senderId = event.sender.id;
+
+        restoreConvosByIdCancelFlags.set(senderId, false);
+
+        const ids = Array.isArray(data.conversationIds) ? data.conversationIds : [];
+        const toInt = (v) => {
+            const n = parseInt(v, 10);
+            return Number.isFinite(n) ? n : null;
+        };
+
+        const valid = ids.map(id => toInt(id)).filter(id => id !== null);
+        const skipped = ids.length - valid.length;
+        logDebug('[axios:restoreDeletedConversationsByIds] Validated IDs', { valid: valid.length, skipped });
+
+        const requests = valid.map((conversationId, idx) => ({
+            id: idx + 1,
+            request: async () => convos.restoreConversationById({
+                domain: data.domain,
+                token: data.token,
+                conversation_id: conversationId
+            })
+        }));
+
+        let response = await canvasRateLimitedHandler(requests, {
+            maxConcurrent: 35,
+            baseDelayMs: 100,
+            jitterMs: 150,
+            maxRetries: 3,
+            isCancelled: () => restoreConvosByIdCancelFlags.get(senderId) === true
+        }, mainWindow);
+
+        const cancelled = restoreConvosByIdCancelFlags.get(senderId) === true;
+        restoreConvosByIdCancelFlags.delete(senderId);
+
+        logDebug('[axios:restoreDeletedConversationsByIds] Complete', {
+            successful: response.successful.length,
+            failed: response.failed.length,
+            cancelled
+        });
+
+        return { ...response, cancelled, conversationIds: valid };
+    });
+
+    // Cancel restoration of deleted conversations by IDs
+    ipcMain.handle('axios:cancelRestoreDeletedConversationsByIds', async (event) => {
+        const senderId = event.sender.id;
+        logDebug('[axios:cancelRestoreDeletedConversationsByIds] Cancelling', { senderId });
+        try {
+            restoreConvosByIdCancelFlags.set(senderId, true);
             return { cancelled: true };
         } catch (e) {
             return { cancelled: false };

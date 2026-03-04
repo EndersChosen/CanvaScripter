@@ -23,6 +23,7 @@ const {
 } = require('../../shared/canvas-api/comm_channels');
 const { getCommChannels } = require('../../shared/canvas-api/users');
 const { batchHandler } = require('../../shared/batchHandler');
+const { serializeErrorForIPC } = require('../../shared/errorUtils');
 const { waitFunc, removeBlanks } = require('../../shared/utilities');
 
 // Global state for suppressed emails
@@ -132,7 +133,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
             return result.status !== '404';
         } catch (error) {
             logDebug('[axios:awsCheck] Error', { error: error.message });
-            throw error.message || error;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -143,7 +144,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
             return await bounceCheck(domain, token, email);
         } catch (error) {
             logDebug('[axios:bounceCheck] Error', { error: error.message });
-            throw error.message || error;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -154,7 +155,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
             const response = await emailCheck(data);
             return response;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -215,7 +216,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
                 hasResults: suppressedEmails.length > 0
             };
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -226,7 +227,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
             const response = await resetEmail(data);
             return response;
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -246,7 +247,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
                 response.on('error', (error) => reject(error));
             });
         } catch (error) {
-            throw error.message;
+            throw serializeErrorForIPC(error);
         }
     });
 
@@ -672,7 +673,7 @@ function registerCommChannelHandlers(ipcMain, logDebug, mainWindow, getBatchConf
         } catch (err) {
             progressDone(mainWindow);
             resetPatternCancelFlags.delete(senderId);
-            throw err.message || err;
+            throw serializeErrorForIPC(err);
         }
     });
 

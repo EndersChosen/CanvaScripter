@@ -663,12 +663,9 @@ async function getDeletedConversations(data) {
                 (err?.message && err.message.includes("does not match certificate's altnames"))) {
                 throw new Error(`Domain name error: The domain "${domain}" appears to be incorrect or contains a typo. Please verify the spelling (common mistake: "instructuer.com" instead of "instructure.com").`);
             }
-            // Surface Canvas error message if available (non-504)
+            // For non-504 errors, throw the original error to preserve
+            // axios metadata (status, code, response data) for the IPC layer
             if (!is504(err)) {
-                if (err?.response?.data?.errors) {
-                    const msg = err.response.data.errors.map(e => e.message).join('; ');
-                    throw new Error(msg);
-                }
                 throw err;
             }
 
@@ -826,6 +823,36 @@ async function restoreConversation({ domain, token, user_id, message_id, convers
 }
 
 
+// Restore a deleted conversation by conversation_id alone (sets workflow_state back to 'read')
+async function restoreConversationById({ domain, token, conversation_id }) {
+    const url = `https://${domain}/api/v1/conversations/${conversation_id}`;
+    const headers = { 'Authorization': `Bearer ${token}` };
+    const body = { conversation: { workflow_state: 'read' } };
+
+    try {
+        const response = await axios({ method: 'put', url, headers, data: body });
+        return response.data;
+    } catch (err) {
+        if (err?.code === 'ERR_TLS_CERT_ALTNAME_INVALID' ||
+            (err?.message && err.message.includes("does not match certificate's altnames"))) {
+            throw new Error(`Domain name error: The domain "${domain}" appears to be incorrect or contains a typo.`);
+        }
+        const status = err?.response?.status;
+        if (err?.response?.data?.errors) {
+            const msg = Array.isArray(err.response.data.errors)
+                ? err.response.data.errors.map(e => e.message).join('; ')
+                : JSON.stringify(err.response.data.errors);
+            const e = new Error(`${msg} (${url})`);
+            e.status = status;
+            throw e;
+        }
+        const e = new Error(`${err?.message || 'Request failed'} (${url})`);
+        e.status = status;
+        throw e;
+    }
+}
+
+
 module.exports = {
-    getConversations, getConversationsGraphQL, bulkDelete, bulkDeleteNew, deleteForAll, getDeletedConversations, restoreConversation
+    getConversations, getConversationsGraphQL, bulkDelete, bulkDeleteNew, deleteForAll, getDeletedConversations, restoreConversation, restoreConversationById
 };
