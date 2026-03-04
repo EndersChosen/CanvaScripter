@@ -477,6 +477,14 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('preload.js > createAnnouncements');
         return await ipcRenderer.invoke('axios:createAnnouncements', data);
     },
+    getPagesGraphQL: async (data) => {
+        console.log('preload.js > getPagesGraphQL');
+        return await ipcRenderer.invoke('axios:getPagesGraphQL', data);
+    },
+    deletePages: async (data) => {
+        console.log('preload.js > deletePages');
+        return await ipcRenderer.invoke('axios:deletePages', data);
+    },
     createPages: async (data) => {
         console.log('preload.js > createPages');
         return await ipcRenderer.invoke('axios:createPages', data);
@@ -484,6 +492,18 @@ contextBridge.exposeInMainWorld('axios', {
     createSections: async (data) => {
         console.log('preload.js > createSections');
         return await ipcRenderer.invoke('axios:createSections', data);
+    },
+    getCourseSectionsGraphQL: async (data) => {
+        console.log('preload.js > getCourseSectionsGraphQL');
+        return await ipcRenderer.invoke('axios:getCourseSectionsGraphQL', data);
+    },
+    deleteEnrollments: async (data) => {
+        console.log('preload.js > deleteEnrollments');
+        return await ipcRenderer.invoke('axios:deleteEnrollments', data);
+    },
+    deleteSections: async (data) => {
+        console.log('preload.js > deleteSections');
+        return await ipcRenderer.invoke('axios:deleteSections', data);
     },
     updateNotifications: async (data) => {
         console.log('preload.js > updateNotifications');
@@ -735,6 +755,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
     // QTI analyzer
     'qti:selectFile',
     'qti:analyze',
+    'qti:fixIdentifiers',
 
     // Diff checker
     'diff:selectFile',

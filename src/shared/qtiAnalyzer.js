@@ -173,6 +173,43 @@ class QTIPackageExtractor {
             return null;
         }
     }
+
+    /**
+     * Extract a map of assessment filename -> resource identifier from the manifest.
+     * Used to verify that imsmanifest.xml resource identifiers match the assessment
+     * ident attributes inside each quiz XML file.
+     */
+    getResourceIdentifierMap() {
+        if (!this.manifest) return {};
+
+        const map = {};
+        try {
+            const manifestRoot = this.manifest.manifest || this.manifest;
+            const resources = manifestRoot?.resources;
+            if (!resources) return map;
+
+            const resourceList = Array.isArray(resources.resource)
+                ? resources.resource
+                : resources.resource ? [resources.resource] : [];
+
+            resourceList.forEach(resource => {
+                const identifier = resource['@_identifier'];
+                const href = resource['@_href'];
+                if (identifier && href) {
+                    const normalizedHref = href.replace(/\\/g, '/').trim();
+                    map[normalizedHref.toLowerCase()] = {
+                        identifier,
+                        href: normalizedHref,
+                        type: resource['@_type'] || ''
+                    };
+                }
+            });
+        } catch (e) {
+            // Failed to extract resource identifiers from manifest
+        }
+
+        return map;
+    }
 }
 
 /**
@@ -856,10 +893,13 @@ class QTIAnalyzer {
         // Check for media
         const content = this.analyzeContent();
         if (content.hasExternalLinks) {
+            const linkList = content.externalLinks.slice(0, 10);
+            const moreCount = content.externalLinks.length - linkList.length;
+            const linkSummary = linkList.join(', ') + (moreCount > 0 ? ` and ${moreCount} more` : '');
             warnings.push({
                 severity: 'medium',
                 type: 'external_references',
-                message: 'External media references detected',
+                message: `${content.externalLinks.length} external reference${content.externalLinks.length > 1 ? 's' : ''} detected: ${linkSummary}`,
                 impact: 'Media files may need manual upload to Canvas'
             });
         }
@@ -936,15 +976,42 @@ class QTIAnalyzer {
     analyzeContent() {
         const content = JSON.stringify(this.data);
 
+        // Find external URLs but exclude XML namespace/schema URIs
+        const externalLinks = this.findExternalLinks(content);
+
         return {
             hasImages: content.includes('<img') || content.includes('matimage'),
             hasAudio: content.includes('<audio') || content.includes('mataudio'),
             hasVideo: content.includes('<video') || content.includes('matvideo'),
-            hasExternalLinks: content.includes('http://') || content.includes('https://'),
+            hasExternalLinks: externalLinks.length > 0,
+            externalLinks: externalLinks,
             hasMath: content.includes('math>') || content.includes('mathml') || content.includes('latex'),
             hasTables: content.includes('<table'),
             hasFormattedText: content.includes('<p>') || content.includes('<div>')
         };
+    }
+
+    /**
+     * Find genuine external links, excluding XML namespace/schema URIs
+     */
+    findExternalLinks(content) {
+        const urlPattern = /https?:\/\/[^\s"'<>\\]+/g;
+        const matches = content.match(urlPattern) || [];
+
+        // Namespace/schema URI patterns to exclude
+        const excludePatterns = [
+            /^https?:\/\/(www\.)?imsglobal\.org\/xsd\//i,
+            /^https?:\/\/(www\.)?imsglobal\.org\/profile\//i,
+            /^https?:\/\/(www\.)?w3\.org\/(\d{4}\/)?\w+/i,
+            /^https?:\/\/ltsc\.ieee\.org\/xsd\//i,
+            /^https?:\/\/(www\.)?imsglobal\.org\/xsd/i,
+            /\.xsd$/i
+        ];
+
+        const uniqueUrls = [...new Set(matches)];
+        return uniqueUrls.filter(url => {
+            return !excludePatterns.some(pattern => pattern.test(url));
+        });
     }
 
     analyzeMediaReferences() {
@@ -1264,6 +1331,82 @@ class QTIAnalyzer {
             };
         }
 
+        // Check manifest resource identifier vs assessment ident mismatches
+        const resourceIdentifierMap = extractor.getResourceIdentifierMap();
+        const identifierChecks = [];
+
+        // Warn if manifest is missing from the package
+        if (!packageData.manifest) {
+            report.canvasCompatibility.warnings.push({
+                severity: 'high',
+                type: 'missing_manifest',
+                message: 'No imsmanifest.xml found in ZIP package',
+                impact: 'Canvas may still import the assessment, but a manifest file is recommended for reliable imports, especially with "Convert to New Quizzes".'
+            });
+
+            report.canvasCompatibility.score = Math.max(0, report.canvasCompatibility.score - 10);
+
+            report.canvasCompatibility.recommendations = report.canvasCompatibility.recommendations.filter(
+                r => r !== 'File appears compatible with Canvas - ready for import'
+            );
+            report.canvasCompatibility.recommendations.push(
+                'Add an imsmanifest.xml file to the ZIP package for reliable Canvas imports'
+            );
+        }
+
+        for (const analyzedFile of analyzedFiles) {
+            const normalizedFilename = analyzedFile.filename.replace(/\\/g, '/').trim().toLowerCase();
+            const resourceEntry = resourceIdentifierMap[normalizedFilename];
+
+            if (resourceEntry) {
+                const assessmentIdent = analyzedFile.report.metadata?.identifier;
+                const manifestIdentifier = resourceEntry.identifier;
+
+                identifierChecks.push({
+                    filename: analyzedFile.filename,
+                    manifestIdentifier: manifestIdentifier,
+                    assessmentIdent: assessmentIdent != null ? String(assessmentIdent) : 'N/A',
+                    match: manifestIdentifier === String(assessmentIdent),
+                    resourceType: resourceEntry.type
+                });
+            }
+        }
+
+        const hasMismatches = identifierChecks.some(c => !c.match);
+
+        report.manifestIdentifierCheck = {
+            checked: identifierChecks.length > 0,
+            hasManifest: packageData.manifest !== null,
+            totalResources: identifierChecks.length,
+            mismatches: identifierChecks.filter(c => !c.match),
+            matches: identifierChecks.filter(c => c.match),
+            details: identifierChecks,
+            hasMismatches
+        };
+
+        // Add high-severity compatibility issue for mismatches
+        if (hasMismatches) {
+            const mismatchCount = identifierChecks.filter(c => !c.match).length;
+            report.canvasCompatibility.issues.push({
+                severity: 'high',
+                type: 'manifest_identifier_mismatch',
+                message: `${mismatchCount} assessment file${mismatchCount > 1 ? 's have' : ' has'} identifier mismatch between imsmanifest.xml and assessment XML`,
+                impact: 'Import with "Convert to New Quizzes" will fail. The resource identifier in imsmanifest.xml must match the assessment ident in the quiz XML file.'
+            });
+
+            // Reduce score for high severity issue
+            report.canvasCompatibility.score = Math.max(0, report.canvasCompatibility.score - 20);
+            report.canvasCompatibility.compatible = false;
+
+            // Remove the generic "ready for import" recommendation if present
+            report.canvasCompatibility.recommendations = report.canvasCompatibility.recommendations.filter(
+                r => r !== 'File appears compatible with Canvas - ready for import'
+            );
+            report.canvasCompatibility.recommendations.push(
+                'Fix identifier mismatches: update the assessment ident attribute in each quiz XML to match the corresponding resource identifier in imsmanifest.xml'
+            );
+        }
+
         // Add package info
         report.packageInfo = {
             fileCount: packageData.fileCount,
@@ -1275,6 +1418,93 @@ class QTIAnalyzer {
         };
 
         return report;
+    }
+
+    /**
+     * Static method to fix identifier mismatches in a QTI ZIP package.
+     * Updates each assessment XML's ident attribute to match the resource
+     * identifier declared in imsmanifest.xml, then returns a new ZIP buffer.
+     */
+    static async fixIdentifiers(zipBuffer) {
+        const extractor = new QTIPackageExtractor(zipBuffer);
+        const packageData = await extractor.extract();
+
+        if (!packageData.manifest) {
+            throw new Error('No imsmanifest.xml found in ZIP package');
+        }
+
+        const resourceMap = extractor.getResourceIdentifierMap();
+        if (Object.keys(resourceMap).length === 0) {
+            throw new Error('No resource identifiers found in imsmanifest.xml');
+        }
+
+        const zip = await JSZip.loadAsync(zipBuffer);
+        const fixes = [];
+
+        for (const assessmentFile of packageData.assessmentFiles) {
+            const normalizedFilename = assessmentFile.filename.replace(/\\/g, '/').trim().toLowerCase();
+            const resourceEntry = resourceMap[normalizedFilename];
+
+            if (!resourceEntry) continue;
+
+            const manifestIdentifier = resourceEntry.identifier;
+            let xmlContent = assessmentFile.content;
+
+            // Detect what the current assessment ident is
+            // For QTI 1.2: <assessment ident="...">
+            const assessmentMatch12 = xmlContent.match(/<assessment\s([^>]*?)ident\s*=\s*"([^"]*?)"/);
+            // For QTI 2.1: <assessmentTest identifier="...">
+            const assessmentMatch21 = xmlContent.match(/<assessmentTest\s([^>]*?)identifier\s*=\s*"([^"]*?)"/);
+
+            let currentIdent = null;
+            let fixed = false;
+
+            if (assessmentMatch12) {
+                currentIdent = assessmentMatch12[2];
+                if (currentIdent !== manifestIdentifier) {
+                    // Replace ident value in the <assessment> tag
+                    xmlContent = xmlContent.replace(
+                        /(<assessment\s[^>]*?)ident\s*=\s*"[^"]*?"/,
+                        `$1ident="${manifestIdentifier}"`
+                    );
+                    fixed = true;
+                }
+            } else if (assessmentMatch21) {
+                currentIdent = assessmentMatch21[2];
+                if (currentIdent !== manifestIdentifier) {
+                    xmlContent = xmlContent.replace(
+                        /(<assessmentTest\s[^>]*?)identifier\s*=\s*"[^"]*?"/,
+                        `$1identifier="${manifestIdentifier}"`
+                    );
+                    fixed = true;
+                }
+            }
+
+            if (fixed) {
+                zip.file(assessmentFile.filename, xmlContent);
+                fixes.push({
+                    filename: assessmentFile.filename,
+                    oldIdent: currentIdent,
+                    newIdent: manifestIdentifier
+                });
+            }
+        }
+
+        if (fixes.length === 0) {
+            return { fixedBuffer: null, fixes: [], message: 'No mismatches found — nothing to fix.' };
+        }
+
+        const fixedBuffer = await zip.generateAsync({
+            type: 'nodebuffer',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 6 }
+        });
+
+        return {
+            fixedBuffer,
+            fixes,
+            message: `Fixed ${fixes.length} identifier mismatch${fixes.length > 1 ? 'es' : ''}.`
+        };
     }
 }
 

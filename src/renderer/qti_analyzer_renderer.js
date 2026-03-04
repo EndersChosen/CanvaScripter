@@ -62,7 +62,7 @@ function showQTIAnalyzerUI() {
             showQtiLoadingState();
 
             const analysis = await window.ipcRenderer.invoke('qti:analyze', result.filePath);
-            displayQtiAnalysisResults(analysis);
+            displayQtiAnalysisResults(analysis, result.filePath);
 
         } catch (error) {
             showQtiError('Failed to analyze QTI file: ' + error.message);
@@ -92,7 +92,7 @@ function showQtiError(message) {
     `;
 }
 
-function displayQtiAnalysisResults(analysis) {
+function displayQtiAnalysisResults(analysis, filePath) {
     const resultsDiv = document.getElementById('qti-results');
 
     const html = `
@@ -100,6 +100,7 @@ function displayQtiAnalysisResults(analysis) {
             ${renderCompatibilityOverview(analysis)}
             ${renderMetadata(analysis)}
             ${renderValidation(analysis)}
+            ${renderManifestIdentifierCheck(analysis)}
             ${renderQuestionSummary(analysis)}
             ${renderInteractionTypes(analysis)}
             ${renderScoringAnalysis(analysis)}
@@ -109,6 +110,60 @@ function displayQtiAnalysisResults(analysis) {
     `;
 
     resultsDiv.innerHTML = html;
+
+    // Wire up the Fix Identifiers button if present
+    const fixButton = document.getElementById('qti-fix-identifiers');
+    if (fixButton && filePath) {
+        fixButton.addEventListener('click', async () => {
+            const statusSpan = document.getElementById('qti-fix-status');
+            try {
+                fixButton.disabled = true;
+                fixButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Fixing...';
+                if (statusSpan) statusSpan.textContent = '';
+
+                const result = await window.ipcRenderer.invoke('qti:fixIdentifiers', filePath);
+
+                if (result.canceled) {
+                    fixButton.disabled = false;
+                    fixButton.innerHTML = '<i class="bi bi-wrench"></i> Fix Identifiers & Download';
+                    return;
+                }
+
+                if (result.noChanges) {
+                    fixButton.disabled = false;
+                    fixButton.innerHTML = '<i class="bi bi-wrench"></i> Fix Identifiers & Download';
+                    if (statusSpan) {
+                        statusSpan.innerHTML = '<span class="text-info"><i class="bi bi-info-circle"></i> ' + result.message + '</span>';
+                    }
+                    return;
+                }
+
+                fixButton.innerHTML = '<i class="bi bi-check-circle"></i> Fixed!';
+                fixButton.classList.remove('btn-warning');
+                fixButton.classList.add('btn-success');
+
+                const fixDetails = result.fixes.map(f =>
+                    `<li><code>${f.filename}</code>: <code>${f.oldIdent}</code> &rarr; <code>${f.newIdent}</code></li>`
+                ).join('');
+
+                if (statusSpan) {
+                    statusSpan.innerHTML = `
+                        <span class="text-success">
+                            <i class="bi bi-check-circle-fill"></i> ${result.message}
+                            Saved to: <strong>${result.filePath}</strong>
+                        </span>
+                        <ul class="mt-1 mb-0 small">${fixDetails}</ul>
+                    `;
+                }
+            } catch (error) {
+                fixButton.disabled = false;
+                fixButton.innerHTML = '<i class="bi bi-wrench"></i> Fix Identifiers & Download';
+                if (statusSpan) {
+                    statusSpan.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> ' + error.message + '</span>';
+                }
+            }
+        });
+    }
 }
 
 function renderCompatibilityOverview(analysis) {
@@ -549,9 +604,131 @@ function renderContentAnalysis(analysis) {
     `;
 }
 
+function renderManifestIdentifierCheck(analysis) {
+    const check = analysis.manifestIdentifierCheck;
+    const packageInfo = analysis.packageInfo;
+
+    // Show a missing-manifest warning for ZIP packages without imsmanifest.xml
+    if (packageInfo && !packageInfo.hasManifest) {
+        return `
+            <div class="card border-warning mb-3">
+                <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#manifest-id-collapse">
+                    <h5 class="mb-0">
+                        <i class="bi bi-exclamation-triangle-fill text-warning"></i> Manifest File Missing
+                        <span class="badge bg-warning text-dark ms-2">imsmanifest.xml not found</span>
+                        <i class="bi bi-chevron-down float-end"></i>
+                    </h5>
+                </div>
+                <div id="manifest-id-collapse" class="collapse show">
+                    <div class="card-body">
+                        <div class="alert alert-warning mb-0">
+                            <h6><i class="bi bi-exclamation-triangle"></i> Missing imsmanifest.xml</h6>
+                            <p class="mb-1">
+                                This QTI ZIP package does not contain an <code>imsmanifest.xml</code> file.
+                                While Canvas may still accept the import, the manifest is part of the IMS Content
+                                Packaging specification and is recommended for reliable imports.
+                            </p>
+                            <p class="mb-0">
+                                <strong>Impact:</strong> Without a manifest, the <strong>"Convert to New Quizzes"</strong>
+                                import option may fail or behave unexpectedly. Resource identifiers cannot be
+                                validated without a manifest.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Only show identifier check for ZIP packages that have manifest data
+    if (!check || !check.checked) return '';
+
+    const hasMismatches = check.hasMismatches;
+    const statusClass = hasMismatches ? 'danger' : 'success';
+    const statusIcon = hasMismatches ? 'x-circle-fill' : 'check-circle-fill';
+    const statusText = hasMismatches
+        ? `${check.mismatches.length} Identifier Mismatch${check.mismatches.length > 1 ? 'es' : ''} Found`
+        : 'All Identifiers Match';
+
+    const detailRows = check.details.map(detail => {
+        const matchClass = detail.match ? 'success' : 'danger';
+        const matchIcon = detail.match ? 'check-circle-fill' : 'x-circle-fill';
+        return `
+            <tr class="table-${matchClass}">
+                <td><code>${detail.filename}</code></td>
+                <td><code>${detail.manifestIdentifier}</code></td>
+                <td><code>${detail.assessmentIdent}</code></td>
+                <td class="text-center">
+                    <i class="bi bi-${matchIcon} text-${matchClass}"></i>
+                    ${detail.match ? 'Match' : 'Mismatch'}
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    const fixInstructions = hasMismatches ? `
+        <div class="alert alert-warning mt-3">
+            <h6><i class="bi bi-tools"></i> How to Fix</h6>
+            <p class="mb-1">
+                The resource <code>identifier</code> in <code>imsmanifest.xml</code> must match the
+                assessment <code>ident</code> attribute in the quiz XML file for the
+                <strong>"Convert to New Quizzes"</strong> import option to succeed.
+            </p>
+            <p class="mb-1">
+                <strong>Solution:</strong> Edit the quiz XML file and change the <code>ident</code>
+                attribute on the <code>&lt;assessment&gt;</code> element to match the
+                <code>identifier</code> value from <code>imsmanifest.xml</code>, or vice versa.
+            </p>
+            <p class="mb-0">
+                Or use the button below to automatically fix and download a corrected package:
+            </p>
+            <button id="qti-fix-identifiers" class="btn btn-warning mt-2">
+                <i class="bi bi-wrench"></i> Fix Identifiers &amp; Download
+            </button>
+            <span id="qti-fix-status" class="ms-2"></span>
+        </div>
+    ` : '';
+
+    return `
+        <div class="card border-${statusClass} mb-3">
+            <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#manifest-id-collapse">
+                <h5 class="mb-0">
+                    <i class="bi bi-${statusIcon} text-${statusClass}"></i> Manifest Identifier Check
+                    <span class="badge bg-${statusClass} ms-2">${statusText}</span>
+                    <i class="bi bi-chevron-down float-end"></i>
+                </h5>
+            </div>
+            <div id="manifest-id-collapse" class="collapse${hasMismatches ? ' show' : ''}">
+                <div class="card-body">
+                    <p class="text-muted">
+                        Verifies that the resource <code>identifier</code> in <code>imsmanifest.xml</code> matches
+                        the assessment <code>ident</code> in each quiz XML file. A mismatch causes the
+                        "Convert to New Quizzes" import to fail in Canvas.
+                    </p>
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Assessment File</th>
+                                <th>Manifest Identifier</th>
+                                <th>Assessment Ident</th>
+                                <th width="120" class="text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${detailRows}
+                        </tbody>
+                    </table>
+                    ${fixInstructions}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function renderCanvasChecklist(analysis) {
     const compat = analysis.canvasCompatibility;
     const meta = analysis.metadata;
+    const manifestCheck = analysis.manifestIdentifierCheck;
 
     const checks = [
         {
@@ -580,6 +757,26 @@ function renderCanvasChecklist(analysis) {
             importance: 'high'
         }
     ];
+
+    // Add manifest presence check if this is a ZIP package
+    if (analysis.packageInfo) {
+        checks.splice(1, 0, {
+            label: 'Package includes imsmanifest.xml',
+            passed: analysis.packageInfo.hasManifest === true,
+            importance: 'high'
+        });
+    }
+
+    // Add manifest identifier check if available (ZIP packages only)
+    if (manifestCheck && manifestCheck.checked) {
+        // Insert after the manifest presence check (or at position 2 if no packageInfo)
+        const insertIdx = analysis.packageInfo ? 3 : 2;
+        checks.splice(insertIdx, 0, {
+            label: 'Manifest identifier matches assessment ident',
+            passed: !manifestCheck.hasMismatches,
+            importance: 'high'
+        });
+    }
 
     const checkItems = checks.map(check => {
         const icon = check.passed ? 'check-circle-fill text-success' : 'x-circle-fill text-danger';

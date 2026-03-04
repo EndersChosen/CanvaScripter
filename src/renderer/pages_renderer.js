@@ -367,27 +367,6 @@ function pagesTemplate(e) {
 
     content += '</div>';
 
-    if (successful > 0) {
-      content += `
-                <div class="mt-2">
-                    <h6><i class="bi bi-file-text me-1"></i>Created Pages:</h6>
-                    <div class="row">
-            `;
-
-      const columns = Math.ceil(successful / 3);
-      res.successful.forEach((page, index) => {
-        if (index % columns === 0) {
-          content += '<div class="col-md-4"><ul class="list-unstyled">';
-        }
-        content += `<li><small><i class="bi bi-file-text me-1"></i>${page.title}</small></li>`;
-        if ((index + 1) % columns === 0 || index === successful - 1) {
-          content += '</ul></div>';
-        }
-      });
-
-      content += '</div></div>';
-    }
-
     responseDiv.innerHTML = content;
   }
 }

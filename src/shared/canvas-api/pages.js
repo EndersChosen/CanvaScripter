@@ -15,7 +15,6 @@ async function getPagesGraphQL(data) {
                         title
                         published
                         createdAt
-                        url
                     }
                 }
                 pageInfo {

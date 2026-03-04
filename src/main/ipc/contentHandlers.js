@@ -407,6 +407,98 @@ function registerContentHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) 
         return res;
     });
 
+    /**
+     * Get course sections with enrollment data via GraphQL
+     */
+    ipcMain.handle('axios:getCourseSectionsGraphQL', async (_event, data) => {
+        console.log('inside axios:getCourseSectionsGraphQL');
+        try {
+            const result = await sections.getCourseSectionsGraphQL(data);
+            return result;
+        } catch (error) {
+            console.error('Error in axios:getCourseSectionsGraphQL:', error);
+            throw serializeErrorForIPC(error);
+        }
+    });
+
+    /**
+     * Delete enrollments in batch
+     */
+    ipcMain.handle('axios:deleteEnrollments', async (_event, data) => {
+        console.log('inside axios:deleteEnrollments');
+        const items = Array.isArray(data.requests) ? data.requests : [];
+        let completed = 0;
+        const total = items.length || 1;
+
+        const update = () => {
+            completed++;
+            mainWindow?.webContents.send('update-progress', {
+                mode: 'determinate',
+                label: 'Deleting enrollments',
+                processed: completed,
+                total,
+                value: completed / total
+            });
+        };
+
+        const requests = items.map((it, idx) => ({
+            id: idx + 1,
+            request: async () => {
+                try {
+                    const resp = await sections.deleteEnrollment({
+                        domain: it.domain,
+                        token: it.token,
+                        course_id: it.course_id,
+                        enrollment_id: it.enrollment_id,
+                        task: it.task || 'delete'
+                    });
+                    return resp;
+                } finally { update(); }
+            }
+        }));
+
+        const res = await batchHandler(requests, getBatchConfig());
+        return res;
+    });
+
+    /**
+     * Delete sections in batch
+     */
+    ipcMain.handle('axios:deleteSections', async (_event, data) => {
+        console.log('inside axios:deleteSections');
+        const items = Array.isArray(data.requests) ? data.requests : [];
+        let completed = 0;
+        const total = items.length || 1;
+
+        const update = () => {
+            completed++;
+            mainWindow?.webContents.send('update-progress', {
+                mode: 'determinate',
+                label: 'Deleting sections',
+                processed: completed,
+                total,
+                value: completed / total
+            });
+        };
+
+        const requests = items.map((it, idx) => ({
+            id: idx + 1,
+            request: async () => {
+                try {
+                    const resp = await sections.deleteSection({
+                        domain: it.domain,
+                        token: it.token,
+                        section_id: it.section_id
+                    });
+                    return resp;
+                } finally { update(); }
+            }
+        }));
+
+        const res = await batchHandler(requests, getBatchConfig());
+        return res;
+    });
+
     // ==================== IMPORTS ====================
 
     /**

@@ -522,6 +522,56 @@ ${JSON.stringify(summary, null, 2)}`;
         }
     });
 
+    // QTI fix identifiers and save
+    ipcMain.handle('qti:fixIdentifiers', async (event, filePath) => {
+        try {
+            if (!isAllowedPath(allowedReadPaths, event.sender.id, filePath)) {
+                throw new Error('Access denied: QTI file was not selected via dialog');
+            }
+
+            if (!filePath.toLowerCase().endsWith('.zip')) {
+                throw new Error('Identifier fix is only supported for ZIP packages');
+            }
+
+            const { QTIAnalyzer } = require('../../shared/qtiAnalyzer');
+            const zipBuffer = fs.readFileSync(filePath);
+            const fixResult = await QTIAnalyzer.fixIdentifiers(zipBuffer);
+
+            if (!fixResult.fixedBuffer) {
+                return { canceled: false, noChanges: true, message: fixResult.message };
+            }
+
+            const originalName = path.basename(filePath);
+            const ext = path.extname(originalName);
+            const baseName = path.basename(originalName, ext);
+
+            const saveResult = await dialog.showSaveDialog(mainWindow, {
+                title: 'Save Fixed QTI Package',
+                defaultPath: `${baseName}_fixed${ext}`,
+                filters: [
+                    { name: 'ZIP Packages', extensions: ['zip'] },
+                    { name: 'All Files', extensions: ['*'] }
+                ]
+            });
+
+            if (saveResult.canceled) return { canceled: true };
+
+            const savePath = saveResult.filePath;
+            rememberPath(allowedWritePaths, event.sender.id, savePath);
+            fs.writeFileSync(savePath, fixResult.fixedBuffer);
+
+            return {
+                canceled: false,
+                noChanges: false,
+                filePath: savePath,
+                fixes: fixResult.fixes,
+                message: fixResult.message
+            };
+        } catch (error) {
+            throw new Error(`Failed to fix QTI identifiers: ${error.message}`);
+        }
+    });
+
     // ============================================
     // Diff Checker Handlers
     // ============================================

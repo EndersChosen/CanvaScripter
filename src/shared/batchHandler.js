@@ -53,13 +53,13 @@ async function batchHandler(requests, batchSize = 35, timeDelay) {
         console.log('Inside processBatchRequests');
 
         retryRequests = []; // zeroing out failed requests
-        
+
         // On retries, remove the failed entries for requests we're about to retry
         if (counter > 0) {
             const retryIds = new Set(myRequests.map(r => r.id));
             failed = failed.filter(f => !retryIds.has(f.id));
         }
-        
+
         // const results = [];
         for (let i = 0; i < myRequests.length; i += batchSize) {
             if (isCancelled && isCancelled()) {
@@ -110,13 +110,13 @@ async function batchHandler(requests, batchSize = 35, timeDelay) {
         }
     }
 
-    // Only retry on 403 (throttling) - no other status codes indicate retryable errors
+    // Retry on 403 or 429 (rate limiting / throttling)
     const shouldRetry = (request) => {
         // Don't retry network errors
         if (request.isNetworkError) return false;
 
-        // Only retry on 403 (throttling/rate limiting)
-        return request.status === 403;
+        // Retry on 403 (throttling) or 429 (Too Many Requests)
+        return request.status === 403 || request.status === 429;
     };
 
     do {
@@ -124,35 +124,28 @@ async function batchHandler(requests, batchSize = 35, timeDelay) {
             log('Batch handler cancelled by user');
             break;
         }
-        
+
         if (retryRequests.length > 0) {
             myRequests = requests.filter(request => retryRequests.some(r => r.id === request.id)); // find the request data to process the failed requests
             counter++;
-            
-            // Exponential backoff: 5s, 15s, 30s for retry attempts
-            let retryDelay = timeDelay;
-            if (counter === 1) {
-                retryDelay = timeDelay * 2.5; // First retry: 5s (2s * 2.5)
-            } else if (counter === 2) {
-                retryDelay = timeDelay * 7.5; // Second retry: 15s (2s * 7.5)
-            } else if (counter === 3) {
-                retryDelay = timeDelay * 15; // Third retry: 30s (2s * 15)
-            }
-              
-            log(`Retry attempt ${counter}/3 - waiting ${retryDelay}ms before retrying ${myRequests.length} requests...`);
+
+            // Exponential backoff: 5s, 10s, 20s, 40s, 60s for retry attempts
+            const retryDelay = Math.min(timeDelay * Math.pow(2, counter), 60000);
+
+            log(`Retry attempt ${counter}/5 - waiting ${retryDelay}ms before retrying ${myRequests.length} requests...`);
             await waitFunc(retryDelay); // wait for the exponentially increasing delay before attempting a retry
-              
-            log(`Starting retry attempt ${counter}/3...`);
+
+            log(`Starting retry attempt ${counter}/5...`);
             await processBatchRequests(myRequests);
             retryRequests = failed.filter(request => shouldRetry(request)); // only retry requests that should be retried
-            log(`Retry attempt ${counter}/3 complete. ${retryRequests.length} requests still need retry.`);
+            log(`Retry attempt ${counter}/5 complete. ${retryRequests.length} requests still need retry.`);
         } else {
             log('Processing initial batch requests...');
             await processBatchRequests(myRequests);
             retryRequests = failed.filter(request => shouldRetry(request)); // only retry requests that should be retried
             log(`Initial batch complete. ${retryRequests.length} requests need retry.`);
         }
-    } while (counter < 3 && retryRequests.length > 0); // loop through if there are failed requests until the counter is over 3
+    } while (counter < 5 && retryRequests.length > 0); // loop through if there are failed requests until the counter is over 5
 
     log(`Batch handler complete. Successful: ${successful.length}, Failed: ${failed.length}`);
     return { successful, failed };
