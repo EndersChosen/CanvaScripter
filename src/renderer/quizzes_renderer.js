@@ -336,7 +336,7 @@ async function createQuiz(e) {
                 token,
                 course_id,
                 quiz_type,
-                publish,
+                publish: false, // Always create unpublished; publish after questions are added
                 num_quizzes,
                 quiz_name,
                 questionTypes
@@ -392,32 +392,36 @@ async function createQuiz(e) {
 
                     const createQuestionsResponse = await window.axios.createClassicQuestions(quizQuestionData);
                     if (createQuestionsResponse.successful.length > 0) {
-                        // update the quizzes after question are created
                         appendLine(`Step 2: Questions created for ${createQuestionsResponse.successful.length} quizzes.`);
-                        for (let quiz of quizIDs) {
-                            try {
-                                await window.axios.updateClassicQuiz({ domain, token, course_id, quiz_id: quiz });
-                            } catch (error) {
-                                console.error(`Failed to update quiz ${quiz}: ${error}`);
-                            }
-                        }
                         // Move bar to 75% after Step 2
                         setBar(75);
-                        // If user selected publish, publish after questions are created
-                        if (publish) {
-                            appendLine('Step 3: Publishing quizzes...');
+
+                        // Step 3: Publish quizzes to sync questions into the quiz
+                        appendLine('Step 3: Publishing quizzes to finalize questions...');
+                        for (let quiz of quizIDs) {
+                            try {
+                                await window.axios.updateClassicQuiz({ domain, token, course_id, quiz_id: quiz, payload: { quiz: { published: true } } });
+                            } catch (error) {
+                                console.error(`Failed to publish quiz ${quiz}: ${error}`);
+                            }
+                        }
+                        setBar(85);
+
+                        // Step 4: If user did NOT want the quiz published, unpublish it now
+                        if (!publish) {
+                            appendLine('Step 4: Unpublishing quizzes (user elected not to publish)...');
                             for (let quiz of quizIDs) {
                                 try {
-                                    await window.axios.updateClassicQuiz({ domain, token, course_id, quiz_id: quiz, payload: { quiz: { published: true } } });
+                                    await window.axios.updateClassicQuiz({ domain, token, course_id, quiz_id: quiz, payload: { quiz: { published: false } } });
                                 } catch (error) {
-                                    console.error(`Failed to publish quiz ${quiz}: ${error}`);
+                                    console.error(`Failed to unpublish quiz ${quiz}: ${error}`);
                                 }
                             }
-                            // Nudge bar during publish
-                            setBar(90);
                         }
+                        setBar(95);
+
                         // Final step
-                        appendLine('Step 4: Done.');
+                        appendLine('Done.');
                         setBar(100);
                         activeRun = false;
                     } else {

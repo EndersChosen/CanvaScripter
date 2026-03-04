@@ -913,8 +913,8 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
             const requestData = {
                 domain: data.domain,
                 token: data.token,
-                course_id: data.course_id,
-                quiz_id: data.quizzes[i]
+                course_id: data.courseID,
+                quiz_id: data.quizzes[i]._id
             };
             requests.push({ id: i + 1, request: () => request(requestData) });
         }
