@@ -658,7 +658,7 @@ async function addQuestionsNQ(e) {
                             <input id="add-nq-questions-course-id" type="text" class="form-control form-control-sm" aria-describedby="input-checker" />
                         </div>
                     <div class="col-2">
-                        <label class="form-label">Quiz ID</label>
+                        <label class="form-label">Quiz/Assignment ID</label>
                         <input id="nq-id" type="text" class="form-control form-control-sm" value="1">
                     </div>
                     <div class="col-2">
