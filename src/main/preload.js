@@ -756,6 +756,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
     'qti:selectFile',
     'qti:analyze',
     'qti:fixIdentifiers',
+    'qti:fixCanvasCompat',
 
     // Diff checker
     'diff:selectFile',

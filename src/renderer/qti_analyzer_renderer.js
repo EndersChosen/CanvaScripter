@@ -98,6 +98,7 @@ function displayQtiAnalysisResults(analysis, filePath) {
     const html = `
         <div class="qti-analysis-results">
             ${renderCompatibilityOverview(analysis)}
+            ${renderCanvasImportReadiness(analysis)}
             ${renderMetadata(analysis)}
             ${renderValidation(analysis)}
             ${renderManifestIdentifierCheck(analysis)}
@@ -111,59 +112,62 @@ function displayQtiAnalysisResults(analysis, filePath) {
 
     resultsDiv.innerHTML = html;
 
-    // Wire up the Fix Identifiers button if present
-    const fixButton = document.getElementById('qti-fix-identifiers');
-    if (fixButton && filePath) {
-        fixButton.addEventListener('click', async () => {
-            const statusSpan = document.getElementById('qti-fix-status');
+    // Wire up the Fix Canvas Compatibility button if present
+    const fixCompatButton = document.getElementById('qti-fix-canvas-compat');
+    if (fixCompatButton && filePath) {
+        fixCompatButton.addEventListener('click', async () => {
+            const statusSpan = document.getElementById('qti-fix-compat-status');
             try {
-                fixButton.disabled = true;
-                fixButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Fixing...';
+                fixCompatButton.disabled = true;
+                fixCompatButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Fixing...';
                 if (statusSpan) statusSpan.textContent = '';
 
-                const result = await window.ipcRenderer.invoke('qti:fixIdentifiers', filePath);
+                const result = await window.ipcRenderer.invoke('qti:fixCanvasCompat', filePath);
 
                 if (result.canceled) {
-                    fixButton.disabled = false;
-                    fixButton.innerHTML = '<i class="bi bi-wrench"></i> Fix Identifiers & Download';
+                    fixCompatButton.disabled = false;
+                    fixCompatButton.innerHTML = '<i class="bi bi-wrench"></i> Fix All Issues & Download';
                     return;
                 }
 
                 if (result.noChanges) {
-                    fixButton.disabled = false;
-                    fixButton.innerHTML = '<i class="bi bi-wrench"></i> Fix Identifiers & Download';
+                    fixCompatButton.disabled = false;
+                    fixCompatButton.innerHTML = '<i class="bi bi-wrench"></i> Fix All Issues & Download';
                     if (statusSpan) {
                         statusSpan.innerHTML = '<span class="text-info"><i class="bi bi-info-circle"></i> ' + result.message + '</span>';
                     }
                     return;
                 }
 
-                fixButton.innerHTML = '<i class="bi bi-check-circle"></i> Fixed!';
-                fixButton.classList.remove('btn-warning');
-                fixButton.classList.add('btn-success');
+                fixCompatButton.innerHTML = '<i class="bi bi-check-circle"></i> Fixed!';
+                fixCompatButton.classList.remove('btn-warning');
+                fixCompatButton.classList.add('btn-success');
 
-                const fixDetails = result.fixes.map(f =>
-                    `<li><code>${f.filename}</code>: <code>${f.oldIdent}</code> &rarr; <code>${f.newIdent}</code></li>`
-                ).join('');
+                const fixDetails = result.fixes.map(f => {
+                    const fixLabels = f.fixes.map(fix => `<code>${fix}</code>`).join(', ');
+                    return `<li><code>${f.filename}</code>: ${fixLabels}</li>`;
+                }).join('');
 
                 if (statusSpan) {
                     statusSpan.innerHTML = `
                         <span class="text-success">
                             <i class="bi bi-check-circle-fill"></i> ${result.message}
-                            Saved to: <strong>${result.filePath}</strong>
+                            <br>Saved to: <strong>${result.filePath}</strong>
                         </span>
                         <ul class="mt-1 mb-0 small">${fixDetails}</ul>
                     `;
                 }
             } catch (error) {
-                fixButton.disabled = false;
-                fixButton.innerHTML = '<i class="bi bi-wrench"></i> Fix Identifiers & Download';
+                fixCompatButton.disabled = false;
+                fixCompatButton.innerHTML = '<i class="bi bi-wrench"></i> Fix All Issues & Download';
                 if (statusSpan) {
                     statusSpan.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> ' + error.message + '</span>';
                 }
             }
         });
     }
+
+    // Note: Identifier fixes are now handled by the combined 'Fix All Issues' button above
 }
 
 function renderCompatibilityOverview(analysis) {
@@ -223,6 +227,26 @@ function renderCompatibilityOverview(analysis) {
         </div>
     ` : '';
 
+    const hasFixableIssues = analysis.canvasImportReadiness && analysis.canvasImportReadiness.fixable;
+    const hasIdentifierMismatches = analysis.manifestIdentifierCheck && analysis.manifestIdentifierCheck.hasMismatches;
+    const showFixButton = hasFixableIssues || hasIdentifierMismatches;
+
+    const fixButtonHtml = showFixButton ? `
+        <div class="mt-3 p-3 bg-light border rounded">
+            <h6><i class="bi bi-tools"></i> Automatic Fix Available</h6>
+            <p class="mb-2 small text-muted">
+                All detected issues can be resolved automatically in a single pass. This will fix
+                identifier mismatches, add missing namespaces, item metadata (question_type, points_possible),
+                CDATA wrapping, essay scoring blocks, and fix manifest structure.
+                A corrected package will be saved to your chosen location.
+            </p>
+            <button id="qti-fix-canvas-compat" class="btn btn-warning">
+                <i class="bi bi-wrench"></i> Fix All Issues &amp; Download
+            </button>
+            <span id="qti-fix-compat-status" class="ms-2"></span>
+        </div>
+    ` : '';
+
     return `
         <div class="card border-${badgeClass} mb-3">
             <div class="card-header bg-${badgeClass} text-white">
@@ -242,6 +266,7 @@ function renderCompatibilityOverview(analysis) {
                 ${issuesHtml}
                 ${warningsHtml}
                 ${recommendationsHtml}
+                ${fixButtonHtml}
             </div>
         </div>
     `;
@@ -674,18 +699,11 @@ function renderManifestIdentifierCheck(analysis) {
                 assessment <code>ident</code> attribute in the quiz XML file for the
                 <strong>"Convert to New Quizzes"</strong> import option to succeed.
             </p>
-            <p class="mb-1">
-                <strong>Solution:</strong> Edit the quiz XML file and change the <code>ident</code>
-                attribute on the <code>&lt;assessment&gt;</code> element to match the
-                <code>identifier</code> value from <code>imsmanifest.xml</code>, or vice versa.
-            </p>
             <p class="mb-0">
-                Or use the button below to automatically fix and download a corrected package:
+                <i class="bi bi-arrow-down-circle"></i> This will be automatically corrected by the
+                <strong>"Fix All Issues &amp; Download"</strong> button in the
+                <strong>Canvas Import Readiness</strong> section below.
             </p>
-            <button id="qti-fix-identifiers" class="btn btn-warning mt-2">
-                <i class="bi bi-wrench"></i> Fix Identifiers &amp; Download
-            </button>
-            <span id="qti-fix-status" class="ms-2"></span>
         </div>
     ` : '';
 
@@ -719,6 +737,67 @@ function renderManifestIdentifierCheck(analysis) {
                         </tbody>
                     </table>
                     ${fixInstructions}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderCanvasImportReadiness(analysis) {
+    const readiness = analysis.canvasImportReadiness;
+
+    // Not available or no issues
+    if (!readiness || readiness.issues.length === 0) {
+        return '';
+    }
+
+    const highCount = readiness.issues.filter(i => i.severity === 'high').length;
+    const medCount = readiness.issues.filter(i => i.severity === 'medium').length;
+    const statusClass = highCount > 0 ? 'danger' : 'warning';
+    const statusIcon = highCount > 0 ? 'exclamation-triangle-fill' : 'exclamation-circle-fill';
+
+    const issueRows = readiness.issues.map(issue => {
+        const severityClass = issue.severity === 'high' ? 'danger' : 'warning';
+        const fixBadge = issue.fixable
+            ? '<span class="badge bg-info ms-2"><i class="bi bi-wrench"></i> Auto-fixable</span>'
+            : '<span class="badge bg-secondary ms-2">Manual fix needed</span>';
+
+        const affectedHtml = issue.affectedItems && issue.affectedItems.length > 0
+            ? `<div class="mt-1"><small class="text-muted">Affected: ${issue.affectedItems.slice(0, 10).map(id => '<code>' + id + '</code>').join(', ')}${issue.affectedItems.length > 10 ? ` and ${issue.affectedItems.length - 10} more` : ''}</small></div>`
+            : '';
+
+        return `
+            <div class="alert alert-${severityClass} mb-2">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong><i class="bi bi-${issue.severity === 'high' ? 'x-circle' : 'exclamation-triangle'}"></i> ${issue.label}</strong>
+                        ${fixBadge}
+                    </div>
+                    <span class="badge bg-${severityClass}">${issue.severity}</span>
+                </div>
+                <div class="mt-1">${issue.message}</div>
+                <div class="mt-1 small text-muted"><em>Impact:</em> ${issue.impact}</div>
+                ${affectedHtml}
+            </div>
+        `;
+    }).join('');
+
+    return `
+        <div class="card border-${statusClass} mb-3">
+            <div class="card-header bg-${statusClass} text-white" role="button" data-bs-toggle="collapse" data-bs-target="#import-readiness-collapse">
+                <h5 class="mb-0">
+                    <i class="bi bi-${statusIcon}"></i> Canvas Import Readiness
+                    <span class="badge bg-light text-${statusClass} ms-2">${highCount + medCount} issue${highCount + medCount > 1 ? 's' : ''}</span>
+                    <i class="bi bi-chevron-down float-end"></i>
+                </h5>
+            </div>
+            <div id="import-readiness-collapse" class="collapse show">
+                <div class="card-body">
+                    <p class="text-muted">
+                        These checks verify structural requirements for successful Canvas QTI import.
+                        Issues here commonly cause import failures or questions not being recognized correctly.
+                    </p>
+                    ${issueRows}
                 </div>
             </div>
         </div>
@@ -776,6 +855,40 @@ function renderCanvasChecklist(analysis) {
             passed: !manifestCheck.hasMismatches,
             importance: 'high'
         });
+    }
+
+    // Add Canvas import readiness checks
+    const readiness = analysis.canvasImportReadiness;
+    if (readiness) {
+        const hasNamespaceIssue = readiness.issues.some(i => i.id === 'missing_qti_namespace');
+        const hasMetadataIssue = readiness.issues.some(i => i.id === 'missing_item_metadata');
+        const hasEssayIssue = readiness.issues.some(i => i.id === 'missing_essay_resprocessing');
+        const hasManifestIssue = readiness.issues.some(i => i.id === 'manifest_wrong_namespace' || i.id === 'manifest_missing_metadata');
+
+        checks.push({
+            label: 'QTI namespace declared on root element',
+            passed: !hasNamespaceIssue,
+            importance: 'high'
+        });
+        checks.push({
+            label: 'All items have question_type metadata',
+            passed: !hasMetadataIssue,
+            importance: 'high'
+        });
+        if (hasEssayIssue || readiness.issues.some(i => i.id === 'missing_essay_resprocessing')) {
+            checks.push({
+                label: 'Essay questions have scoring blocks',
+                passed: !hasEssayIssue,
+                importance: 'high'
+            });
+        }
+        if (hasManifestIssue) {
+            checks.push({
+                label: 'Manifest uses Common Cartridge namespace',
+                passed: false,
+                importance: 'high'
+            });
+        }
     }
 
     const checkItems = checks.map(check => {

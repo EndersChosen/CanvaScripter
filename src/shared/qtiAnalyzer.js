@@ -283,7 +283,7 @@ class QTIAnalyzer {
      * Generate comprehensive analysis report
      */
     generateReport() {
-        return {
+        const report = {
             version: this.version,
             metadata: this.getMetadata(),
             validation: this.getValidationResults(),
@@ -293,8 +293,41 @@ class QTIAnalyzer {
             canvasCompatibility: this.checkCanvasCompatibility(),
             contentAnalysis: this.analyzeContent(),
             mediaAnalysis: this.analyzeMediaReferences(),
+            canvasImportReadiness: this.checkCanvasImportReadiness(),
             warnings: this.getWarnings()
         };
+
+        // Integrate import readiness issues into compatibility score
+        const readiness = report.canvasImportReadiness;
+        if (readiness && readiness.issues.length > 0) {
+            readiness.issues.forEach(issue => {
+                if (issue.severity === 'high') {
+                    report.canvasCompatibility.score = Math.max(0, report.canvasCompatibility.score - 15);
+                } else if (issue.severity === 'medium') {
+                    report.canvasCompatibility.score = Math.max(0, report.canvasCompatibility.score - 5);
+                }
+            });
+
+            // Add summary issue to compatibility
+            const highCount = readiness.issues.filter(i => i.severity === 'high').length;
+            if (highCount > 0) {
+                report.canvasCompatibility.issues.push({
+                    severity: 'high',
+                    type: 'canvas_import_readiness',
+                    message: `${highCount} Canvas import readiness issue${highCount > 1 ? 's' : ''} found (missing namespace, metadata, etc.)`,
+                    impact: 'These issues will likely cause import failures or incorrect question type mapping in Canvas'
+                });
+                report.canvasCompatibility.compatible = false;
+                report.canvasCompatibility.recommendations = report.canvasCompatibility.recommendations.filter(
+                    r => r !== 'File appears compatible with Canvas - ready for import'
+                );
+                report.canvasCompatibility.recommendations.push(
+                    'Use the "Fix Canvas Compatibility" button to automatically resolve structural issues'
+                );
+            }
+        }
+
+        return report;
     }
 
     /**
@@ -1122,6 +1155,471 @@ class QTIAnalyzer {
     }
 
     /**
+     * Check Canvas import readiness by analyzing raw XML for structural issues.
+     * These are issues that prevent successful Canvas import even if the XML is well-formed.
+     */
+    checkCanvasImportReadiness() {
+        const issues = [];
+        const fixes = [];
+        const xml = this.rawXml;
+
+        if (!xml || this.version !== '1.2') {
+            return { issues, fixes, fixable: false, totalFixable: 0 };
+        }
+
+        // 1. Check for QTI namespace on <questestinterop>
+        const hasQtiNamespace = /<questestinterop[^>]*xmlns\s*=/.test(xml);
+        if (!hasQtiNamespace && xml.includes('<questestinterop')) {
+            issues.push({
+                id: 'missing_qti_namespace',
+                severity: 'high',
+                label: 'Missing QTI Namespace',
+                message: 'The <questestinterop> element has no XML namespace declaration',
+                impact: 'Canvas may not recognise the file as valid QTI. The namespace xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2" is required.',
+                fixable: true
+            });
+            fixes.push('missing_qti_namespace');
+        }
+
+        // 2. Check for <itemmetadata> / question_type on items
+        const itemRegex = /<item\s+[^>]*ident="([^"]*)"[^>]*>([\s\S]*?)<\/item>/g;
+        let itemMatch;
+        const itemsMissingMetadata = [];
+        const itemsMissingResprocessing = [];
+        const itemsMissingCdata = [];
+        let totalItems = 0;
+
+        while ((itemMatch = itemRegex.exec(xml)) !== null) {
+            totalItems++;
+            const ident = itemMatch[1];
+            const itemContent = itemMatch[2];
+
+            // Check for itemmetadata with question_type
+            const hasItemMetadata = /<itemmetadata>/.test(itemContent);
+            const hasQuestionType = /question_type/.test(itemContent);
+            if (!hasItemMetadata || !hasQuestionType) {
+                itemsMissingMetadata.push(ident);
+            }
+
+            // Check essay questions (response_str) for missing resprocessing
+            if (/<response_str/.test(itemContent) && !/<resprocessing>/.test(itemContent)) {
+                itemsMissingResprocessing.push(ident);
+            }
+
+            // Check for mattext without CDATA
+            const mattextRegex = /<mattext\s+texttype="text\/html">(?!<!\[CDATA\[)([\s\S]*?)<\/mattext>/g;
+            if (mattextRegex.test(itemContent)) {
+                itemsMissingCdata.push(ident);
+            }
+        }
+
+        if (itemsMissingMetadata.length > 0) {
+            issues.push({
+                id: 'missing_item_metadata',
+                severity: 'high',
+                label: 'Missing Item Metadata',
+                message: `${itemsMissingMetadata.length} of ${totalItems} question${itemsMissingMetadata.length > 1 ? 's are' : ' is'} missing <itemmetadata> with question_type`,
+                impact: 'Canvas cannot determine question types (multiple choice, essay, etc.) without this metadata. Questions may fail to import or be misclassified.',
+                fixable: true,
+                affectedItems: itemsMissingMetadata
+            });
+            fixes.push('missing_item_metadata');
+        }
+
+        if (itemsMissingResprocessing.length > 0) {
+            issues.push({
+                id: 'missing_essay_resprocessing',
+                severity: 'high',
+                label: 'Essay Questions Missing Scoring',
+                message: `${itemsMissingResprocessing.length} essay question${itemsMissingResprocessing.length > 1 ? 's are' : ' is'} missing <resprocessing> block`,
+                impact: 'Canvas expects a resprocessing block on all questions, even essays. These items may fail to import.',
+                fixable: true,
+                affectedItems: itemsMissingResprocessing
+            });
+            fixes.push('missing_essay_resprocessing');
+        }
+
+        if (itemsMissingCdata.length > 0) {
+            issues.push({
+                id: 'missing_cdata_wrap',
+                severity: 'medium',
+                label: 'HTML Content Not Wrapped in CDATA',
+                message: `${itemsMissingCdata.length} question${itemsMissingCdata.length > 1 ? 's have' : ' has'} HTML content not wrapped in CDATA sections`,
+                impact: 'Special characters or HTML in question text may cause XML parsing issues. Wrapping in CDATA is recommended.',
+                fixable: true,
+                affectedItems: itemsMissingCdata
+            });
+            fixes.push('missing_cdata_wrap');
+        }
+
+        return {
+            issues,
+            fixes,
+            fixable: fixes.length > 0,
+            totalFixable: fixes.length,
+            totalItems
+        };
+    }
+
+    /**
+     * Detect the Canvas question_type for a QTI 1.2 item from raw XML.
+     * Used by the fixer to inject correct metadata.
+     */
+    static detectCanvasQuestionType(itemXml) {
+        // Essay questions use <response_str>
+        if (/<response_str/.test(itemXml)) {
+            return 'essay_question';
+        }
+
+        const isSingle = /rcardinality="Single"/.test(itemXml);
+        const isMultiple = /rcardinality="Multiple"/.test(itemXml);
+
+        if (isSingle) {
+            // True/False: Single cardinality with only True and False options
+            const hasTrueOption = />\s*True\s*<\/mattext>/i.test(itemXml);
+            const hasFalseOption = />\s*False\s*<\/mattext>/i.test(itemXml);
+            const labelCount = (itemXml.match(/<response_label/g) || []).length;
+            if (hasTrueOption && hasFalseOption && labelCount === 2) {
+                return 'true_false_question';
+            }
+            return 'multiple_choice_question';
+        }
+
+        if (isMultiple) {
+            return 'multiple_answers_question';
+        }
+
+        // Matching
+        if (/<response_grp/.test(itemXml)) {
+            return 'matching_question';
+        }
+
+        // Numerical
+        if (/<response_num/.test(itemXml)) {
+            return 'numerical_question';
+        }
+
+        return 'multiple_choice_question'; // fallback
+    }
+
+    /**
+     * Fix Canvas compatibility issues in raw QTI 1.2 XML.
+     * Returns the fixed XML string.
+     */
+    static fixQtiXml(xmlContent) {
+        let fixedXml = xmlContent;
+        const appliedFixes = [];
+
+        // Fix 1: Add QTI namespace to <questestinterop>
+        if (/<questestinterop>/.test(fixedXml)) {
+            fixedXml = fixedXml.replace(
+                '<questestinterop>',
+                '<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.imsglobal.org/xsd/ims_qtiasiv1p2 http://www.imsglobal.org/xsd/ims_qtiasiv1p2p1.xsd">'
+            );
+            appliedFixes.push('missing_qti_namespace');
+        }
+
+        // Fix 2 & 3: Add itemmetadata and resprocessing to items
+        const itemRegex = /(<item\s+ident="[^"]*"[^>]*>)([\s\S]*?)(<\/item>)/g;
+        fixedXml = fixedXml.replace(itemRegex, (fullMatch, openTag, content, closeTag) => {
+            let newContent = content;
+
+            // Add itemmetadata if missing
+            if (!/<itemmetadata>/.test(newContent)) {
+                const questionType = QTIAnalyzer.detectCanvasQuestionType(fullMatch);
+
+                // Detect points from question text or default to 1
+                let points = '1.0';
+                if (questionType === 'essay_question') {
+                    const pointsMatch = fullMatch.match(/\((\d+)\s*points?\)/i);
+                    if (pointsMatch) {
+                        points = pointsMatch[1] + '.0';
+                    }
+                }
+
+                const metadata = `\n        <itemmetadata>\n          <qtimetadata>\n            <qtimetadatafield>\n              <fieldlabel>question_type</fieldlabel>\n              <fieldentry>${questionType}</fieldentry>\n            </qtimetadatafield>\n            <qtimetadatafield>\n              <fieldlabel>points_possible</fieldlabel>\n              <fieldentry>${points}</fieldentry>\n            </qtimetadatafield>\n          </qtimetadata>\n        </itemmetadata>`;
+
+                newContent = metadata + newContent;
+
+                if (!appliedFixes.includes('missing_item_metadata')) {
+                    appliedFixes.push('missing_item_metadata');
+                }
+            }
+
+            // Add resprocessing to essay questions if missing
+            const isEssay = /<response_str/.test(newContent);
+            if (isEssay && !/<resprocessing>/.test(newContent)) {
+                let maxScore = '1';
+                const pointsMatch = fullMatch.match(/\((\d+)\s*points?\)/i);
+                if (pointsMatch) maxScore = pointsMatch[1];
+
+                const resprocessing = `\n        <resprocessing>\n          <outcomes>\n            <decvar varname="SCORE" vartype="Integer" minvalue="0" maxvalue="${maxScore}" />\n          </outcomes>\n          <respcondition continue="No">\n            <conditionvar>\n              <other />\n            </conditionvar>\n          </respcondition>\n        </resprocessing>`;
+
+                newContent = newContent + resprocessing;
+
+                if (!appliedFixes.includes('missing_essay_resprocessing')) {
+                    appliedFixes.push('missing_essay_resprocessing');
+                }
+            }
+
+            return openTag + newContent + closeTag;
+        });
+
+        // Fix 4: Wrap mattext content in CDATA
+        fixedXml = fixedXml.replace(
+            /<mattext texttype="text\/html">((?!<!\[CDATA\[)[\s\S]*?)<\/mattext>/g,
+            (match, content) => {
+                const trimmed = content.trim();
+                if (!appliedFixes.includes('missing_cdata_wrap')) {
+                    appliedFixes.push('missing_cdata_wrap');
+                }
+                return `<mattext texttype="text/html"><![CDATA[${trimmed}]]></mattext>`;
+            }
+        );
+
+        return { fixedXml, appliedFixes };
+    }
+
+    /**
+     * Generate a Canvas-compatible imsmanifest.xml for a standalone QTI file.
+     */
+    static generateCanvasManifest(assessmentTitle, quizFilename, resourceIdentifier) {
+        return `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns="http://www.imsglobal.org/xsd/imsccv1p1/imscp_v1p1"
+  xmlns:imsmd="http://www.imsglobal.org/xsd/imsmd_v1p2"
+  xmlns:lom="http://ltsc.ieee.org/xsd/imsccv1p1/LOM/resource"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  identifier="MANIFEST-${resourceIdentifier}"
+  xsi:schemaLocation="http://www.imsglobal.org/xsd/imsccv1p1/imscp_v1p1 http://www.imsglobal.org/xsd/imscp_v1p1.xsd http://ltsc.ieee.org/xsd/imsccv1p1/LOM/resource http://www.imsglobal.org/profile/cc/ccv1p1/LOM/ccv1p1_lomresource_v1p0.xsd http://www.imsglobal.org/xsd/imsmd_v1p2 http://www.imsglobal.org/xsd/imsmd_v1p2p2.xsd">
+  <metadata>
+    <schema>IMS Content</schema>
+    <schemaversion>1.1.3</schemaversion>
+    <imsmd:lom>
+      <imsmd:general>
+        <imsmd:title>
+          <imsmd:langstring xml:lang="en-US">${assessmentTitle || ''}</imsmd:langstring>
+        </imsmd:title>
+      </imsmd:general>
+    </imsmd:lom>
+  </metadata>
+  <organizations/>
+  <resources>
+    <resource href="${quizFilename}" identifier="${resourceIdentifier}" type="imsqti_xmlv1p2">
+      <file href="${quizFilename}"/>
+    </resource>
+  </resources>
+</manifest>
+`;
+    }
+
+    /**
+     * Check if an imsmanifest.xml has Canvas-compatible structure.
+     */
+    static checkManifestCompatibility(manifestXml) {
+        const issues = [];
+
+        // Check for Common Cartridge namespace
+        const hasCcNamespace = /xmlns\s*=\s*"[^"]*imsccv1p1/.test(manifestXml);
+        if (!hasCcNamespace) {
+            issues.push({
+                id: 'manifest_wrong_namespace',
+                severity: 'high',
+                label: 'Manifest Missing CC Namespace',
+                message: 'The manifest does not use the Common Cartridge namespace (imsccv1p1)',
+                impact: 'Canvas expects the CC namespace for reliable imports. Using the generic IMS CP namespace may cause import failures.',
+                fixable: true
+            });
+        }
+
+        // Check for <metadata> block
+        const hasMetadata = /<metadata>/.test(manifestXml);
+        if (!hasMetadata) {
+            issues.push({
+                id: 'manifest_missing_metadata',
+                severity: 'medium',
+                label: 'Manifest Missing Metadata',
+                message: 'The manifest is missing the <metadata> section with schema version info',
+                impact: 'While not strictly required, Canvas imports are more reliable with proper metadata including schema version.',
+                fixable: true
+            });
+        }
+
+        // Check for <organizations/>
+        const hasOrganizations = /<organizations\s*\/>|<organizations>/.test(manifestXml);
+        if (!hasOrganizations) {
+            issues.push({
+                id: 'manifest_missing_organizations',
+                severity: 'medium',
+                label: 'Manifest Missing Organizations Element',
+                message: 'The manifest is missing the <organizations/> element',
+                impact: 'The IMS Content Packaging spec requires this element even when empty.',
+                fixable: true
+            });
+        }
+
+        return issues;
+    }
+
+    /**
+     * Fix Canvas compatibility issues in a ZIP package.
+     * Fixes quiz XML files AND the imsmanifest.xml.
+     * Returns a new ZIP buffer.
+     */
+    static async fixCanvasCompatibility(zipBuffer) {
+        const extractor = new QTIPackageExtractor(zipBuffer);
+        const packageData = await extractor.extract();
+
+        const zip = await JSZip.loadAsync(zipBuffer);
+        const allFixes = [];
+        let manifestFixed = false;
+
+        // --- Phase 1: Fix identifier mismatches (manifest ident vs assessment ident) ---
+        const resourceMap = packageData.manifest ? extractor.getResourceIdentifierMap() : {};
+
+        // Fix assessment XML files (compatibility + identifier in one pass)
+        for (const assessmentFile of packageData.assessmentFiles) {
+            let xmlContent = assessmentFile.content;
+            const fileFixes = [];
+
+            // 1a. Fix identifier mismatch
+            const normalizedFilename = assessmentFile.filename.replace(/\\/g, '/').trim().toLowerCase();
+            const resourceEntry = resourceMap[normalizedFilename];
+            if (resourceEntry) {
+                const manifestIdentifier = resourceEntry.identifier;
+
+                const assessmentMatch12 = xmlContent.match(/<assessment\s([^>]*?)ident\s*=\s*"([^"]*?)"/);
+                const assessmentMatch21 = xmlContent.match(/<assessmentTest\s([^>]*?)identifier\s*=\s*"([^"]*?)"/);
+
+                if (assessmentMatch12 && assessmentMatch12[2] !== manifestIdentifier) {
+                    xmlContent = xmlContent.replace(
+                        /(<assessment\s[^>]*?)ident\s*=\s*"[^"]*?"/,
+                        `$1ident="${manifestIdentifier}"`
+                    );
+                    fileFixes.push(`identifier_fixed: ${assessmentMatch12[2]} → ${manifestIdentifier}`);
+                } else if (assessmentMatch21 && assessmentMatch21[2] !== manifestIdentifier) {
+                    xmlContent = xmlContent.replace(
+                        /(<assessmentTest\s[^>]*?)identifier\s*=\s*"[^"]*?"/,
+                        `$1identifier="${manifestIdentifier}"`
+                    );
+                    fileFixes.push(`identifier_fixed: ${assessmentMatch21[2]} → ${manifestIdentifier}`);
+                }
+            }
+
+            // 1b. Fix Canvas compatibility issues (namespace, metadata, CDATA, etc.)
+            const { fixedXml, appliedFixes } = QTIAnalyzer.fixQtiXml(xmlContent);
+            fileFixes.push(...appliedFixes);
+
+            if (fileFixes.length > 0) {
+                zip.file(assessmentFile.filename, fixedXml);
+                allFixes.push({
+                    filename: assessmentFile.filename,
+                    type: 'quiz_xml',
+                    fixes: fileFixes
+                });
+            }
+        }
+
+        // Fix or generate imsmanifest.xml
+        const manifestFile = zip.file('imsmanifest.xml');
+        if (manifestFile) {
+            const manifestContent = await manifestFile.async('string');
+            const manifestIssues = QTIAnalyzer.checkManifestCompatibility(manifestContent);
+
+            if (manifestIssues.length > 0) {
+                // Extract info needed to regenerate the manifest
+                let title = '';
+                let quizFilename = '';
+                let resourceId = '';
+
+                // Get resource info from existing manifest
+                const resourceMatch = manifestContent.match(/<resource[^>]*href="([^"]*)"[^>]*identifier="([^"]*)"/);
+                if (!resourceMatch) {
+                    // Try alternate attribute order
+                    const altMatch = manifestContent.match(/<resource[^>]*identifier="([^"]*)"[^>]*href="([^"]*)"/);
+                    if (altMatch) {
+                        resourceId = altMatch[1];
+                        quizFilename = altMatch[2];
+                    }
+                } else {
+                    quizFilename = resourceMatch[1];
+                    resourceId = resourceMatch[2];
+                }
+
+                // Extract title from assessment files
+                if (packageData.assessmentFiles.length > 0) {
+                    const titleMatch = packageData.assessmentFiles[0].content.match(/title="([^"]*)"/);
+                    if (titleMatch) title = titleMatch[1];
+                }
+
+                if (quizFilename && resourceId) {
+                    const newManifest = QTIAnalyzer.generateCanvasManifest(title, quizFilename, resourceId);
+                    zip.file('imsmanifest.xml', newManifest);
+                    manifestFixed = true;
+                    allFixes.push({
+                        filename: 'imsmanifest.xml',
+                        type: 'manifest',
+                        fixes: manifestIssues.map(i => i.id)
+                    });
+                }
+            }
+        } else if (packageData.assessmentFiles.length > 0) {
+            // No manifest exists - generate one
+            const firstFile = packageData.assessmentFiles[0];
+            const titleMatch = firstFile.content.match(/title="([^"]*)"/);
+            const title = titleMatch ? titleMatch[1] : '';
+            const identMatch = firstFile.content.match(/<assessment[^>]*ident="([^"]*)"/);
+            const resourceId = identMatch ? identMatch[1] : 'RESOURCE1';
+
+            const newManifest = QTIAnalyzer.generateCanvasManifest(title, firstFile.filename, resourceId);
+            zip.file('imsmanifest.xml', newManifest);
+            manifestFixed = true;
+            allFixes.push({
+                filename: 'imsmanifest.xml',
+                type: 'manifest',
+                fixes: ['manifest_generated']
+            });
+        }
+
+        if (allFixes.length === 0) {
+            return { fixedBuffer: null, fixes: [], message: 'No Canvas compatibility issues found — nothing to fix.' };
+        }
+
+        const fixedBuffer = await zip.generateAsync({
+            type: 'nodebuffer',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 6 }
+        });
+
+        const totalFixCount = allFixes.reduce((sum, f) => sum + f.fixes.length, 0);
+        return {
+            fixedBuffer,
+            fixes: allFixes,
+            message: `Applied ${totalFixCount} fix${totalFixCount > 1 ? 'es' : ''} across ${allFixes.length} file${allFixes.length > 1 ? 's' : ''}.`
+        };
+    }
+
+    /**
+     * Fix Canvas compatibility for a standalone XML file (non-ZIP).
+     * Returns the fixed XML and optionally a generated manifest.
+     */
+    static fixStandaloneQtiXml(xmlContent, filename) {
+        const { fixedXml, appliedFixes } = QTIAnalyzer.fixQtiXml(xmlContent);
+
+        // Generate a manifest too
+        const titleMatch = fixedXml.match(/title="([^"]*)"/);
+        const title = titleMatch ? titleMatch[1] : '';
+        const identMatch = fixedXml.match(/<assessment[^>]*ident="([^"]*)"/);
+        const resourceId = identMatch ? identMatch[1] : 'RESOURCE1';
+        const manifest = QTIAnalyzer.generateCanvasManifest(title, filename, resourceId);
+
+        return {
+            fixedXml,
+            manifest,
+            appliedFixes
+        };
+    }
+
+    /**
      * Get warnings
      */
     getWarnings() {
@@ -1416,6 +1914,51 @@ class QTIAnalyzer {
             failedFileCount: failedFiles.length,
             failedFiles
         };
+
+        // Check manifest compatibility and merge into canvasImportReadiness
+        if (packageData.manifest) {
+            const manifestFile = zip.file('imsmanifest.xml');
+            if (manifestFile) {
+                const manifestRawContent = await manifestFile.async('string');
+                const manifestIssues = QTIAnalyzer.checkManifestCompatibility(manifestRawContent);
+                if (!report.canvasImportReadiness) {
+                    report.canvasImportReadiness = { issues: [], fixes: [], fixable: false, totalFixable: 0 };
+                }
+                manifestIssues.forEach(issue => {
+                    report.canvasImportReadiness.issues.push(issue);
+                    report.canvasImportReadiness.fixes.push(issue.id);
+                });
+                if (manifestIssues.length > 0) {
+                    report.canvasImportReadiness.fixable = true;
+                    report.canvasImportReadiness.totalFixable = report.canvasImportReadiness.fixes.length;
+                }
+            }
+        }
+
+        // Re-adjust score for any newly found import readiness issues
+        if (report.canvasImportReadiness && report.canvasImportReadiness.issues.length > 0) {
+            const readiness = report.canvasImportReadiness;
+            const highCount = readiness.issues.filter(i => i.severity === 'high').length;
+            const medCount = readiness.issues.filter(i => i.severity === 'medium').length;
+            // Only penalise once (generateReport already penalises for single-file checks)
+            const existingReadinessIssue = report.canvasCompatibility.issues.find(i => i.type === 'canvas_import_readiness');
+            if (!existingReadinessIssue && highCount > 0) {
+                report.canvasCompatibility.issues.push({
+                    severity: 'high',
+                    type: 'canvas_import_readiness',
+                    message: `${highCount + medCount} Canvas import readiness issue${highCount + medCount > 1 ? 's' : ''} found (missing namespace, metadata, manifest issues, etc.)`,
+                    impact: 'These issues will likely cause import failures or incorrect question type mapping in Canvas'
+                });
+                report.canvasCompatibility.score = Math.max(0, report.canvasCompatibility.score - (highCount * 15 + medCount * 5));
+                report.canvasCompatibility.compatible = false;
+                report.canvasCompatibility.recommendations = report.canvasCompatibility.recommendations.filter(
+                    r => r !== 'File appears compatible with Canvas - ready for import'
+                );
+                report.canvasCompatibility.recommendations.push(
+                    'Use the "Fix Canvas Compatibility" button to automatically resolve structural issues'
+                );
+            }
+        }
 
         return report;
     }

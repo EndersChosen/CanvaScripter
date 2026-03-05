@@ -572,6 +572,104 @@ ${JSON.stringify(summary, null, 2)}`;
         }
     });
 
+    // QTI fix Canvas compatibility (namespace, metadata, manifest, etc.)
+    ipcMain.handle('qti:fixCanvasCompat', async (event, filePath) => {
+        try {
+            if (!isAllowedPath(allowedReadPaths, event.sender.id, filePath)) {
+                throw new Error('Access denied: QTI file was not selected via dialog');
+            }
+
+            const { QTIAnalyzer } = require('../../shared/qtiAnalyzer');
+            const isZip = filePath.toLowerCase().endsWith('.zip');
+
+            const originalName = path.basename(filePath);
+            const ext = path.extname(originalName);
+            const baseName = path.basename(originalName, ext);
+
+            if (isZip) {
+                const zipBuffer = fs.readFileSync(filePath);
+                const fixResult = await QTIAnalyzer.fixCanvasCompatibility(zipBuffer);
+
+                if (!fixResult.fixedBuffer) {
+                    return { canceled: false, noChanges: true, message: fixResult.message };
+                }
+
+                const saveResult = await dialog.showSaveDialog(mainWindow, {
+                    title: 'Save Fixed QTI Package',
+                    defaultPath: `${baseName}_canvas_fixed${ext}`,
+                    filters: [
+                        { name: 'ZIP Packages', extensions: ['zip'] },
+                        { name: 'All Files', extensions: ['*'] }
+                    ]
+                });
+
+                if (saveResult.canceled) return { canceled: true };
+
+                const savePath = saveResult.filePath;
+                rememberPath(allowedWritePaths, event.sender.id, savePath);
+                fs.writeFileSync(savePath, fixResult.fixedBuffer);
+
+                return {
+                    canceled: false,
+                    noChanges: false,
+                    filePath: savePath,
+                    fixes: fixResult.fixes,
+                    message: fixResult.message
+                };
+            } else {
+                // Standalone XML file — fix the XML and create a ZIP with manifest
+                const xmlContent = fs.readFileSync(filePath, 'utf8');
+                const xmlFilename = path.basename(filePath);
+                const fixResult = QTIAnalyzer.fixStandaloneQtiXml(xmlContent, xmlFilename);
+
+                if (fixResult.appliedFixes.length === 0) {
+                    return { canceled: false, noChanges: true, message: 'No Canvas compatibility issues found — nothing to fix.' };
+                }
+
+                const JSZip = require('jszip');
+                const zip = new JSZip();
+                zip.file(xmlFilename, fixResult.fixedXml);
+                zip.file('imsmanifest.xml', fixResult.manifest);
+
+                const zipBuffer = await zip.generateAsync({
+                    type: 'nodebuffer',
+                    compression: 'DEFLATE',
+                    compressionOptions: { level: 6 }
+                });
+
+                const saveResult = await dialog.showSaveDialog(mainWindow, {
+                    title: 'Save Fixed QTI Package',
+                    defaultPath: `${baseName}_canvas_fixed.zip`,
+                    filters: [
+                        { name: 'ZIP Packages', extensions: ['zip'] },
+                        { name: 'All Files', extensions: ['*'] }
+                    ]
+                });
+
+                if (saveResult.canceled) return { canceled: true };
+
+                const savePath = saveResult.filePath;
+                rememberPath(allowedWritePaths, event.sender.id, savePath);
+                fs.writeFileSync(savePath, zipBuffer);
+
+                const fixes = [
+                    { filename: xmlFilename, type: 'quiz_xml', fixes: fixResult.appliedFixes },
+                    { filename: 'imsmanifest.xml', type: 'manifest', fixes: ['manifest_generated'] }
+                ];
+
+                return {
+                    canceled: false,
+                    noChanges: false,
+                    filePath: savePath,
+                    fixes,
+                    message: `Applied ${fixResult.appliedFixes.length} fix${fixResult.appliedFixes.length > 1 ? 'es' : ''} to quiz XML and generated Canvas-compatible manifest. Saved as ZIP package.`
+                };
+            }
+        } catch (error) {
+            throw new Error(`Failed to fix QTI Canvas compatibility: ${error.message}`);
+        }
+    });
+
     // ============================================
     // Diff Checker Handlers
     // ============================================
