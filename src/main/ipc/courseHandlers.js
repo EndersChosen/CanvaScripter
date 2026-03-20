@@ -7,11 +7,15 @@
  * - Course associations and blueprint syncing
  */
 
-const { restoreContent, resetCourse, getCourseInfo, createSupportCourse, associateCourses, syncBPCourses, restoreCourseBatch, pollProgressOnce, cancelProgressJob, getCourseState } = require('../../shared/canvas-api/courses');
+const { restoreContent, resetCourse, getCourseInfo, createSupportCourse, editCourse, associateCourses, syncBPCourses, restoreCourseBatch, pollProgressOnce, cancelProgressJob, getCourseState } = require('../../shared/canvas-api/courses');
 const quizzes_classic = require('../../shared/canvas-api/quizzes_classic');
 const quizzes_nq = require('../../shared/canvas-api/quizzes_nq');
 const modules = require('../../shared/canvas-api/modules');
-const { addUsers, enrollUser } = require('../../shared/canvas-api/users');
+const sections = require('../../shared/canvas-api/sections');
+const { createAssignments: createAssignmentGQL } = require('../../shared/canvas-api/assignments');
+const { createDiscussion } = require('../../shared/canvas-api/discussions');
+const { createPage } = require('../../shared/canvas-api/pages');
+const { addUsers, enrollUser, createUsers } = require('../../shared/canvas-api/users');
 const { batchHandler } = require('../../shared/batchHandler');
 const { serializeErrorForIPC } = require('../../shared/errorUtils');
 
@@ -406,94 +410,372 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
     ipcMain.handle('axios:createSupportCourse', async (event, data) => {
         console.log('courseHandlers.js > createSupportCourse');
 
+        const toInt = (value) => Math.max(0, parseInt(value ?? 0, 10) || 0);
+        const courseConfig = data?.course || null;
+
         let response;
         try {
-            // Indicate starting course creation
             progressStartIndeterminate(mainWindow, 'Creating course...');
             response = await createSupportCourse(data);
             console.log('Finished creating course. Checking options....');
-
-            // Update label after creation
             mainWindow.webContents.send('update-progress', { label: 'Course created. Processing options...' });
 
-            // If no options selected, return early
-            const hasOptions = data.usersToEnroll || data.modulesToCreate || data.assignmentsToCreate ||
-                data.discussionsToCreate || data.announcementsToCreate || data.pagesToCreate;
-
-            if (!hasOptions) {
+            if (!courseConfig) {
                 progressDone(mainWindow);
                 return response;
             }
 
-            // Count total units of work for progress tracking
-            let totalUnits = 1; // Base course creation
-            let completedUnits = 1; // Base course already complete
+            data.course_id = response.id;
 
-            // Count users to enroll
-            const studentsCount = Array.isArray(data.usersToEnroll?.students) ? data.usersToEnroll.students.length : 0;
-            const teachersCount = Array.isArray(data.usersToEnroll?.teachers) ? data.usersToEnroll.teachers.length : 0;
-            const totalUsers = studentsCount + teachersCount;
-            if (totalUsers > 0) totalUnits += 2; // User creation + enrollment
+            let totalUsersEnrolled = 0;
+            const counts = {
+                associatedCourses: courseConfig.blueprint?.state ? toInt(courseConfig.blueprint?.associated_courses) : 0,
+                assignments: courseConfig.addAssignments?.state ? toInt(courseConfig.addAssignments?.number) : 0,
+                classicQuizzes: courseConfig.addCQ?.state ? toInt(courseConfig.addCQ?.number) : 0,
+                newQuizzes: courseConfig.addNQ?.state ? toInt(courseConfig.addNQ?.number) : 0,
+                discussions: courseConfig.addDiscussions?.state ? toInt(courseConfig.addDiscussions?.number) : 0,
+                pages: courseConfig.addPages?.state ? toInt(courseConfig.addPages?.number) : 0,
+                modules: courseConfig.addModules?.state ? toInt(courseConfig.addModules?.number) : 0,
+                sections: courseConfig.addSections?.state ? toInt(courseConfig.addSections?.number) : 0,
+                users: courseConfig.addUsers?.state ? toInt(courseConfig.addUsers?.students) + toInt(courseConfig.addUsers?.teachers) : 0,
+                baseCourse: 1
+            };
 
-            // Count other options
-            if (data.modulesToCreate) totalUnits++;
-            if (data.assignmentsToCreate) totalUnits++;
-            if (data.discussionsToCreate) totalUnits++;
-            if (data.announcementsToCreate) totalUnits++;
-            if (data.pagesToCreate) totalUnits++;
-
-            // Process user enrollment
-            if (totalUsers > 0) {
-                progressUpdateDeterminate(mainWindow, completedUnits, totalUnits, `Creating ${totalUsers} user(s)...`);
-                const usersResponse = await addUsersToCanvas(data.usersToEnroll, getBatchConfig);
-                const userIDs = usersResponse.successful.map(s => s.value);
-                completedUnits++;
-
-                if (userIDs.length > 0) {
-                    progressUpdateDeterminate(mainWindow, completedUnits, totalUnits, `Enrolling ${userIDs.length} user(s)...`);
-                    await enrollUsers(data.usersToEnroll, userIDs, getBatchConfig);
+            if (counts.classicQuizzes > 0 && courseConfig.addCQ?.addQuestions) {
+                const classicQuestionTypesCount = Array.isArray(courseConfig.addCQ?.questionTypes)
+                    ? courseConfig.addCQ.questionTypes.length
+                    : 0;
+                if (classicQuestionTypesCount > 0) {
+                    counts.classicQuizQuestions = counts.classicQuizzes * classicQuestionTypesCount;
                 }
-                completedUnits++;
             }
 
-            // Process modules
-            if (data.modulesToCreate) {
-                progressUpdateDeterminate(mainWindow, completedUnits, totalUnits, 'Creating modules...');
-                // Module creation logic would go here
-                completedUnits++;
+            if (counts.newQuizzes > 0 && courseConfig.newQuizQuestions?.addQuestions) {
+                const newQuizQuestionTypesCount = Array.isArray(courseConfig.newQuizQuestions?.questionTypes)
+                    ? courseConfig.newQuizQuestions.questionTypes.length
+                    : 0;
+                if (newQuizQuestionTypesCount > 0) {
+                    counts.newQuizItems = counts.newQuizzes * newQuizQuestionTypesCount;
+                }
             }
 
-            // Process assignments
-            if (data.assignmentsToCreate) {
-                progressUpdateDeterminate(mainWindow, completedUnits, totalUnits, 'Creating assignments...');
-                // Assignment creation logic would go here
-                completedUnits++;
+            const totalOverallUnits = Object.values(counts).reduce((sum, value) => sum + value, 0);
+            let processedOverallUnits = 1;
+
+            const sendOverall = (label) => {
+                const percent = totalOverallUnits > 0 ? (processedOverallUnits / totalOverallUnits) * 100 : 100;
+                mainWindow.webContents.send('update-progress', {
+                    mode: 'determinate',
+                    processed: processedOverallUnits,
+                    total: totalOverallUnits,
+                    percent,
+                    label
+                });
+            };
+
+            sendOverall('Course created. Processing options...');
+
+            if (courseConfig.blueprint?.state) {
+                mainWindow.webContents.send('update-progress', { label: 'Enabling blueprint...' });
+                await editCourse({ domain: data.domain, token: data.token, course_id: data.course_id });
+                mainWindow.webContents.send('update-progress', { label: 'Enabling blueprint....done' });
+
+                const associatedCourses = toInt(courseConfig.blueprint?.associated_courses);
+                if (associatedCourses > 0) {
+                    mainWindow.webContents.send('update-progress', { label: `Creating ${associatedCourses} associated courses...` });
+                    const requests = [];
+                    for (let index = 0; index < associatedCourses; index++) {
+                        const requestData = {
+                            ...data,
+                            course: {
+                                ...courseConfig,
+                                name: `${courseConfig.name} - AC ${index + 1}`,
+                                blueprint: { state: false, associated_courses: 0 },
+                                addUsers: { state: false, students: 0, teachers: 0 },
+                                addAssignments: { state: false, number: 0 },
+                                addCQ: { state: false, number: 0, addQuestions: false, questionTypes: [] },
+                                addNQ: { state: false, number: 0 },
+                                newQuizQuestions: { addQuestions: false, questionTypes: [] },
+                                addDiscussions: { state: false, number: 0 },
+                                addPages: { state: false, number: 0 },
+                                addModules: { state: false, number: 0 },
+                                addSections: { state: false, number: 0 }
+                            }
+                        };
+                        requests.push({
+                            id: index + 1,
+                            request: async () => {
+                                const createdCourse = await createSupportCourse(requestData);
+                                processedOverallUnits++;
+                                sendOverall(`Creating associated courses (${processedOverallUnits}/${totalOverallUnits})...`);
+                                return createdCourse;
+                            }
+                        });
+                    }
+
+                    const createdAssociatedCourses = await batchHandler(requests, getBatchConfig());
+                    const associatedCourseIds = createdAssociatedCourses.successful.map((course) => course.value.id);
+                    mainWindow.webContents.send('update-progress', { label: `Creating ${associatedCourses} associated courses....done` });
+
+                    if (associatedCourseIds.length > 0) {
+                        mainWindow.webContents.send('update-progress', { label: 'Associating courses to blueprint and syncing...' });
+                        const blueprintData = {
+                            domain: data.domain,
+                            token: data.token,
+                            bpCourseID: data.course_id,
+                            associated_course_ids: associatedCourseIds
+                        };
+                        await associateCourses(blueprintData);
+                        await syncBPCourses(blueprintData);
+                        mainWindow.webContents.send('update-progress', { label: 'Associating courses to blueprint and syncing....done' });
+                    }
+                }
             }
 
-            // Process discussions
-            if (data.discussionsToCreate) {
-                progressUpdateDeterminate(mainWindow, completedUnits, totalUnits, 'Creating discussions...');
-                // Discussion creation logic would go here
-                completedUnits++;
+            if (courseConfig.addUsers?.state) {
+                const totalStudents = toInt(courseConfig.addUsers?.students);
+                const totalTeachers = toInt(courseConfig.addUsers?.teachers);
+                const totalNewUsers = totalStudents + totalTeachers;
+
+                if (totalNewUsers > 0) {
+                    const usersToEnroll = {
+                        domain: data.domain,
+                        token: data.token,
+                        course_id: data.course_id,
+                        students: createUsers(totalStudents, data.email),
+                        teachers: createUsers(totalTeachers, data.email)
+                    };
+
+                    mainWindow.webContents.send('update-progress', { label: `Creating ${totalNewUsers} users (${totalStudents} students, ${totalTeachers} teachers)...` });
+                    const usersResponse = await addUsersToCanvas(usersToEnroll, getBatchConfig);
+                    const userIds = usersResponse.successful.map((user) => user.value);
+                    mainWindow.webContents.send('update-progress', { label: `Creating ${totalNewUsers} users....done` });
+
+                    mainWindow.webContents.send('update-progress', { label: `Enrolling ${totalNewUsers} users...` });
+                    const enrollResponse = await enrollUsers(usersToEnroll, userIds, getBatchConfig);
+                    totalUsersEnrolled = enrollResponse.successful.length;
+                    mainWindow.webContents.send('update-progress', { label: `Enrolling ${totalNewUsers} users....done` });
+                }
             }
 
-            // Process announcements
-            if (data.announcementsToCreate) {
-                progressUpdateDeterminate(mainWindow, completedUnits, totalUnits, 'Creating announcements...');
-                // Announcement creation logic would go here
-                completedUnits++;
+            if (courseConfig.addAssignments?.state && counts.assignments > 0) {
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.assignments} assignments...` });
+                const requests = [];
+                for (let index = 0; index < counts.assignments; index++) {
+                    requests.push({
+                        id: index + 1,
+                        request: async () => {
+                            const result = await createAssignmentGQL({
+                                domain: data.domain,
+                                token: data.token,
+                                course_id: data.course_id,
+                                name: `Assignment ${index + 1}`,
+                                submissionTypes: ['online_upload'],
+                                grade_type: 'points',
+                                points: 10,
+                                publish: courseConfig?.contentPublish?.assignments ? 'published' : 'unpublished',
+                                peer_reviews: false,
+                                anonymous: false
+                            });
+                            processedOverallUnits++;
+                            sendOverall(`Creating assignments (${index + 1}/${counts.assignments})...`);
+                            return result;
+                        }
+                    });
+                }
+                await batchHandler(requests, getBatchConfig());
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.assignments} assignments....done` });
             }
 
-            // Process pages
-            if (data.pagesToCreate) {
-                progressUpdateDeterminate(mainWindow, completedUnits, totalUnits, 'Creating pages...');
-                // Page creation logic would go here
-                completedUnits++;
+            if (courseConfig.addCQ?.state && counts.classicQuizzes > 0) {
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.classicQuizzes} classic quizzes...` });
+                const quizResults = await batchHandler(
+                    Array.from({ length: counts.classicQuizzes }, (_, index) => ({
+                        id: index + 1,
+                        request: async () => {
+                            const quiz = await quizzes_classic.createQuiz({
+                                domain: data.domain,
+                                token: data.token,
+                                course_id: data.course_id,
+                                quiz_title: `Classic Quiz ${index + 1}`,
+                                quiz_type: 'assignment',
+                                publish: !!courseConfig?.contentPublish?.classicQuizzes
+                            });
+                            processedOverallUnits++;
+                            sendOverall(`Creating classic quizzes (${index + 1}/${counts.classicQuizzes})...`);
+                            return quiz;
+                        }
+                    })),
+                    getBatchConfig()
+                );
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.classicQuizzes} classic quizzes....done` });
+
+                if (courseConfig.addCQ?.addQuestions && Array.isArray(courseConfig.addCQ?.questionTypes) && courseConfig.addCQ.questionTypes.length > 0) {
+                    mainWindow.webContents.send('update-progress', { label: 'Adding questions to classic quizzes...' });
+                    for (const quizResult of quizResults.successful) {
+                        const quizId = quizResult.value?.id;
+                        if (!quizId) continue;
+
+                        for (const questionType of courseConfig.addCQ.questionTypes) {
+                            await quizzes_classic.createQuestions({
+                                domain: data.domain,
+                                token: data.token,
+                                course_id: data.course_id,
+                                quiz_id: quizId,
+                                question_data: [{ name: questionType, enabled: true, number: '1' }]
+                            });
+                            processedOverallUnits++;
+                            sendOverall('Adding questions to classic quizzes...');
+                        }
+                    }
+                    mainWindow.webContents.send('update-progress', { label: 'Adding questions to classic quizzes....done' });
+                }
+            }
+
+            if (courseConfig.addNQ?.state && counts.newQuizzes > 0) {
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.newQuizzes} new quizzes...` });
+                const newQuizResults = await batchHandler(
+                    Array.from({ length: counts.newQuizzes }, (_, index) => ({
+                        id: index + 1,
+                        request: async () => {
+                            const quiz = await quizzes_nq.createNewQuiz({
+                                domain: data.domain,
+                                token: data.token,
+                                course_id: data.course_id,
+                                quiz_title: `New Quiz ${index + 1}`,
+                                published: !!courseConfig?.contentPublish?.newQuizzes,
+                                grading_type: 'points'
+                            });
+                            processedOverallUnits++;
+                            sendOverall(`Creating new quizzes (${index + 1}/${counts.newQuizzes})...`);
+                            return quiz;
+                        }
+                    })),
+                    getBatchConfig()
+                );
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.newQuizzes} new quizzes....done` });
+
+                if (courseConfig.newQuizQuestions?.addQuestions && Array.isArray(courseConfig.newQuizQuestions?.questionTypes) && courseConfig.newQuizQuestions.questionTypes.length > 0) {
+                    mainWindow.webContents.send('update-progress', { label: 'Adding new quiz items...' });
+                    for (const quizResult of newQuizResults.successful) {
+                        const quizId = quizResult.value?.id || quizResult.value?._id;
+                        if (!quizId) continue;
+
+                        await quizzes_nq.addItemsToNewQuiz({
+                            domain: data.domain,
+                            token: data.token,
+                            course_id: data.course_id,
+                            quiz_id: quizId,
+                            questionTypes: courseConfig.newQuizQuestions.questionTypes,
+                            onQuestionCreated: () => {
+                                processedOverallUnits++;
+                                sendOverall('Adding new quiz items...');
+                            }
+                        });
+                    }
+                    mainWindow.webContents.send('update-progress', { label: 'Adding new quiz items....done' });
+                }
+            }
+
+            if (courseConfig.addDiscussions?.state && counts.discussions > 0) {
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.discussions} discussions...` });
+                const requests = [];
+                for (let index = 0; index < counts.discussions; index++) {
+                    requests.push({
+                        id: index + 1,
+                        request: async () => {
+                            const discussion = await createDiscussion({
+                                domain: data.domain,
+                                token: data.token,
+                                course_id: data.course_id,
+                                title: `Discussion ${index + 1}`,
+                                message: '',
+                                published: !!courseConfig?.contentPublish?.discussions
+                            });
+                            processedOverallUnits++;
+                            sendOverall(`Creating discussions (${index + 1}/${counts.discussions})...`);
+                            return discussion;
+                        }
+                    });
+                }
+                await batchHandler(requests, getBatchConfig());
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.discussions} discussions....done` });
+            }
+
+            if (courseConfig.addPages?.state && counts.pages > 0) {
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.pages} pages...` });
+                const requests = [];
+                for (let index = 0; index < counts.pages; index++) {
+                    requests.push({
+                        id: index + 1,
+                        request: async () => {
+                            const page = await createPage({
+                                domain: data.domain,
+                                token: data.token,
+                                course_id: data.course_id,
+                                title: `Page ${index + 1}`,
+                                body: '',
+                                published: !!courseConfig?.contentPublish?.pages
+                            });
+                            processedOverallUnits++;
+                            sendOverall(`Creating pages (${index + 1}/${counts.pages})...`);
+                            return page;
+                        }
+                    });
+                }
+                await batchHandler(requests, getBatchConfig());
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.pages} pages....done` });
+            }
+
+            if (courseConfig.addModules?.state && counts.modules > 0) {
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.modules} modules...` });
+                const requests = [];
+                for (let index = 0; index < counts.modules; index++) {
+                    requests.push({
+                        id: index + 1,
+                        request: async () => {
+                            const moduleResult = await modules.createModule({
+                                domain: data.domain,
+                                token: data.token,
+                                course_id: data.course_id,
+                                module_name: `Module ${index + 1}`
+                            });
+                            processedOverallUnits++;
+                            sendOverall(`Creating modules (${index + 1}/${counts.modules})...`);
+                            return moduleResult;
+                        }
+                    });
+                }
+                await batchHandler(requests, getBatchConfig());
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.modules} modules....done` });
+            }
+
+            if (courseConfig.addSections?.state && counts.sections > 0) {
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.sections} sections...` });
+                const requests = [];
+                for (let index = 0; index < counts.sections; index++) {
+                    requests.push({
+                        id: index + 1,
+                        request: async () => {
+                            const section = await sections.createSection({
+                                domain: data.domain,
+                                token: data.token,
+                                course_id: data.course_id,
+                                name: `Section ${index + 1}`
+                            });
+                            processedOverallUnits++;
+                            sendOverall(`Creating sections (${index + 1}/${counts.sections})...`);
+                            return section;
+                        }
+                    });
+                }
+                await batchHandler(requests, getBatchConfig());
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.sections} sections....done` });
             }
 
             progressDone(mainWindow);
             mainWindow.webContents.send('update-progress', { label: 'Course creation completed successfully....done' });
-            return { course_id: response.id, status: 200, totalUsersEnrolled: totalUsers };
+            return { course_id: data.course_id, status: 200, totalUsersEnrolled };
 
         } catch (error) {
             progressDone(mainWindow);
@@ -1217,6 +1499,167 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
     });
 
     /**
+     * Create module items for one or more modules.
+     * For content-backed types (Assignment, Discussion, Page, Quiz) this handler
+     * first creates the content object via the Canvas API, retrieves its id, and
+     * then links it to each module via the Module Items endpoint.
+     *
+     * Accepts: {
+     *   domain, token, course_id,
+     *   module_ids: [id, ...],
+     *   items: [{ type, title, external_url?, new_tab?, quiz_engine? }]
+     * }
+     */
+    ipcMain.handle('axios:createModuleItems', async (event, data) => {
+        console.log('courseHandlers.js > createModuleItems');
+
+        const { module_ids, items } = data;
+        // For content types we create content once per module×item.
+        // SubHeader / ExternalUrl / ExternalTool don't need content creation.
+        const totalSteps = module_ids.length * items.length;
+        let completedSteps = 0;
+
+        const sendProgress = (label) => {
+            completedSteps++;
+            mainWindow.webContents.send('update-progress', {
+                mode: 'determinate',
+                label: label || 'Creating module items',
+                processed: completedSteps,
+                total: totalSteps
+            });
+        };
+
+        /**
+         * Create a single content object and return the module_item payload
+         * needed to link it into a module.
+         */
+        const createContentAndModuleItem = async (moduleId, item, itemIndex) => {
+            const base = { domain: data.domain, token: data.token, course_id: data.course_id };
+            const itemTitle = item.title || `${item.type} ${itemIndex + 1}`;
+            let moduleItemPayload = { title: itemTitle, type: item.type };
+
+            try {
+                switch (item.type) {
+                    case 'Assignment': {
+                        // createAssignments (GraphQL) returns the _id directly
+                        const assignmentId = await createAssignmentGQL({
+                            ...base,
+                            name: itemTitle,
+                            submissionTypes: ['online_upload'],
+                            grade_type: 'points',
+                            points: 0,
+                            publish: 'unpublished',
+                            peer_reviews: false,
+                            anonymous: false
+                        });
+                        moduleItemPayload.content_id = assignmentId;
+                        break;
+                    }
+                    case 'Discussion': {
+                        // createDiscussion returns { _id, ... }
+                        const discussion = await createDiscussion({
+                            ...base,
+                            title: itemTitle,
+                            published: true,
+                            threaded: true  // discussion_type = 'threaded'
+                        });
+                        moduleItemPayload.content_id = discussion._id;
+                        break;
+                    }
+                    case 'Page': {
+                        // createPage returns { url, ... }  (the page_url slug)
+                        const page = await createPage({
+                            ...base,
+                            title: itemTitle,
+                            published: true
+                        });
+                        // Pages use page_url (the slug), not content_id
+                        moduleItemPayload.page_url = page.url;
+                        break;
+                    }
+                    case 'Quiz': {
+                        if (item.quiz_engine === 'new') {
+                            // New Quizzes API — POST /api/quiz/v1/courses/:course_id/quizzes
+                            const nq = await quizzes_nq.createNewQuiz({
+                                ...base,
+                                quiz_title: itemTitle,
+                                published: false
+                            });
+                            // New Quiz returns { id, assignment_id, ... }
+                            // The module item links to the *assignment* backing the new quiz
+                            moduleItemPayload.type = 'Assignment';
+                            moduleItemPayload.content_id = nq.assignment_id || nq.id;
+                        } else {
+                            // Classic Quiz — POST /api/v1/courses/:course_id/quizzes
+                            const cq = await quizzes_classic.createQuiz({
+                                ...base,
+                                quiz_title: itemTitle,
+                                quiz_type: 'assignment',
+                                publish: false
+                            });
+                            moduleItemPayload.content_id = cq.id;
+                        }
+                        break;
+                    }
+                    case 'SubHeader': {
+                        // No content creation needed — just the title
+                        break;
+                    }
+                    case 'ExternalUrl': {
+                        moduleItemPayload.external_url = item.external_url || '';
+                        moduleItemPayload.new_tab = item.new_tab ?? false;
+                        break;
+                    }
+                    case 'ExternalTool': {
+                        moduleItemPayload.external_url = item.external_url || '';
+                        moduleItemPayload.new_tab = item.new_tab ?? false;
+                        break;
+                    }
+                    default:
+                        throw new Error(`Unsupported module item type: ${item.type}`);
+                }
+
+                // Now add the item to the module
+                const result = await modules.createModuleItem({
+                    domain: data.domain,
+                    token: data.token,
+                    course_id: data.course_id,
+                    module_id: moduleId,
+                    module_item: moduleItemPayload
+                });
+
+                return result;
+            } catch (error) {
+                throw error;
+            } finally {
+                sendProgress('Creating module items');
+            }
+        };
+
+        try {
+            const requests = [];
+            let requestId = 1;
+
+            for (const moduleId of module_ids) {
+                for (let i = 0; i < items.length; i++) {
+                    const mid = moduleId;
+                    const itm = { ...items[i] };
+                    const idx = i;
+                    requests.push({
+                        id: requestId++,
+                        request: () => createContentAndModuleItem(mid, itm, idx)
+                    });
+                }
+            }
+
+            const batchResponse = await batchHandler(requests, getBatchConfig());
+            return batchResponse;
+        } catch (error) {
+            throw serializeErrorForIPC(error);
+        }
+    });
+
+    /**
      * Relock multiple modules
      */
     ipcMain.handle('axios:relockModules', async (event, data) => {
@@ -1254,6 +1697,98 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
         const batchResponse = await batchHandler(requests, getBatchConfig());
         console.log('Finished relocking modules.');
         return batchResponse;
+    });
+
+    /**
+     * Bulk relock modules across multiple courses (file upload flow)
+     * Fetches modules for each course and relocks all of them.
+     * Sends granular progress updates per-course.
+     */
+    ipcMain.handle('axios:relockBulkCourses', async (event, data) => {
+        console.log('courseHandlers.js > relockBulkCourses');
+
+        const { domain, token, course_ids } = data;
+        const totalCourses = course_ids.length;
+        let completedCourses = 0;
+
+        const results = {
+            totalCourses,
+            successful: [],
+            failed: [],
+            skipped: []
+        };
+
+        // Process courses in small batches to respect API rate limits
+        const courseBatchSize = 3;
+
+        for (let i = 0; i < totalCourses; i += courseBatchSize) {
+            const courseBatch = course_ids.slice(i, i + courseBatchSize);
+
+            const batchPromises = courseBatch.map(async (courseId) => {
+                try {
+                    // 1. Fetch modules for this course
+                    const courseModules = await modules.getModulesSimple({
+                        domain, token, course_id: courseId
+                    });
+
+                    if (!courseModules || courseModules.length === 0) {
+                        results.skipped.push({
+                            course_id: courseId,
+                            reason: 'No modules found'
+                        });
+                        return;
+                    }
+
+                    // 2. Relock all modules for this course
+                    const moduleRequests = courseModules.map((mod, idx) => ({
+                        id: idx + 1,
+                        request: async () => {
+                            return await modules.relockModule({
+                                domain, token,
+                                course_id: courseId,
+                                module_id: mod.id
+                            });
+                        }
+                    }));
+
+                    const batchResponse = await batchHandler(moduleRequests, getBatchConfig());
+
+                    results.successful.push({
+                        course_id: courseId,
+                        modules_relocked: batchResponse.successful.length,
+                        modules_failed: batchResponse.failed.length,
+                        total_modules: courseModules.length
+                    });
+
+                } catch (error) {
+                    results.failed.push({
+                        course_id: courseId,
+                        reason: error.message || String(error)
+                    });
+                } finally {
+                    completedCourses++;
+                    mainWindow.webContents.send('update-progress',
+                        (completedCourses / totalCourses) * 100
+                    );
+                }
+            });
+
+            await Promise.allSettled(batchPromises);
+
+            // Delay between course batches to respect rate limits
+            if (i + courseBatchSize < totalCourses) {
+                const { waitFunc } = require('../../shared/utilities');
+                await waitFunc(2000);
+            }
+        }
+
+        console.log('Finished bulk relocking courses:', JSON.stringify({
+            successful: results.successful.length,
+            failed: results.failed.length,
+            skipped: results.skipped.length
+        }));
+
+        return results;
     });
 
     logDebug('Course/quiz/module IPC handlers registered successfully');

@@ -224,6 +224,19 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('preload.js > cancelBulkEnroll');
         return await ipcRenderer.invoke('axios:cancelBulkEnroll');
     },
+    overrideConcludedAndEnroll: async (data) => {
+        console.log('preload.js > overrideConcludedAndEnroll');
+        return await ipcRenderer.invoke('enrollment:overrideConcluded', data);
+    },
+    cancelOverrideConcluded: async () => {
+        console.log('preload.js > cancelOverrideConcluded');
+        return await ipcRenderer.invoke('enrollment:cancelOverrideConcluded');
+    },
+    onConcludedOverrideProgress: (callback) => {
+        const handler = (_event, payload) => callback(payload);
+        ipcRenderer.on('progress:concludedOverride', handler);
+        return () => ipcRenderer.removeListener('progress:concludedOverride', handler);
+    },
     manualEnroll: async (data) => {
         console.log('preload.js > manualEnroll');
         return await ipcRenderer.invoke('axios:manualEnroll', data);
@@ -468,6 +481,16 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('preload.js > relockModules');
 
         return await ipcRenderer.invoke('axios:relockModules', data);
+    },
+    relockBulkCourses: async (data) => {
+        console.log('preload.js > relockBulkCourses');
+
+        return await ipcRenderer.invoke('axios:relockBulkCourses', data);
+    },
+    createModuleItems: async (data) => {
+        console.log('preload.js > createModuleItems');
+
+        return await ipcRenderer.invoke('axios:createModuleItems', data);
     },
     createDiscussions: async (data) => {
         console.log('preload.js > createDiscussions');
@@ -793,7 +816,11 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
 
     // Email parsing helpers
     'parseEmailsFromCSV',
-    'parseEmailsFromExcel'
+    'parseEmailsFromExcel',
+
+    // Enrollment concluded course override
+    'enrollment:overrideConcluded',
+    'enrollment:cancelOverrideConcluded'
 ]);
 
 contextBridge.exposeInMainWorld('ipcRenderer', {

@@ -82,10 +82,10 @@ function registerCanvasApiHandlers(ipcMain, logDebug, canvasModules) {
     // axios:updateRespondusQuizzes, axios:createNQQuestions, axios:createNewQuizzes, etc.
 
     // =================================================================
-    // MODULE HANDLERS (6 handlers)
+    // MODULE HANDLERS (7 handlers)
     // =================================================================
     // axios:getModules, axios:getAssignmentsInModules, axios:deleteModules,
-    // axios:createModules, axios:getModulesSimple, axios:relockModules
+    // axios:createModules, axios:createModuleItems, axios:getModulesSimple, axios:relockModules
 
     // =================================================================
     // ANNOUNCEMENT & DISCUSSION HANDLERS (5 handlers)

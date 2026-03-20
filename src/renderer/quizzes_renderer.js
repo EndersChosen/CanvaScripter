@@ -280,69 +280,71 @@ async function createQuiz(e) {
             // guard against double-clicks
             createBtn.disabled = true;
 
-            const responseContainer = createQuizForm.querySelector('#create-cq-response-container');
-
-            const domain = document.querySelector('#domain').value.trim();
-            const token = document.querySelector('#token').value.trim();
-            const course_id = courseID.value.trim();
-            const quiz_type = createQuizForm.querySelector('#quiz-type').value;
-            const quiz_name = createQuizForm.querySelector('#quiz-name')?.value.trim();
-            const publish = createQuizForm.querySelector('#quiz-publish').checked;
-            const num_quizzes = numOfQuizzes.value.trim();
-
-            // Build question types from selections
-            const questionTypes = Array.from(selectedQuestions.entries()).map(([name, qty]) => ({
-                name,
-                enabled: true,
-                number: String(qty)
-            }));
-
-            const progressDiv = createQuizForm.querySelector('#create-cq-progress-div');
-            const progressBar = progressDiv.querySelector('.progress-bar');
-            const progressInfo = createQuizForm.querySelector('#create-cq-progress-info');
-
-            // clean environment
-            progressDiv.hidden = false;
-            // Remove duplicate percent labels, keep only one in the progress container
-            const progressContainer = progressBar.parentElement;
-            if (progressContainer) {
-                progressContainer.style.position = 'relative';
-                const labels = progressContainer.querySelectorAll('.progress-percent');
-                for (let i = 1; i < labels.length; i++) labels[i].remove();
-            }
-            window.ProgressUtils.updateProgressWithPercent(progressBar, 0);
-            progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
-            progressInfo.innerHTML = '';
-
-            // Step helpers
-            const setBar = (percent) => window.ProgressUtils.updateProgressWithPercent(progressBar, percent);
-            const appendLine = (text) => {
-                const span = document.createElement('span');
-                span.textContent = text;
-                progressInfo.appendChild(span);
-                progressInfo.appendChild(document.createElement('br'));
-                return span;
-            };
-            const replaceLine = (el, text) => { if (el) el.textContent = text; };
-
-            // Build selected question types list for sub-step messaging
-            const selectedTypes = Array.from(selectedQuestions.entries())
-                .filter(([, qty]) => Number(qty) > 0)
-                .map(([type, qty]) => ({ type, qty }));
-            const typeLabel = (t) => cqTypeLabelMap.get(t) || t;
-
-            const data = {
-                domain,
-                token,
-                course_id,
-                quiz_type,
-                publish: false, // Always create unpublished; publish after questions are added
-                num_quizzes,
-                quiz_name,
-                questionTypes
-            };
+            let progressBar = null;
+            let progressInfo = null;
 
             try {
+                const responseContainer = createQuizForm.querySelector('#create-cq-response-container');
+
+                const domain = document.querySelector('#domain').value.trim();
+                const token = document.querySelector('#token').value.trim();
+                const course_id = courseID.value.trim();
+                const quiz_type = createQuizForm.querySelector('#quiz-type').value;
+                const quiz_name = createQuizForm.querySelector('#quiz-name')?.value.trim();
+                const publish = createQuizForm.querySelector('#quiz-publish').checked;
+                const num_quizzes = numOfQuizzes.value.trim();
+
+                // Build question types from selections
+                const questionTypes = Array.from(selectedQuestions.entries()).map(([name, qty]) => ({
+                    name,
+                    enabled: true,
+                    number: String(qty)
+                }));
+
+                const progressDiv = createQuizForm.querySelector('#create-cq-progress-div');
+                progressBar = progressDiv.querySelector('.progress-bar');
+                progressInfo = createQuizForm.querySelector('#create-cq-progress-info');
+
+                // clean environment
+                progressDiv.hidden = false;
+                // Remove duplicate percent labels, keep only one in the progress container
+                const progressContainer = progressBar.parentElement;
+                if (progressContainer) {
+                    progressContainer.style.position = 'relative';
+                    const labels = progressContainer.querySelectorAll('.progress-percent');
+                    for (let i = 1; i < labels.length; i++) labels[i].remove();
+                }
+                window.ProgressUtils.updateProgressWithPercent(progressBar, 0);
+                progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+                progressInfo.innerHTML = '';
+
+                // Step helpers
+                const setBar = (percent) => window.ProgressUtils.updateProgressWithPercent(progressBar, percent);
+                const appendLine = (text) => {
+                    const span = document.createElement('span');
+                    span.textContent = text;
+                    progressInfo.appendChild(span);
+                    progressInfo.appendChild(document.createElement('br'));
+                    return span;
+                };
+                const replaceLine = (el, text) => { if (el) el.textContent = text; };
+
+                // Build selected question types list for sub-step messaging
+                const selectedTypes = Array.from(selectedQuestions.entries())
+                    .filter(([, qty]) => Number(qty) > 0)
+                    .map(([type, qty]) => ({ type, qty }));
+                const typeLabel = (t) => cqTypeLabelMap.get(t) || t;
+
+                const data = {
+                    domain,
+                    token,
+                    course_id,
+                    quiz_type,
+                    publish: false, // Always create unpublished; publish after questions are added
+                    num_quizzes,
+                    quiz_name,
+                    questionTypes
+                };
                 // Step 1: Creating quizzes
                 let step1Line = appendLine('Step 1: Creating quizzes...');
                 let step2Line; // will be set before creating questions
@@ -440,8 +442,14 @@ async function createQuiz(e) {
 
 
             } catch (error) {
-                progressBar.parentElement.hidden = true;
-                errorHandler(error, progressInfo);
+                if (progressBar && progressBar.parentElement) {
+                    progressBar.parentElement.hidden = true;
+                }
+                if (progressInfo) {
+                    errorHandler(error, progressInfo);
+                } else {
+                    console.error('Create quiz error:', error);
+                }
             } finally {
                 createBtn.disabled = false;
             }

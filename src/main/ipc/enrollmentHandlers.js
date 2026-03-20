@@ -28,11 +28,14 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
         });
 
         const { domain, token, enrollments, enrollmentState, enrollmentTask } = params;
-        const task = ['delete', 'conclude', 'deactivate'].includes(enrollmentTask) ? enrollmentTask : 'enroll';
+        const isFromFile = enrollmentState === 'from_file';
+        const globalTask = ['delete', 'conclude', 'deactivate'].includes(enrollmentTask) ? enrollmentTask : 'enroll';
         const results = {
             successful: 0,
             failed: 0,
-            errors: []
+            skipped: 0,
+            errors: [],
+            skippedRows: []
         };
 
         const batchConfig = getBatchConfig();
@@ -42,11 +45,37 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
 
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+        // When processing from_file, sort enrollments by status group so that
+        // all enrollments of the same effective task are processed together.
+        // This prevents race conditions where concurrent requests for different
+        // status types on the same course/section interfere with each other
+        // (e.g. an 'enroll' hitting a section while a 'conclude' is mid-flight).
+        let enrollmentsToProcess = enrollments;
+        if (isFromFile) {
+            const statusPriority = (enrollment) => {
+                const state = (enrollment.enrollment_state || '').toLowerCase();
+                if (state === 'active') return 0;
+                if (state === 'inactive') return 1;
+                if (state === 'invited') return 2;
+                if (state === 'creation_pending') return 3;
+                if (['conclude', 'concluded'].includes(state)) return 4;
+                if (['delete', 'deleted'].includes(state)) return 5;
+                if (state === 'deactivate') return 6;
+                return 7; // unrecognized — last
+            };
+            enrollmentsToProcess = [...enrollments].sort((a, b) => statusPriority(a) - statusPriority(b));
+
+            logDebug('[axios:bulkEnroll] Sorted enrollments by status for from_file processing', {
+                order: ['active', 'inactive', 'invited', 'creation_pending', 'concluded', 'deleted', 'deactivate', 'other']
+            });
+        }
+
+        const senderWebContents = event.sender;
         const sendProgress = (detail) => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('progress:enrollment', {
+            if (senderWebContents && !senderWebContents.isDestroyed()) {
+                senderWebContents.send('progress:enrollment', {
                     current: processed,
-                    total: enrollments.length,
+                    total: enrollmentsToProcess.length,
                     detail
                 });
             }
@@ -62,17 +91,54 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
                 const targetCourseId = enrollment.course_id;
                 const enrollmentId = enrollment.enrollment_id;
 
+                // Determine task and state per-enrollment when using 'from_file'
+                let task = globalTask;
+                let rowEnrollmentState = enrollmentState;
+                if (isFromFile) {
+                    const fileState = (enrollment.enrollment_state || '').toLowerCase();
+                    if (['delete', 'deleted'].includes(fileState)) {
+                        task = 'delete';
+                    } else if (['conclude', 'concluded'].includes(fileState)) {
+                        task = 'conclude';
+                    } else if (fileState === 'deactivate') {
+                        task = 'deactivate';
+                    } else if (['active', 'inactive', 'invited', 'creation_pending'].includes(fileState)) {
+                        task = 'enroll';
+                        rowEnrollmentState = fileState;
+                    } else {
+                        // Unrecognized state — skip this row
+                        results.skipped++;
+                        results.skippedRows.push({
+                            user_id: enrollment.user_id || 'Unknown',
+                            course_id: targetCourseId || '',
+                            section_id: sectionId || '',
+                            enrollment_id: enrollmentId || '',
+                            enrollment_state: enrollment.enrollment_state || '',
+                            reason: `Unrecognized status: ${enrollment.enrollment_state || '(empty)'}`
+                        });
+                        processed++;
+                        sendProgress(`Skipped user ${enrollment.user_id || 'Unknown'} (unrecognized state)`);
+                        return;
+                    }
+                }
+
                 if (task !== 'enroll') {
                     if (!targetCourseId) {
                         results.failed++;
                         results.errors.push({
                             user_id: enrollment.user_id || 'Unknown',
+                            course_id: targetCourseId || '',
+                            section_id: sectionId || '',
+                            role_id: enrollment.role_id || '',
                             reason: `${task} requires course_id and cannot use section_id`
                         });
                     } else if (!enrollmentId) {
                         results.failed++;
                         results.errors.push({
                             user_id: enrollment.user_id || 'Unknown',
+                            course_id: targetCourseId || '',
+                            section_id: sectionId || '',
+                            role_id: enrollment.role_id || '',
                             reason: `${task} requires enrollment_id`
                         });
                     } else {
@@ -105,6 +171,9 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
                             results.failed++;
                             results.errors.push({
                                 user_id: enrollment.user_id || 'Unknown',
+                                course_id: targetCourseId || '',
+                                section_id: sectionId || '',
+                                role_id: enrollment.role_id || '',
                                 reason: `Unexpected status code: ${response.status}`
                             });
                         }
@@ -114,13 +183,16 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
                         results.failed++;
                         results.errors.push({
                             user_id: enrollment.user_id,
+                            course_id: targetCourseId || '',
+                            section_id: sectionId || '',
+                            role_id: enrollment.role_id || '',
                             reason: 'No section ID or course ID provided in file'
                         });
                     } else {
                         const enrollmentPayload = {
                             enrollment: {
                                 user_id: enrollment.user_id,
-                                enrollment_state: enrollmentState
+                                enrollment_state: rowEnrollmentState
                             }
                         };
 
@@ -172,6 +244,9 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
                             results.failed++;
                             results.errors.push({
                                 user_id: enrollment.user_id,
+                                course_id: targetCourseId || '',
+                                section_id: sectionId || '',
+                                role_id: enrollment.role_id || '',
                                 reason: `Unexpected status code: ${response.status}`
                             });
                         }
@@ -185,6 +260,9 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
 
                 results.errors.push({
                     user_id: enrollment.user_id,
+                    course_id: enrollment.course_id || '',
+                    section_id: enrollment.course_section_id || '',
+                    role_id: enrollment.role_id || '',
                     reason: errorMessage,
                     status: error.response?.status
                 });
@@ -196,24 +274,28 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
                 });
             } finally {
                 processed++;
-                const detailText = task === 'enroll'
+                let detailText = task === 'enroll'
                     ? `Processed user ${enrollment.user_id || 'Unknown'}`
                     : `Processed enrollment ${enrollment.enrollment_id || 'Unknown'}`;
+                if (isFromFile) {
+                    const stateLabel = (enrollment.enrollment_state || 'unknown').toLowerCase();
+                    detailText += ` [${stateLabel}]`;
+                }
                 sendProgress(detailText);
             }
 
-            if (!cancellationState.get(rendererId) && delayMs > 0 && processed < enrollments.length) {
+            if (!cancellationState.get(rendererId) && delayMs > 0 && processed < enrollmentsToProcess.length) {
                 await sleep(delayMs);
             }
         };
 
-        for (let index = 0; index < enrollments.length; index += concurrency) {
+        for (let index = 0; index < enrollmentsToProcess.length; index += concurrency) {
             if (cancellationState.get(rendererId)) {
                 logDebug('[axios:bulkEnroll] Enrollment cancelled by user');
                 break;
             }
 
-            const batch = enrollments.slice(index, index + concurrency);
+            const batch = enrollmentsToProcess.slice(index, index + concurrency);
             await Promise.allSettled(batch.map(enrollment => processEnrollment(enrollment)));
         }
 
@@ -222,6 +304,7 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
         logDebug('[axios:bulkEnroll] Bulk enrollment complete', {
             successful: results.successful,
             failed: results.failed,
+            skipped: results.skipped,
             processed,
             concurrency
         });
@@ -237,6 +320,260 @@ function registerEnrollmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
         logDebug('[axios:cancelBulkEnroll] Cancelling bulk enrollment', { rendererId });
         cancellationState.set(rendererId, true);
         return { cancelled: true };
+    });
+
+    /**
+     * Override concluded courses and retry enrollments.
+     * For each selected course:
+     *   1. GET course info to capture original term/date settings
+     *   2. PUT course to temporarily clear end_at and set restrict_enrollments_to_course_dates=true
+     *   3. Retry all failed enrollments for that course
+     *   4. PUT course to restore original settings
+     */
+    // Track override cancellation state per renderer
+    const overrideCancellation = new Map();
+
+    ipcMain.handle('enrollment:cancelOverrideConcluded', async (event) => {
+        const rendererId = event.sender.id;
+        logDebug('[enrollment:cancelOverrideConcluded] Cancelling override', { rendererId });
+        overrideCancellation.set(rendererId, true);
+        return { cancelled: true };
+    });
+
+    ipcMain.handle('enrollment:overrideConcluded', async (event, params) => {
+        const { domain, token, courseEnrollments, enrollmentState } = params;
+        // courseEnrollments: { [courseId]: [ { user_id, course_id, course_section_id, type, role_id, role, ... } ] }
+
+        const rendererId = event.sender.id;
+        overrideCancellation.set(rendererId, false);
+
+        const results = {
+            successful: 0,
+            failed: 0,
+            errors: [],
+            cancelled: false,
+            courseResults: {} // { courseId: { restored: bool, error?: string } }
+        };
+
+        const headers = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
+
+        const senderWebContents = event.sender;
+        const sendProgress = (detail) => {
+            if (senderWebContents && !senderWebContents.isDestroyed()) {
+                senderWebContents.send('progress:concludedOverride', { detail });
+            }
+        };
+
+        const isCancelled = () => overrideCancellation.get(rendererId);
+
+        for (const [courseId, enrollments] of Object.entries(courseEnrollments)) {
+            // Check cancellation before starting a new course
+            if (isCancelled()) {
+                logDebug('[enrollment:overrideConcluded] Cancelled by user before course', { courseId });
+                results.cancelled = true;
+                break;
+            }
+
+            let originalSettings = null;
+            let courseModified = false;
+
+            try {
+                // Step 1: GET course info
+                sendProgress(`Fetching course ${courseId} settings...`);
+                logDebug('[enrollment:overrideConcluded] Fetching course info', { courseId });
+
+                const courseResp = await axios.get(
+                    `https://${domain}/api/v1/courses/${courseId}`,
+                    { headers }
+                );
+                const course = courseResp.data;
+
+                originalSettings = {
+                    end_at: course.end_at,
+                    restrict_enrollments_to_course_dates: course.restrict_enrollments_to_course_dates,
+                    enrollment_term_id: course.enrollment_term_id,
+                    workflow_state: course.workflow_state
+                };
+
+                logDebug('[enrollment:overrideConcluded] Original course settings', {
+                    courseId,
+                    ...originalSettings
+                });
+
+                // Step 2: PUT course to temporarily open it for enrollments
+                sendProgress(`Temporarily opening course ${courseId}...`);
+
+                const tempEndAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+                const courseUpdate = {
+                    end_at: tempEndAt,
+                    restrict_enrollments_to_course_dates: true
+                };
+
+                // If workflow_state is 'completed', publish it in the same call
+                if (course.workflow_state === 'completed') {
+                    courseUpdate.event = 'offer';
+                    logDebug('[enrollment:overrideConcluded] Course is completed, publishing and opening', { courseId });
+                }
+
+                await axios.put(
+                    `https://${domain}/api/v1/courses/${courseId}`,
+                    { course: courseUpdate },
+                    { headers }
+                );
+                courseModified = true;
+
+                logDebug('[enrollment:overrideConcluded] Course temporarily opened', { courseId });
+
+                // Step 3: Retry enrollments for this course
+                sendProgress(`Enrolling ${enrollments.length} user(s) in course ${courseId}...`);
+
+                for (const enrollment of enrollments) {
+                    // Check cancellation between enrollments
+                    if (isCancelled()) {
+                        logDebug('[enrollment:overrideConcluded] Cancelled by user during enrollments', { courseId });
+                        results.cancelled = true;
+                        break;
+                    }
+
+                    try {
+                        const sectionId = enrollment.course_section_id;
+
+                        // When using 'from_file' mode, use the per-enrollment state
+                        const effectiveState = enrollmentState === 'from_file'
+                            ? (enrollment.enrollment_state || 'active')
+                            : enrollmentState;
+
+                        const enrollmentPayload = {
+                            enrollment: {
+                                user_id: enrollment.user_id,
+                                enrollment_state: effectiveState
+                            }
+                        };
+
+                        if (enrollment.type) {
+                            enrollmentPayload.enrollment.type = enrollment.type;
+                        }
+                        if (enrollment.role_id) {
+                            enrollmentPayload.enrollment.role_id = enrollment.role_id;
+                        } else if (enrollment.role) {
+                            enrollmentPayload.enrollment.role = enrollment.role;
+                        }
+                        if (enrollment.start_at) {
+                            enrollmentPayload.enrollment.start_at = enrollment.start_at;
+                        }
+                        if (enrollment.end_at) {
+                            enrollmentPayload.enrollment.end_at = enrollment.end_at;
+                        }
+                        if (enrollment.limit_privileges_to_course_section !== undefined) {
+                            enrollmentPayload.enrollment.limit_privileges_to_course_section =
+                                enrollment.limit_privileges_to_course_section;
+                        }
+
+                        const endpoint = sectionId
+                            ? `https://${domain}/api/v1/sections/${sectionId}/enrollments`
+                            : `https://${domain}/api/v1/courses/${courseId}/enrollments`;
+
+                        const response = await axios.post(endpoint, enrollmentPayload, { headers });
+
+                        if (response.status === 200 || response.status === 201) {
+                            results.successful++;
+                            logDebug('[enrollment:overrideConcluded] Enrollment successful', {
+                                user_id: enrollment.user_id,
+                                courseId
+                            });
+                        } else {
+                            results.failed++;
+                            results.errors.push({
+                                user_id: enrollment.user_id,
+                                course_id: courseId,
+                                section_id: enrollment.course_section_id || '',
+                                role_id: enrollment.role_id || '',
+                                reason: `Unexpected status code: ${response.status}`
+                            });
+                        }
+                    } catch (enrollError) {
+                        results.failed++;
+                        const errorMessage = enrollError.response?.data?.errors?.[0]?.message ||
+                            enrollError.response?.data?.message ||
+                            enrollError.message;
+                        results.errors.push({
+                            user_id: enrollment.user_id,
+                            course_id: courseId,
+                            section_id: enrollment.course_section_id || '',
+                            role_id: enrollment.role_id || '',
+                            reason: errorMessage
+                        });
+                        logDebug('[enrollment:overrideConcluded] Enrollment failed during override', {
+                            user_id: enrollment.user_id,
+                            courseId,
+                            error: errorMessage
+                        });
+                    }
+                }
+            } catch (error) {
+                // Failed to fetch or open the course — mark all enrollments as failed
+                const errorMessage = error.response?.data?.errors?.[0]?.message ||
+                    error.response?.data?.message ||
+                    error.message;
+                for (const enrollment of enrollments) {
+                    results.failed++;
+                    results.errors.push({
+                        user_id: enrollment.user_id,
+                        course_id: courseId,
+                        section_id: enrollment.course_section_id || '',
+                        role_id: enrollment.role_id || '',
+                        reason: `Failed to open course: ${errorMessage}`
+                    });
+                }
+                results.courseResults[courseId] = { restored: false, error: errorMessage };
+                logDebug('[enrollment:overrideConcluded] Failed to open course', { courseId, error: errorMessage });
+                continue; // skip restore since we didn't modify
+            }
+
+            // Step 4: Restore original course settings
+            if (courseModified) {
+                try {
+                    sendProgress(`Restoring course ${courseId} settings...`);
+
+                    const restoreUpdate = {
+                        end_at: originalSettings.end_at || null,
+                        restrict_enrollments_to_course_dates: originalSettings.restrict_enrollments_to_course_dates
+                    };
+
+                    // If the course was originally 'completed', conclude it in the same call
+                    if (originalSettings.workflow_state === 'completed') {
+                        restoreUpdate.event = 'conclude';
+                        logDebug('[enrollment:overrideConcluded] Re-concluding course', { courseId });
+                    }
+
+                    await axios.put(
+                        `https://${domain}/api/v1/courses/${courseId}`,
+                        { course: restoreUpdate },
+                        { headers }
+                    );
+
+                    results.courseResults[courseId] = { restored: true };
+                    logDebug('[enrollment:overrideConcluded] Course settings restored', { courseId });
+                } catch (restoreError) {
+                    const restoreMsg = restoreError.response?.data?.message || restoreError.message;
+                    results.courseResults[courseId] = { restored: false, error: restoreMsg };
+                    logDebug('[enrollment:overrideConcluded] Failed to restore course settings', {
+                        courseId,
+                        error: restoreMsg,
+                        originalSettings
+                    });
+                }
+            }
+
+            // If cancelled, break out after restoring current course
+            if (isCancelled()) break;
+        }
+
+        overrideCancellation.delete(rendererId);
+        return results;
     });
 
     /**

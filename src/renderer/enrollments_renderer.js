@@ -110,6 +110,8 @@ function renderFromFileSection(container) {
             #bulk-enrollment-form hr { margin: 0.5rem 0; }
             #bulk-enrollment-form .row { margin-bottom: 0.75rem; }
             #bulk-enrollment-form .g-3 { gap: 0.5rem !important; }
+            @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            .spin-icon { display: inline-block; animation: spin 1s linear infinite; }
         </style>
         <div class="row g-3 mb-2">
             <div class="col-12">
@@ -135,8 +137,18 @@ function renderFromFileSection(container) {
                 <div class="d-flex gap-3 flex-wrap">
                     <div class="form-check">
                         <input class="form-check-input" type="radio" name="enrollment-state" 
+                               id="state-from-file" value="from_file">
+                        <label class="form-check-label" for="state-from-file">From File</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="enrollment-state" 
                                id="state-active" value="active" checked>
                         <label class="form-check-label" for="state-active">Active</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="enrollment-state" 
+                               id="state-invited" value="invited">
+                        <label class="form-check-label" for="state-invited">Invited</label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="radio" name="enrollment-state" 
@@ -160,7 +172,7 @@ function renderFromFileSection(container) {
                     </div>
                 </div>
                 <div class="form-text text-muted">
-                    <i class="bi bi-info-circle me-1"></i>Delete, Conclude, and Deactivate require <strong>course_id</strong> and <strong>enrollment_id</strong> in your file and cannot use section_id.
+                    <i class="bi bi-info-circle me-1"></i><strong>From File</strong> uses the status/state column from each row. Delete, Conclude, and Deactivate require <strong>course_id</strong> and <strong>enrollment_id</strong>.
                 </div>
             </div>
         </div>
@@ -235,7 +247,9 @@ function setupEnrollmentFormListeners() {
 
     const updateActionButtonLabel = (action) => {
         const labels = {
+            from_file: '<i class="bi bi-file-earmark-play me-2"></i>Process From File',
             active: '<i class="bi bi-person-plus-fill me-2"></i>Process Enrollments',
+            invited: '<i class="bi bi-envelope me-2"></i>Invite Enrollments',
             inactive: '<i class="bi bi-person-plus-fill me-2"></i>Process Enrollments',
             delete: '<i class="bi bi-trash me-2"></i>Delete Enrollments',
             conclude: '<i class="bi bi-check2-circle me-2"></i>Conclude Enrollments',
@@ -248,6 +262,34 @@ function setupEnrollmentFormListeners() {
     const validateEnrollmentsForTask = (enrollments, action) => {
         if (!Array.isArray(enrollments) || enrollments.length === 0) {
             return { valid: false, message: 'No valid enrollment records found in file.' };
+        }
+
+        if (action === 'from_file') {
+            // Validate per-row: rows with destructive states need enrollment_id + course_id
+            const destructiveStates = ['delete', 'deleted', 'conclude', 'concluded', 'deactivate'];
+            const destructiveRows = enrollments.filter(e =>
+                e.enrollment_state && destructiveStates.includes(e.enrollment_state.toLowerCase())
+            );
+
+            if (destructiveRows.length > 0) {
+                const missingEnrollmentId = destructiveRows.some(e => !e.enrollment_id);
+                if (missingEnrollmentId) {
+                    return {
+                        valid: false,
+                        message: 'Some rows have delete/conclude/deactivate states but are missing enrollment_id.'
+                    };
+                }
+                const missingCourseId = destructiveRows.some(e => !e.course_id);
+                if (missingCourseId) {
+                    return {
+                        valid: false,
+                        message: 'Some rows have delete/conclude/deactivate states but are missing course_id. These tasks cannot use section_id.'
+                    };
+                }
+            }
+
+            // Warn but don't block: rows with empty or unrecognized states will be skipped during processing
+            return { valid: true, message: '' };
         }
 
         if (action === 'delete' || action === 'conclude' || action === 'deactivate') {
@@ -280,7 +322,16 @@ function setupEnrollmentFormListeners() {
             return;
         }
 
-        const validation = validateEnrollmentsForTask(parsedData, selectedAction);
+        // When in from_file mode, validate against the overridden data
+        let dataToValidate = parsedData;
+        if (selectedAction === 'from_file' && typeof getStatusOverrides === 'function') {
+            const overrides = getStatusOverrides();
+            if (Object.keys(overrides).length > 0) {
+                dataToValidate = applyStatusOverrides(parsedData, overrides);
+            }
+        }
+
+        const validation = validateEnrollmentsForTask(dataToValidate, selectedAction);
 
         if (!validation.valid) {
             fileHelp.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>${validation.message}`;
@@ -296,8 +347,105 @@ function setupEnrollmentFormListeners() {
     enrollmentStateInputs.forEach((input) => {
         input.addEventListener('change', () => {
             refreshValidationState();
+            // Show/hide status overrides based on selected mode
+            const overrideContainer = document.getElementById('status-override-container');
+            if (overrideContainer) {
+                overrideContainer.style.display = getSelectedAction() === 'from_file' ? '' : 'none';
+            }
         });
     });
+
+    /**
+     * Render status override dropdowns for each unique status found in the file.
+     * Only visible when "From File" mode is selected.
+     */
+    const renderStatusOverrides = (stateCounts) => {
+        // Remove existing override container if present
+        let container = document.getElementById('status-override-container');
+        if (container) container.remove();
+
+        const stateEntries = Object.entries(stateCounts).sort((a, b) => b[1] - a[1]);
+        if (stateEntries.length === 0) return;
+
+        container = document.createElement('div');
+        container.id = 'status-override-container';
+        container.style.display = getSelectedAction() === 'from_file' ? '' : 'none';
+        container.innerHTML = `
+            <hr class="my-2">
+            <h6 class="mb-2" style="font-size: 0.9rem;">
+                <i class="bi bi-arrow-left-right me-1"></i>Status Overrides
+                <small class="text-muted fw-normal">(optional)</small>
+            </h6>
+            <p class="text-muted mb-2" style="font-size: 0.75rem;">
+                Change how specific statuses are processed. Leave as "Use file value" to keep the original status.
+            </p>
+            <div id="status-override-rows"></div>
+        `;
+
+        const overrideOptions = [
+            { value: '', label: 'Use file value' },
+            { value: 'active', label: 'Active' },
+            { value: 'inactive', label: 'Inactive' },
+            { value: 'invited', label: 'Invited' },
+            { value: 'concluded', label: 'Concluded' },
+            { value: 'deleted', label: 'Deleted' },
+            { value: 'deactivate', label: 'Deactivate' }
+        ];
+
+        const rowsDiv = container.querySelector('#status-override-rows');
+        stateEntries.forEach(([state, count]) => {
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-center gap-2 mb-1';
+            row.innerHTML = `
+                <span class="badge bg-secondary" style="min-width: 90px; font-size: 0.75rem;">${state} (${count})</span>
+                <i class="bi bi-arrow-right" style="font-size: 0.7rem;"></i>
+                <select class="form-select form-select-sm status-override-select" 
+                        data-original-status="${state}" 
+                        style="font-size: 0.75rem; padding: 0.15rem 1.75rem 0.15rem 0.4rem; height: auto; max-width: 160px;">
+                    ${overrideOptions.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('')}
+                </select>
+            `;
+            rowsDiv.appendChild(row);
+        });
+
+        // Insert after the file preview
+        filePreview.appendChild(container);
+
+        // Re-validate when an override changes
+        container.addEventListener('change', () => refreshValidationState());
+    };
+
+    /**
+     * Read the status override selections and return a mapping from original -> new status.
+     * Only includes entries where the user selected a different status.
+     */
+    const getStatusOverrides = () => {
+        const overrides = {};
+        const selects = document.querySelectorAll('.status-override-select');
+        selects.forEach(select => {
+            const original = select.getAttribute('data-original-status');
+            const newValue = select.value;
+            if (newValue && newValue !== original) {
+                overrides[original] = newValue;
+            }
+        });
+        return overrides;
+    };
+
+    /**
+     * Apply status overrides to a copy of the parsed enrollment data.
+     */
+    const applyStatusOverrides = (enrollments, overrides) => {
+        if (Object.keys(overrides).length === 0) return enrollments;
+
+        return enrollments.map(enrollment => {
+            const currentState = (enrollment.enrollment_state || '').toLowerCase();
+            if (overrides[currentState]) {
+                return { ...enrollment, enrollment_state: overrides[currentState] };
+            }
+            return enrollment;
+        });
+    };
 
     updateActionButtonLabel(getSelectedAction());
 
@@ -310,6 +458,8 @@ function setupEnrollmentFormListeners() {
             fileHelp.style.visibility = 'hidden';
             filePreview.style.display = 'none';
             parsedData = null;
+            const overrideEl = document.getElementById('status-override-container');
+            if (overrideEl) overrideEl.remove();
             return;
         }
 
@@ -321,6 +471,8 @@ function setupEnrollmentFormListeners() {
             enrollBtn.disabled = true;
             filePreview.style.display = 'none';
             parsedData = null;
+            const overrideEl = document.getElementById('status-override-container');
+            if (overrideEl) overrideEl.remove();
             return;
         }
 
@@ -348,9 +500,13 @@ function setupEnrollmentFormListeners() {
             }
 
             // Show preview with summary statistics
-            const summary = generateEnrollmentSummary(parsedData);
+            const { html: summaryHtml, stateCounts } = generateEnrollmentSummary(parsedData);
             filePreview.style.display = 'block';
-            previewText.innerHTML = summary;
+            previewText.innerHTML = summaryHtml;
+
+            // Build status override UI for "From File" mode
+            renderStatusOverrides(stateCounts);
+
             refreshValidationState();
 
         } catch (error) {
@@ -370,9 +526,11 @@ function setupEnrollmentFormListeners() {
         const domain = document.getElementById('domain').value.trim();
         const token = document.getElementById('token').value.trim();
         const enrollmentState = document.querySelector('input[name="enrollment-state"]:checked').value;
-        const enrollmentTask = (enrollmentState === 'delete' || enrollmentState === 'conclude' || enrollmentState === 'deactivate')
-            ? enrollmentState
-            : 'enroll';
+        const enrollmentTask = enrollmentState === 'from_file'
+            ? 'from_file'
+            : (enrollmentState === 'delete' || enrollmentState === 'conclude' || enrollmentState === 'deactivate')
+                ? enrollmentState
+                : 'enroll';
 
         if (!domain || !token) {
             const errDiv = document.getElementById('enroll-error');
@@ -415,16 +573,28 @@ function setupEnrollmentFormListeners() {
         }
 
         try {
+            // Apply status overrides when in "from_file" mode
+            let enrollmentsToSend = parsedData;
+            if (enrollmentState === 'from_file') {
+                const overrides = getStatusOverrides();
+                enrollmentsToSend = applyStatusOverrides(parsedData, overrides);
+            }
+
             const result = await window.axios.bulkEnroll({
                 domain,
                 token,
-                enrollments: parsedData,
+                enrollments: enrollmentsToSend,
                 enrollmentState,
                 enrollmentTask
             });
 
-            // Show results
-            displayEnrollmentResults(result);
+            // Show results – use enrollmentsToSend so status overrides are preserved
+            displayEnrollmentResults(result, {
+                parsedData: enrollmentsToSend,
+                enrollmentState,
+                domain,
+                token
+            });
 
             if (cancellationRequested) {
                 const progressDetailAfter = document.getElementById('enrollment-progress-detail');
@@ -467,13 +637,46 @@ function setupEnrollmentFormListeners() {
     }
 }
 
+function parseCSVLine(line) {
+    const values = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQuotes) {
+            if (ch === '"') {
+                if (i + 1 < line.length && line[i + 1] === '"') {
+                    current += '"';
+                    i++; // skip escaped quote
+                } else {
+                    inQuotes = false;
+                }
+            } else {
+                current += ch;
+            }
+        } else {
+            if (ch === '"') {
+                inQuotes = true;
+            } else if (ch === ',') {
+                values.push(current.trim());
+                current = '';
+            } else {
+                current += ch;
+            }
+        }
+    }
+    values.push(current.trim());
+    return values;
+}
+
 function parseEnrollmentFile(content) {
     const lines = content.trim().split('\n');
     if (lines.length < 2) {
         return { error: 'File must contain at least a header row and one data row.', enrollments: [] };
     }
 
-    const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const header = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
     const enrollments = [];
 
     // Map non-identifier aliases to standard fields.
@@ -488,7 +691,7 @@ function parseEnrollmentFile(content) {
         const line = lines[i].trim();
         if (!line) continue;
 
-        const values = line.split(',').map(v => v.trim());
+        const values = parseCSVLine(line);
         const enrollment = {};
 
         // Parse each column
@@ -517,6 +720,7 @@ function parseEnrollmentFile(content) {
             course_section_id: enrollment.canvas_section_id || enrollment.course_section_id || enrollment.section_id || enrollment.sis_section_id,
             course_id: enrollment.canvas_course_id || enrollment.course_id,
             enrollment_id: enrollment.canvas_enrollment_id || enrollment.enrollment_id,
+            enrollment_state: enrollment.enrollment_state,
             start_at: enrollment.start_at,
             end_at: enrollment.end_at,
             limit_privileges_to_course_section: parseBoolean(enrollment.limit_privileges_to_course_section) ||
@@ -546,6 +750,7 @@ function generateEnrollmentSummary(enrollments) {
     const uniqueSections = new Set();
     const uniqueEnrollmentIds = new Set();
     const roleCounts = {};
+    const stateCounts = {};
 
     enrollments.forEach(enrollment => {
         // Count unique users
@@ -570,6 +775,12 @@ function generateEnrollmentSummary(enrollments) {
         // Count roles (use role if available, otherwise type)
         const roleType = enrollment.role || enrollment.type || 'Unknown';
         roleCounts[roleType] = (roleCounts[roleType] || 0) + 1;
+
+        // Count states
+        if (enrollment.enrollment_state) {
+            const state = enrollment.enrollment_state.toLowerCase();
+            stateCounts[state] = (stateCounts[state] || 0) + 1;
+        }
     });
 
     // Build summary HTML
@@ -585,10 +796,19 @@ function generateEnrollmentSummary(enrollments) {
         summary += `${count} <strong>${role}</strong> enrollment${count !== 1 ? 's' : ''}<br>`;
     });
 
-    return summary;
+    // Add state breakdown if states exist in file
+    const stateEntries = Object.entries(stateCounts);
+    if (stateEntries.length > 0) {
+        summary += `<br><strong>States in file:</strong><br>`;
+        stateEntries.sort((a, b) => b[1] - a[1]).forEach(([state, count]) => {
+            summary += `${count} <strong>${state}</strong><br>`;
+        });
+    }
+
+    return { html: summary, stateCounts };
 }
 
-function displayEnrollmentResults(result) {
+function displayEnrollmentResults(result, context = {}) {
     const responseDiv = document.getElementById('enrollment-response');
     const resultsCard = document.getElementById('enrollment-results-card');
 
@@ -607,6 +827,14 @@ function displayEnrollmentResults(result) {
     `;
     }
 
+    if (result.skipped > 0) {
+        html += `
+      <div class="alert alert-warning">
+        <strong>${result.skipped}</strong> enrollment(s) skipped (unrecognized status in file).
+      </div>
+    `;
+    }
+
     if (result.failed > 0) {
         html += `
       <div class="alert alert-danger">
@@ -620,7 +848,9 @@ function displayEnrollmentResults(result) {
 
             html += `<div class="mt-3"><h6>Error Details:</h6><ul>`;
             displayErrors.forEach(error => {
-                html += `<li><code>${error.user_id || 'Unknown'}</code>: ${error.reason}</li>`;
+                const errContext = [error.course_id && `course: ${error.course_id}`, error.section_id && `section: ${error.section_id}`, error.role_id && `role_id: ${error.role_id}`].filter(Boolean).join(', ');
+                const contextStr = errContext ? ` (${errContext})` : '';
+                html += `<li><code>${error.user_id || 'Unknown'}</code>${contextStr}: ${error.reason}</li>`;
             });
             html += `</ul>`;
 
@@ -631,11 +861,127 @@ function displayEnrollmentResults(result) {
             // Add download button for full error log
             html += `<button id="enrollment-download-errors" type="button" class="btn btn-sm btn-outline-secondary mt-2"><i class="bi bi-download me-1"></i>Download Full Error Log (CSV)</button>`;
             html += `</div>`;
+
+            // Detect concluded course errors and build retry UI
+            const concludedErrors = result.errors.filter(e =>
+                e.reason && e.reason.toLowerCase().includes('concluded') && e.course_id
+            );
+
+            if (concludedErrors.length > 0 && context.parsedData) {
+                // Group by course_id
+                const courseMap = {};
+                concludedErrors.forEach(err => {
+                    if (!courseMap[err.course_id]) {
+                        courseMap[err.course_id] = [];
+                    }
+                    courseMap[err.course_id].push(err);
+                });
+
+                // Find original enrollment objects from parsedData for each failed enrollment
+                const courseEnrollmentData = {};
+                for (const [courseId, errors] of Object.entries(courseMap)) {
+                    const failedUserIds = new Set(errors.map(e => String(e.user_id)));
+                    courseEnrollmentData[courseId] = context.parsedData.filter(e =>
+                        String(e.course_id) === String(courseId) && failedUserIds.has(String(e.user_id))
+                    );
+                }
+
+                const courseIds = Object.keys(courseMap);
+                html += `
+                <div class="mt-3 p-3 border rounded" id="concluded-override-section">
+                    <h6><i class="bi bi-unlock me-1"></i>Concluded Course Override</h6>
+                    <p class="text-muted" style="font-size: 0.85rem;">
+                        ${concludedErrors.length} enrollment(s) failed because the course is concluded.
+                        Select courses below to temporarily open them, retry the enrollments, then restore the original settings.
+                    </p>
+                    <div class="mb-2">
+                        <div class="form-check mb-1">
+                            <input class="form-check-input" type="checkbox" id="concluded-select-all" checked>
+                            <label class="form-check-label fw-bold" for="concluded-select-all">Select All (${courseIds.length} course${courseIds.length !== 1 ? 's' : ''})</label>
+                        </div>
+                        <hr class="my-1">
+                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.25rem; padding: 0.5rem;">
+                        ${courseIds.map(cid => {
+                            const count = courseMap[cid].length;
+                            const userList = courseMap[cid].slice(0, 3).map(e => e.user_id).join(', ');
+                            const moreText = count > 3 ? ` +${count - 3} more` : '';
+                            return `
+                            <div class="form-check ms-1 mb-1">
+                                <input class="form-check-input concluded-course-check" type="checkbox" value="${cid}" id="concluded-course-${cid}" checked>
+                                <label class="form-check-label" for="concluded-course-${cid}">
+                                    Course <strong>${cid}</strong> &mdash; ${count} enrollment(s) <span class="text-muted">(${userList}${moreText})</span>
+                                </label>
+                            </div>`;
+                        }).join('')}
+                        </div>
+                    </div>
+                    <button id="concluded-override-btn" type="button" class="btn btn-sm btn-warning">
+                        <i class="bi bi-arrow-repeat me-1"></i>Override &amp; Retry Selected
+                    </button>
+                    <div id="concluded-override-status" class="mt-2" style="display: none;"></div>
+                </div>`;
+            }
         }
+    }
+
+    // Add download for skipped rows
+    if (result.skippedRows && result.skippedRows.length > 0) {
+        html += `
+        <div class="mt-3">
+            <h6><i class="bi bi-skip-forward me-1"></i>Skipped Rows</h6>
+            <ul>`;
+        const maxSkipDisplay = 10;
+        result.skippedRows.slice(0, maxSkipDisplay).forEach(row => {
+            html += `<li><code>${row.user_id}</code>: ${row.reason}</li>`;
+        });
+        html += `</ul>`;
+        if (result.skippedRows.length > maxSkipDisplay) {
+            html += `<p class="text-muted">...and ${result.skippedRows.length - maxSkipDisplay} more.</p>`;
+        }
+        html += `<button id="enrollment-download-skipped" type="button" class="btn btn-sm btn-outline-warning mt-1"><i class="bi bi-download me-1"></i>Download Skipped Rows (CSV)</button>`;
+        html += `</div>`;
     }
 
     responseDiv.innerHTML = html;
     resultsCard.hidden = false;
+
+    // Attach event listener for download skipped button
+    if (result.skippedRows && result.skippedRows.length > 0) {
+        const downloadSkippedBtn = document.getElementById('enrollment-download-skipped');
+        if (downloadSkippedBtn) {
+            downloadSkippedBtn.addEventListener('click', async () => {
+                try {
+                    const skippedData = result.skippedRows.map(row => ({
+                        user_id: row.user_id || 'Unknown',
+                        course_id: row.course_id || '',
+                        section_id: row.section_id || '',
+                        enrollment_id: row.enrollment_id || '',
+                        enrollment_state: row.enrollment_state || '',
+                        reason: row.reason || ''
+                    }));
+
+                    const defaultFileName = `enrollment_skipped_${new Date().toISOString().split('T')[0]}.csv`;
+                    const csvResult = await window.csv.sendToCSV({
+                        fileName: defaultFileName,
+                        data: skippedData,
+                        showSaveDialog: true
+                    });
+
+                    if (csvResult && csvResult.filePath) {
+                        downloadSkippedBtn.innerHTML = '<i class="bi bi-check me-1"></i>Downloaded';
+                        downloadSkippedBtn.classList.remove('btn-outline-warning');
+                        downloadSkippedBtn.classList.add('btn-success');
+                        downloadSkippedBtn.disabled = true;
+                    }
+                } catch (error) {
+                    console.error('Error downloading skipped log:', error);
+                    downloadSkippedBtn.innerHTML = '<i class="bi bi-x me-1"></i>Download Failed';
+                    downloadSkippedBtn.classList.remove('btn-outline-warning');
+                    downloadSkippedBtn.classList.add('btn-danger');
+                }
+            });
+        }
+    }
 
     // Attach event listener for download errors button
     if (result.errors && result.errors.length > 0) {
@@ -647,7 +993,9 @@ function displayEnrollmentResults(result) {
                         user_id: error.user_id || 'Unknown',
                         course_id: error.course_id || '',
                         section_id: error.section_id || '',
+                        role_id: error.role_id || '',
                         role: error.role || '',
+                        status: error.status || '',
                         reason: error.reason || 'Unknown error'
                     }));
 
@@ -673,6 +1021,201 @@ function displayEnrollmentResults(result) {
             });
         }
     }
+
+    // Wire up concluded course override UI
+    setupConcludedOverrideUI(result, context);
+}
+
+function setupConcludedOverrideUI(result, context) {
+    const selectAllCheckbox = document.getElementById('concluded-select-all');
+    const overrideBtn = document.getElementById('concluded-override-btn');
+
+    if (!selectAllCheckbox || !overrideBtn || !context.parsedData) return;
+
+    const courseCheckboxes = document.querySelectorAll('.concluded-course-check');
+
+    // Select All toggle
+    selectAllCheckbox.addEventListener('change', () => {
+        courseCheckboxes.forEach(cb => { cb.checked = selectAllCheckbox.checked; });
+    });
+
+    // Keep Select All in sync with individual checkboxes
+    courseCheckboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            selectAllCheckbox.checked = [...courseCheckboxes].every(c => c.checked);
+        });
+    });
+
+    // Build enrollment lookup from concluded errors
+    const concludedErrors = result.errors.filter(e =>
+        e.reason && e.reason.toLowerCase().includes('concluded') && e.course_id
+    );
+    const courseEnrollmentMap = {};
+    for (const err of concludedErrors) {
+        if (!courseEnrollmentMap[err.course_id]) {
+            courseEnrollmentMap[err.course_id] = new Set();
+        }
+        courseEnrollmentMap[err.course_id].add(String(err.user_id));
+    }
+
+    // Override button click handler
+    overrideBtn.addEventListener('click', async () => {
+        const selectedCourses = [...courseCheckboxes].filter(cb => cb.checked).map(cb => cb.value);
+
+        if (selectedCourses.length === 0) {
+            const statusDiv = document.getElementById('concluded-override-status');
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = '<div class="alert alert-warning py-1 px-2" style="font-size:0.85rem;">Please select at least one course.</div>';
+            return;
+        }
+
+        // Build courseEnrollments payload: { courseId: [enrollment objects] }
+        const courseEnrollments = {};
+        for (const courseId of selectedCourses) {
+            const failedUserIds = courseEnrollmentMap[courseId];
+            if (!failedUserIds) continue;
+            courseEnrollments[courseId] = context.parsedData.filter(e =>
+                String(e.course_id) === String(courseId) && failedUserIds.has(String(e.user_id))
+            );
+        }
+
+        overrideBtn.disabled = true;
+        overrideBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Processing...';
+        const statusDiv = document.getElementById('concluded-override-status');
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = '<div class="text-muted" style="font-size:0.85rem;"><i class="bi bi-arrow-repeat me-1 spin-icon"></i>Working...</div>';
+
+        // Show cancel button
+        let overrideCancelBtn = document.getElementById('concluded-override-cancel-btn');
+        if (!overrideCancelBtn) {
+            overrideCancelBtn = document.createElement('button');
+            overrideCancelBtn.id = 'concluded-override-cancel-btn';
+            overrideCancelBtn.type = 'button';
+            overrideCancelBtn.className = 'btn btn-sm btn-outline-danger ms-2';
+            overrideCancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
+            overrideBtn.parentNode.insertBefore(overrideCancelBtn, overrideBtn.nextSibling);
+        }
+        overrideCancelBtn.hidden = false;
+        overrideCancelBtn.disabled = false;
+
+        let cancelRequested = false;
+        const onCancelClick = async () => {
+            cancelRequested = true;
+            overrideCancelBtn.disabled = true;
+            overrideCancelBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Cancelling...';
+            await window.axios.cancelOverrideConcluded();
+        };
+        overrideCancelBtn.addEventListener('click', onCancelClick);
+
+        // Listen for progress updates
+        const removeProgressListener = window.axios.onConcludedOverrideProgress?.((payload) => {
+            if (payload.detail) {
+                statusDiv.innerHTML = `<div class="text-muted" style="font-size:0.85rem;"><i class="bi bi-arrow-repeat me-1 spin-icon"></i>${payload.detail}</div>`;
+            }
+        });
+
+        try {
+            const overrideResult = await window.axios.overrideConcludedAndEnroll({
+                domain: context.domain,
+                token: context.token,
+                courseEnrollments,
+                enrollmentState: context.enrollmentState
+            });
+
+            // Build results summary
+            let resultHtml = '';
+
+            if (overrideResult.cancelled) {
+                resultHtml += `<div class="alert alert-warning py-1 px-2" style="font-size:0.85rem;"><i class="bi bi-x-circle me-1"></i>Override was cancelled. Courses processed so far have been restored.</div>`;
+            }
+
+            if (overrideResult.successful > 0) {
+                resultHtml += `<div class="alert alert-success py-1 px-2" style="font-size:0.85rem;"><strong>${overrideResult.successful}</strong> enrollment(s) succeeded after override.</div>`;
+            }
+
+            if (overrideResult.failed > 0) {
+                resultHtml += `<div class="alert alert-danger py-1 px-2" style="font-size:0.85rem;"><strong>${overrideResult.failed}</strong> enrollment(s) still failed.</div>`;
+                if (overrideResult.errors && overrideResult.errors.length > 0) {
+                    resultHtml += '<ul style="font-size:0.85rem;">';
+                    overrideResult.errors.slice(0, 5).forEach(err => {
+                        resultHtml += `<li><code>${err.user_id}</code> (course: ${err.course_id}): ${err.reason}</li>`;
+                    });
+                    if (overrideResult.errors.length > 5) {
+                        resultHtml += `<li class="text-muted">...and ${overrideResult.errors.length - 5} more</li>`;
+                    }
+                    resultHtml += '</ul>';
+                    resultHtml += `<button id="override-download-errors" type="button" class="btn btn-sm btn-outline-secondary mt-1"><i class="bi bi-download me-1"></i>Download Override Error Log (CSV)</button>`;
+                }
+            }
+
+            // Show restore status per course
+            if (overrideResult.courseResults) {
+                const restoreIssues = Object.entries(overrideResult.courseResults)
+                    .filter(([, r]) => !r.restored);
+                if (restoreIssues.length > 0) {
+                    resultHtml += '<div class="alert alert-warning py-1 px-2" style="font-size:0.85rem;"><strong>Warning:</strong> Some courses could not be restored to original settings:<ul class="mb-0">';
+                    restoreIssues.forEach(([cid, r]) => {
+                        resultHtml += `<li>Course ${cid}: ${r.error || 'Unknown error'}</li>`;
+                    });
+                    resultHtml += '</ul></div>';
+                } else {
+                    resultHtml += '<div class="alert alert-info py-1 px-2" style="font-size:0.85rem;"><i class="bi bi-check-circle me-1"></i>All course settings have been restored to their original values.</div>';
+                }
+            }
+
+            statusDiv.innerHTML = resultHtml;
+
+            // Wire up download button for override errors
+            if (overrideResult.errors && overrideResult.errors.length > 0) {
+                const dlBtn = document.getElementById('override-download-errors');
+                if (dlBtn) {
+                    dlBtn.addEventListener('click', async () => {
+                        try {
+                            const errorData = overrideResult.errors.map(err => ({
+                                user_id: err.user_id || 'Unknown',
+                                course_id: err.course_id || '',
+                                section_id: err.section_id || '',
+                                role_id: err.role_id || '',
+                                reason: err.reason || 'Unknown error'
+                            }));
+
+                            const defaultFileName = `override_enrollment_errors_${new Date().toISOString().split('T')[0]}.csv`;
+                            const csvResult = await window.csv.sendToCSV({
+                                fileName: defaultFileName,
+                                data: errorData,
+                                showSaveDialog: true
+                            });
+
+                            if (csvResult && csvResult.filePath) {
+                                dlBtn.innerHTML = '<i class="bi bi-check me-1"></i>Downloaded';
+                                dlBtn.classList.remove('btn-outline-secondary');
+                                dlBtn.classList.add('btn-success');
+                                dlBtn.disabled = true;
+                            }
+                        } catch (error) {
+                            console.error('Error downloading override error log:', error);
+                            dlBtn.innerHTML = '<i class="bi bi-x me-1"></i>Download Failed';
+                            dlBtn.classList.remove('btn-outline-secondary');
+                            dlBtn.classList.add('btn-danger');
+                        }
+                    });
+                }
+            }
+
+            overrideBtn.innerHTML = '<i class="bi bi-check me-1"></i>Override Complete';
+            overrideBtn.classList.remove('btn-warning');
+            overrideBtn.classList.add('btn-success');
+        } catch (error) {
+            console.error('Concluded override error:', error);
+            statusDiv.innerHTML = `<div class="alert alert-danger py-1 px-2" style="font-size:0.85rem;">Override failed: ${error.message || 'Unknown error'}</div>`;
+            overrideBtn.disabled = false;
+            overrideBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Override & Retry Selected';
+        } finally {
+            if (removeProgressListener) removeProgressListener();
+            overrideCancelBtn.removeEventListener('click', onCancelClick);
+            overrideCancelBtn.hidden = true;
+        }
+    });
 }
 
 function displayEnrollmentError(error) {
@@ -1278,6 +1821,7 @@ if (window.axios && window.axios.onManualEnrollProgress) {
 // Setup progress listener for bulk enrollment
 if (window.axios && window.axios.onBulkEnrollProgress) {
     window.axios.onBulkEnrollProgress((data) => {
+        console.log('[enrollment-progress] Received progress event:', data);
         const progressBar = document.getElementById('enrollment-progress-bar');
         const progressInfo = document.getElementById('enrollment-progress-info');
         const progressDetail = document.getElementById('enrollment-progress-detail');
@@ -1291,6 +1835,10 @@ if (window.axios && window.axios.onBulkEnrollProgress) {
             progressBar.setAttribute('aria-valuenow', String(percentage));
             progressInfo.textContent = `Processing enrollments ... ${current}/${total}`;
             progressDetail.textContent = data?.detail || '';
+        } else {
+            console.warn('[enrollment-progress] DOM elements not found:', { progressBar: !!progressBar, progressInfo: !!progressInfo, progressDetail: !!progressDetail });
         }
     });
+} else {
+    console.warn('[enrollment-progress] window.axios.onBulkEnrollProgress not available at load time');
 }
