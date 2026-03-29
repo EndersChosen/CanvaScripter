@@ -7,44 +7,74 @@ async function createDiscussion(data) {
     console.log('discussions.js > createDiscussion');
     // Using GraphQL createDiscussionTopic mutation
     // Supports standard discussions and announcements (isAnnouncement)
-    
-    // Build GraphQL mutation
+    const variableDefinitions = [
+        '$contextId: ID!',
+        '$contextType: DiscussionTopicContextType!',
+        '$title: String',
+        '$message: String',
+        '$published: Boolean',
+        '$isAnnouncement: Boolean',
+        '$discussionType: DiscussionTopicDiscussionType',
+        '$specificSections: String',
+        '$locked: Boolean',
+        '$podcastEnabled: Boolean',
+        '$podcastHasStudentPosts: Boolean',
+        '$requireInitialPost: Boolean',
+        '$allowRating: Boolean',
+        '$onlyGradersCanRate: Boolean'
+    ];
+    const inputFields = [
+        'contextId: $contextId',
+        'contextType: $contextType',
+        'title: $title',
+        'message: $message',
+        'published: $published',
+        'isAnnouncement: $isAnnouncement',
+        'discussionType: $discussionType',
+        'specificSections: $specificSections',
+        'locked: $locked',
+        'podcastEnabled: $podcastEnabled',
+        'podcastHasStudentPosts: $podcastHasStudentPosts',
+        'requireInitialPost: $requireInitialPost',
+        'allowRating: $allowRating',
+        'onlyGradersCanRate: $onlyGradersCanRate'
+    ];
+
+    const variables = {
+        contextId: String(data.course_id),
+        contextType: 'Course',
+        title: data.title,
+        message: data.message ?? '',
+        published: data.published ?? true,
+        isAnnouncement: data.is_announcement ?? false,
+        discussionType: data.threaded === false ? 'side_comment' : 'threaded',
+        specificSections: 'all',
+        locked: false,
+        podcastEnabled: false,
+        podcastHasStudentPosts: false,
+        requireInitialPost: data.require_initial_post ?? false,
+        allowRating: false,
+        onlyGradersCanRate: false
+    };
+
+    if (data.delayed_post_at) {
+        variableDefinitions.push('$delayedPostAt: DateTime');
+        inputFields.push('delayedPostAt: $delayedPostAt');
+        variables.delayedPostAt = data.delayed_post_at;
+    }
+
+    if (data.lock_at) {
+        variableDefinitions.push('$lockAt: DateTime');
+        inputFields.push('lockAt: $lockAt');
+        variables.lockAt = data.lock_at;
+    }
+
     const mutation = `
         mutation CreateDiscussionTopic(
-            $contextId: ID!
-            $contextType: DiscussionTopicContextType!
-            $title: String
-            $message: String
-            $published: Boolean
-            $isAnnouncement: Boolean
-            $discussionType: DiscussionTopicDiscussionType
-            $specificSections: String
-            $locked: Boolean
-            $podcastEnabled: Boolean
-            $podcastHasStudentPosts: Boolean
-            $requireInitialPost: Boolean
-            $allowRating: Boolean
-            $onlyGradersCanRate: Boolean
-            $delayedPostAt: DateTime
-            $lockAt: DateTime
+            ${variableDefinitions.join('\n            ')}
         ) {
             createDiscussionTopic(input: {
-                contextId: $contextId
-                contextType: $contextType
-                title: $title
-                message: $message
-                published: $published
-                isAnnouncement: $isAnnouncement
-                discussionType: $discussionType
-                specificSections: $specificSections
-                locked: $locked
-                podcastEnabled: $podcastEnabled
-                podcastHasStudentPosts: $podcastHasStudentPosts
-                requireInitialPost: $requireInitialPost
-                allowRating: $allowRating
-                onlyGradersCanRate: $onlyGradersCanRate
-                delayedPostAt: $delayedPostAt
-                lockAt: $lockAt
+                ${inputFields.join('\n                ')}
             }) {
                 discussionTopic {
                     _id
@@ -64,25 +94,6 @@ async function createDiscussion(data) {
             }
         }
     `;
-
-    const variables = {
-        contextId: String(data.course_id),  // Just the numeric ID as a string
-        contextType: 'Course',  // Required: Can be 'Course' or 'Group'
-        title: data.title,
-        message: data.message ?? '',
-        published: data.published ?? true,
-        isAnnouncement: data.is_announcement ?? false,
-        discussionType: data.threaded === false ? 'side_comment' : 'threaded',  // Default to threaded
-        specificSections: 'all',  // Make available to all sections
-        locked: false,  // Don't lock the discussion
-        podcastEnabled: false,
-        podcastHasStudentPosts: false,
-        requireInitialPost: data.require_initial_post ?? false,
-        allowRating: false,
-        onlyGradersCanRate: false,
-        delayedPostAt: data.delayed_post_at ?? null,
-        lockAt: data.lock_at ?? null
-    };
 
     // console.log('Creating discussion with variables:', JSON.stringify(variables, null, 2));
     // console.log('Input data.delayed_post_at:', data.delayed_post_at);
@@ -104,16 +115,16 @@ async function createDiscussion(data) {
     try {
         const request = async () => axios(axiosConfig);
         const response = await errorCheck(request);
-        
+
         // console.log('GraphQL Response:', JSON.stringify(response.data, null, 2));
-        
+
         // Check for GraphQL errors
         if (response.data.errors) {
             const errorMsg = response.data.errors.map(e => e.message).join(', ');
             console.error('GraphQL Errors:', errorMsg);
             throw new Error(errorMsg);
         }
-        
+
         // Check for mutation-specific errors
         if (response.data.data?.createDiscussionTopic?.errors?.length > 0) {
             const errors = response.data.data.createDiscussionTopic.errors;
@@ -121,7 +132,7 @@ async function createDiscussion(data) {
             console.error('Mutation Errors:', errorMsg);
             throw new Error(errorMsg);
         }
-        
+
         return response.data.data.createDiscussionTopic.discussionTopic;
     } catch (error) {
         console.error('createDiscussion error:', error.message || error);
@@ -134,7 +145,7 @@ async function createDiscussion(data) {
 async function getAnnouncements(data) {
     console.log('discussions.js > getAnnouncements');
     const { domain, token, course_id, first = 100, after = null } = data;
-    
+
     const query = `
         query GetAnnouncements($courseId: ID!, $first: Int!, $after: String) {
             course(id: $courseId) {
@@ -186,16 +197,16 @@ async function getAnnouncements(data) {
     try {
         const request = async () => axios(axiosConfig);
         const response = await errorCheck(request);
-        
+
         if (response.data.errors) {
             const errorMsg = response.data.errors.map(e => e.message).join(', ');
             throw new Error(errorMsg);
         }
-        
+
         // Extract nodes from edges and return in the expected format
         const discussionsConnection = response.data.data.course.discussionsConnection;
         const nodes = discussionsConnection.edges.map(edge => edge.node);
-        
+
         return {
             nodes: nodes,
             pageInfo: discussionsConnection.pageInfo
@@ -211,7 +222,7 @@ async function deleteDiscussionTopic(data) {
     console.log('discussions.js > deleteDiscussionTopic - GraphQL');
     // Using GraphQL deleteDiscussionTopic mutation
     const { domain, token, discussion_id } = data;
-    
+
     const mutation = `
         mutation DeleteDiscussionTopic($id: ID!) {
             deleteDiscussionTopic(input: {id: $id}) {
@@ -244,18 +255,18 @@ async function deleteDiscussionTopic(data) {
     try {
         const request = async () => axios(axiosConfig);
         const response = await errorCheck(request);
-        
+
         if (response.data.errors) {
             const errorMsg = response.data.errors.map(e => e.message).join(', ');
             throw new Error(errorMsg);
         }
-        
+
         if (response.data.data?.deleteDiscussionTopic?.errors?.length > 0) {
             const errors = response.data.data.deleteDiscussionTopic.errors;
             const errorMsg = errors.map(e => `${e.attribute}: ${e.message}`).join(', ');
             throw new Error(errorMsg);
         }
-        
+
         return response.data.data.deleteDiscussionTopic.discussionTopicId;
     } catch (error) {
         console.error('deleteDiscussionTopic error:', error.message || error);

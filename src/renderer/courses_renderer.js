@@ -15,6 +15,9 @@ function courseTemplate(e) {
         case 'reset-courses':
             resetCourses(e);
             break;
+        case 'publish-unpublish-courses':
+            publishUnpublishCourses(e);
+            break;
         case 'create-support-course':
             createSupportCourse(e);
             break;
@@ -1113,6 +1116,386 @@ async function resetCourses(e) {
     // eContent.append(eResponse);
 }
 
+async function publishUnpublishCourses(e) {
+    hideEndpoints(e);
+
+    const eContent = document.querySelector('#endpoint-content');
+    let publishCourseForm = eContent.querySelector('#publish-course-form');
+    const publishFormJustCreated = !publishCourseForm;
+
+    if (!publishCourseForm) {
+        publishCourseForm = document.createElement('form');
+        publishCourseForm.id = 'publish-course-form';
+
+        publishCourseForm.innerHTML = `
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-megaphone me-1"></i>Publish/Unpublish Courses
+                    </h3>
+                    <small class="text-muted">Publish or unpublish courses by manually entering course IDs or uploading a file</small>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label d-block">Action</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="publish-state-action" id="publish-courses-option" value="offer" checked>
+                            <label class="form-check-label" for="publish-courses-option">Publish</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="publish-state-action" id="unpublish-courses-option" value="claim">
+                            <label class="form-check-label" for="unpublish-courses-option">Unpublish</label>
+                        </div>
+                        <div class="form-text">Canvas uses <strong>offer</strong> to publish and <strong>claim</strong> to unpublish a course.</div>
+                    </div>
+                    <div class="row">
+                        <div class="mb-2" id="publish-state-switches">
+                            <div class="form-check form-switch">
+                                <label class="form-check-label" for="upload-publish-courses-switch">Upload file of courses</label>
+                                <input class="form-check-input" type="checkbox" role="switch" id="upload-publish-courses-switch">
+                            </div>
+                            <div class="form-check form-switch">
+                                <label class="form-check-label" for="manual-publish-courses-switch">Manually enter list of courses</label>
+                                <input class="form-check-input" type="checkbox" role="switch" id="manual-publish-courses-switch">
+                            </div>
+                        </div>
+                        <div id="publish-course-text-div" hidden>
+                            <textarea class="form-control form-control-sm" id="publish-courses-area" rows="3" placeholder="course1,course2,course3, etc."></textarea>
+                            <div class="form-text" id="publish-courses-validation" hidden></div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-primary mt-2" id="publishStateBtn" disabled hidden>Apply</button>
+                    <button type="button" class="btn btn-sm btn-primary mt-2" id="publishStateUploadBtn" disabled hidden>Upload</button>
+                    <div id="publish-upload-confirm-div" hidden></div>
+                </div>
+            </div>
+
+            <div class="card mt-2" id="publish-progress-div" hidden>
+                <div class="card-header py-2">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-gear me-1"></i><span id="publish-progress-title">Processing</span>
+                    </h5>
+                </div>
+                <div class="card-body py-2">
+                    <p id="publish-progress-info" class="mb-1"></p>
+                    <div class="progress mb-1">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger mt-2" id="publish-courses-cancel-btn" hidden>
+                        <i class="bi bi-x-circle me-1"></i>Cancel
+                    </button>
+                </div>
+            </div>
+
+            <div class="card mt-2" id="publish-results-card" hidden>
+                <div class="card-body p-0" id="publish-results-body"></div>
+            </div>`;
+
+        eContent.append(publishCourseForm);
+    }
+    publishCourseForm.hidden = false;
+
+    const progressDiv = publishCourseForm.querySelector('#publish-progress-div');
+    const progressBar = progressDiv.querySelector('.progress-bar');
+    const progressTitle = publishCourseForm.querySelector('#publish-progress-title');
+    const progressInfo = publishCourseForm.querySelector('#publish-progress-info');
+    const applyBtn = publishCourseForm.querySelector('#publishStateBtn');
+    const uploadBtn = publishCourseForm.querySelector('#publishStateUploadBtn');
+    const resultsCard = publishCourseForm.querySelector('#publish-results-card');
+    const resultsBody = publishCourseForm.querySelector('#publish-results-body');
+    const confirmDiv = publishCourseForm.querySelector('#publish-upload-confirm-div');
+    const courseTextDiv = publishCourseForm.querySelector('#publish-course-text-div');
+    const courseTextArea = publishCourseForm.querySelector('#publish-courses-area');
+    const switches = publishCourseForm.querySelector('#publish-state-switches');
+    const validationMessage = publishCourseForm.querySelector('#publish-courses-validation');
+
+    function getSelectedPublishAction() {
+        const selectedAction = publishCourseForm.querySelector('input[name="publish-state-action"]:checked');
+        return selectedAction?.value === 'claim' ? 'claim' : 'offer';
+    }
+
+    function getSelectedPublishActionLabel() {
+        return getSelectedPublishAction() === 'claim' ? 'Unpublish' : 'Publish';
+    }
+
+    function parseManualCourseIds(rawInput) {
+        const courseIds = rawInput.split(/[\n,]/).map(id => id.trim()).filter(id => id.length > 0);
+        const invalid = courseIds.filter(id => !/^\d+$/.test(id) || Number(id) <= 0);
+
+        if (invalid.length > 0) {
+            const preview = invalid.slice(0, 5).join(', ');
+            const suffix = invalid.length > 5 ? ` ... (${invalid.length} total)` : '';
+            throw new Error(`Course IDs must be positive integers. Invalid values: ${preview}${suffix}`);
+        }
+
+        return courseIds;
+    }
+
+    function setManualValidation(message = '') {
+        if (!message) {
+            validationMessage.hidden = true;
+            validationMessage.textContent = '';
+            courseTextArea.classList.remove('is-invalid');
+            return;
+        }
+
+        validationMessage.hidden = false;
+        validationMessage.textContent = message;
+        courseTextArea.classList.add('is-invalid');
+    }
+
+    function renderPublishResults(response, actionLabel) {
+        const successCount = response.successful?.length ?? 0;
+        const failedItems = response.failed ?? [];
+        const failCount = failedItems.length;
+        const cancelledByUser = response.cancelledByUser ?? false;
+
+        let html = `
+            <div class="card mb-0">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-check-circle me-2"></i>${actionLabel} Summary
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        <strong>Successfully updated:</strong> ${successCount}
+                    </p>
+                    <p class="${cancelledByUser ? 'mb-2' : 'mb-0'}">
+                        <i class="bi bi-x-circle-fill ${failCount > 0 ? 'text-danger' : 'text-secondary'} me-2"></i>
+                        <strong>Failed to update:</strong> ${failCount}
+                    </p>
+                    ${cancelledByUser ? `<p class="mb-0">
+                        <i class="bi bi-slash-circle text-warning me-2"></i>
+                        <strong>Cancelled by user</strong>
+                    </p>` : ''}
+                </div>
+            </div>`;
+
+        if (failCount > 0) {
+            html += `
+                <div class="card mt-2 mb-0 border-danger">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-exclamation-triangle me-2"></i>Update Failures
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="mb-2">
+                            ${failedItems.map(item => `<li><strong>[${item.id}]</strong>: ${item.reason || item.status || 'Unknown error'}</li>`).join('')}
+                        </ul>
+                        <button type="button" class="btn btn-sm btn-outline-danger" id="publish-failures-csv-btn">
+                            <i class="bi bi-download me-1"></i>Download failures CSV
+                        </button>
+                    </div>
+                </div>`;
+        }
+
+        resultsBody.innerHTML = html;
+        resultsCard.hidden = false;
+
+        if (failCount > 0) {
+            const dlBtn = resultsBody.querySelector('#publish-failures-csv-btn');
+            dlBtn.addEventListener('click', async () => {
+                try {
+                    dlBtn.disabled = true;
+                    dlBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Saving...';
+                    const csvData = failedItems.map(item => ({
+                        course_id: item.id ?? '',
+                        message: item.reason ?? '',
+                        status: item.status ?? ''
+                    }));
+                    const fileName = `course_publish_state_failures_${new Date().toISOString().slice(0, 10)}.csv`;
+                    const result = await window.csv.sendToCSV({ fileName, data: csvData, showSaveDialog: true });
+                    if (result?.filePath) {
+                        dlBtn.innerHTML = '<i class="bi bi-check me-1"></i>Downloaded';
+                        dlBtn.classList.replace('btn-outline-danger', 'btn-success');
+                    } else {
+                        dlBtn.disabled = false;
+                        dlBtn.innerHTML = '<i class="bi bi-download me-1"></i>Download failures CSV';
+                    }
+                } catch (err) {
+                    console.error('Error saving publish-state failures CSV:', err);
+                    dlBtn.disabled = false;
+                    dlBtn.innerHTML = '<i class="bi bi-x me-1"></i>Download failed';
+                    dlBtn.classList.replace('btn-outline-danger', 'btn-danger');
+                }
+            });
+        }
+    }
+
+    function setupCancelBtn(cancelBtn) {
+        cancelBtn.hidden = false;
+        cancelBtn.disabled = false;
+        cancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
+        cancelBtn.onclick = async () => {
+            cancelBtn.disabled = true;
+            cancelBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Cancelling...';
+            progressInfo.innerHTML = 'Cancelling... letting in-flight requests finish.';
+            try {
+                await window.axios.cancelUpdateCoursePublishState();
+            } catch (err) {
+                console.error('Error cancelling publish/unpublish courses:', err);
+            }
+        };
+    }
+
+    async function runPublishState(courseIds, triggerBtn) {
+        const domain = document.querySelector('#domain').value.trim();
+        const apiToken = document.querySelector('#token').value.trim();
+        const eventType = getSelectedPublishAction();
+        const actionLabel = getSelectedPublishActionLabel();
+        const total = courseIds.length;
+
+        resultsCard.hidden = true;
+        resultsBody.innerHTML = '';
+        progressDiv.hidden = false;
+        progressBar.style.width = '0%';
+        progressTitle.textContent = `${actionLabel} Courses`;
+        progressInfo.innerHTML = `${actionLabel}ing courses... 0/${total}`;
+
+        const cancelBtn = progressDiv.querySelector('#publish-courses-cancel-btn');
+        setupCancelBtn(cancelBtn);
+
+        const data = { domain, token: apiToken, courseIds, eventType };
+
+        let response;
+        let unsubscribe;
+        try {
+            window.progressAPI.removeAllProgressListeners();
+            unsubscribe = window.progressAPI.onUpdateProgress((progress) => {
+                const pct = typeof progress === 'number' ? progress : 0;
+                const done = Math.min(Math.round(pct / 100 * total), total);
+                progressInfo.innerHTML = `${actionLabel}ing courses... ${done}/${total}`;
+                progressBar.style.width = `${pct}%`;
+            });
+
+            response = await window.axios.updateCoursePublishState(data);
+            progressDiv.hidden = true;
+            renderPublishResults(response, actionLabel);
+        } catch (error) {
+            errorHandler(error, progressInfo);
+        } finally {
+            if (typeof unsubscribe === 'function') unsubscribe();
+            triggerBtn.disabled = false;
+            cancelBtn.hidden = true;
+            cancelBtn.disabled = true;
+            cancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
+        }
+    }
+
+    function confirmAndRun(courseIds, triggerBtn) {
+        const actionLabel = getSelectedPublishActionLabel();
+        const total = courseIds.length;
+        confirmDiv.innerHTML = `
+            <div class="alert alert-info py-2 mb-2 mt-2 publish-state-confirm-alert">
+                <strong>${actionLabel}</strong> <strong>${total}</strong> course${total !== 1 ? 's' : ''}?
+            </div>
+            <button type="button" class="btn btn-sm btn-primary me-2" id="confirm-publish-state-btn">
+                <i class="bi bi-check2-circle me-1"></i>${actionLabel}
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" id="confirm-publish-state-cancel-btn">Cancel</button>`;
+        confirmDiv.hidden = false;
+
+        confirmDiv.querySelector('#confirm-publish-state-cancel-btn').addEventListener('click', () => {
+            confirmDiv.hidden = true;
+            confirmDiv.innerHTML = '';
+            triggerBtn.disabled = false;
+        }, { once: true });
+
+        confirmDiv.querySelector('#confirm-publish-state-btn').addEventListener('click', async () => {
+            confirmDiv.hidden = true;
+            confirmDiv.innerHTML = '';
+            await runPublishState(courseIds, triggerBtn);
+        }, { once: true });
+    }
+
+    if (publishFormJustCreated) {
+        courseTextArea.addEventListener('input', () => {
+            const manualSwitch = publishCourseForm.querySelector('#manual-publish-courses-switch');
+            setManualValidation('');
+            applyBtn.disabled = courseTextArea.value.trim().length < 1 || !manualSwitch.checked;
+        });
+
+        switches.addEventListener('change', (event) => {
+            const inputs = switches.querySelectorAll('input');
+            for (const input of inputs) {
+                if (input.id !== event.target.id) input.checked = false;
+            }
+
+            confirmDiv.hidden = true;
+            confirmDiv.innerHTML = '';
+            setManualValidation('');
+
+            if (!event.target.checked) {
+                applyBtn.disabled = true;
+                uploadBtn.disabled = true;
+            } else if (event.target.id === 'upload-publish-courses-switch') {
+                applyBtn.disabled = true;
+                applyBtn.hidden = true;
+                courseTextDiv.hidden = true;
+                uploadBtn.disabled = false;
+                uploadBtn.hidden = false;
+            } else {
+                applyBtn.hidden = false;
+                courseTextDiv.hidden = false;
+                uploadBtn.disabled = true;
+                uploadBtn.hidden = true;
+                applyBtn.disabled = courseTextArea.value.trim().length < 1;
+            }
+        });
+
+        uploadBtn.addEventListener('click', async () => {
+            uploadBtn.disabled = true;
+            progressDiv.hidden = true;
+            confirmDiv.hidden = true;
+            confirmDiv.innerHTML = '';
+            setManualValidation('');
+
+            let courseIds = [];
+            try {
+                courseIds = await window.fileUpload.publishStateCourses();
+            } catch (error) {
+                uploadBtn.disabled = false;
+                progressDiv.hidden = false;
+                errorHandler(error, progressInfo);
+                return;
+            }
+
+            if (!courseIds || courseIds.length === 0) {
+                uploadBtn.disabled = false;
+                return;
+            }
+
+            confirmAndRun(courseIds, uploadBtn);
+        });
+
+        applyBtn.addEventListener('click', async () => {
+            applyBtn.disabled = true;
+            confirmDiv.hidden = true;
+            confirmDiv.innerHTML = '';
+            setManualValidation('');
+
+            let courseIds = [];
+            try {
+                courseIds = parseManualCourseIds(courseTextArea.value);
+            } catch (error) {
+                setManualValidation(error.message || 'Invalid course IDs.');
+                applyBtn.disabled = false;
+                return;
+            }
+
+            if (courseIds.length === 0) {
+                applyBtn.disabled = false;
+                return;
+            }
+
+            confirmAndRun(courseIds, applyBtn);
+        });
+    }
+}
+
 async function createSupportCourse(e) {
     hideEndpoints(e);
 
@@ -1139,6 +1522,7 @@ async function createSupportCourse(e) {
         { key: 'assignments', label: 'Assignments', supportsPublish: true },
         { key: 'classicQuizzes', label: 'Classic Quizzes', supportsPublish: true, questionMode: 'classic' },
         { key: 'newQuizzes', label: 'New Quizzes', supportsPublish: true, questionMode: 'new' },
+        { key: 'announcements', label: 'Announcements', supportsPublish: false, questionMode: 'announcement' },
         { key: 'discussions', label: 'Discussions', supportsPublish: true },
         { key: 'pages', label: 'Pages', supportsPublish: true },
         { key: 'modules', label: 'Modules', supportsPublish: false },
@@ -1287,6 +1671,22 @@ async function createSupportCourse(e) {
             </div>`;
     }
 
+    function buildAnnouncementPanelMarkup() {
+        return `
+            <div class="csc-inline-panel" data-question-panel="announcements" hidden>
+                <div class="csc-inline-panel-header">Announcement Posting</div>
+                <div class="csc-inline-panel-body">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-6">
+                            <label class="form-label mb-1" for="csc-announcement-delay-date">Delayed Post Date</label>
+                            <input type="datetime-local" class="form-control form-control-sm" id="csc-announcement-delay-date">
+                            <div class="form-text">Leave blank to post announcements immediately.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+    }
+
     function buildContentRowsMarkup() {
         return contentDefinitions.map((definition) => {
             const checkboxId = `csc-content-${definition.key}`;
@@ -1296,7 +1696,10 @@ async function createSupportCourse(e) {
                 ? 'csc-add-questions'
                 : definition.questionMode === 'new'
                     ? 'csc-add-newq-questions'
-                    : '';
+                    : definition.questionMode === 'announcement'
+                        ? 'csc-delay-announcements'
+                        : '';
+            const questionToggleLabel = definition.questionMode === 'announcement' ? 'Delay Posting' : 'Customize';
 
             const publishMarkup = definition.supportsPublish
                 ? `<div class="form-check form-switch mb-0">
@@ -1308,7 +1711,7 @@ async function createSupportCourse(e) {
             const questionMarkup = definition.questionMode
                 ? `<div class="form-check form-switch mb-0">
                         <input class="form-check-input csc-question-toggle" type="checkbox" id="${questionToggleId}" data-key="${definition.key}" disabled>
-                        <label class="form-check-label" for="${questionToggleId}">Customize</label>
+                        <label class="form-check-label" for="${questionToggleId}">${questionToggleLabel}</label>
                     </div>
                     <div class="csc-inline-note" data-question-summary="${definition.key}">Off</div>`
                 : '<span class="csc-cell-placeholder">Not applicable</span>';
@@ -1317,7 +1720,9 @@ async function createSupportCourse(e) {
                 ? buildClassicQuestionPanelMarkup()
                 : definition.questionMode === 'new'
                     ? buildNewQuizQuestionPanelMarkup()
-                    : '';
+                    : definition.questionMode === 'announcement'
+                        ? buildAnnouncementPanelMarkup()
+                        : '';
 
             return `
                 <div class="csc-row-group" data-content-key="${definition.key}">
@@ -1448,7 +1853,7 @@ async function createSupportCourse(e) {
                                     <div class="csc-content-cell">Include</div>
                                     <div class="csc-content-cell">Content Type</div>
                                     <div class="csc-content-cell">Publish</div>
-                                    <div class="csc-content-cell">Questions</div>
+                                    <div class="csc-content-cell">Options</div>
                                     <div class="csc-content-cell">Qty</div>
                                 </div>
                                 ${buildContentRowsMarkup()}
@@ -1551,6 +1956,16 @@ async function createSupportCourse(e) {
             return;
         }
 
+        if (key === 'announcements') {
+            if (!elements.questionToggle?.checked) {
+                elements.questionSummary.textContent = 'Off';
+                return;
+            }
+
+            elements.questionSummary.textContent = formatAnnouncementDelaySummary(announcementDelayInput?.value || '');
+            return;
+        }
+
         if (!elements.questionToggle?.checked) {
             elements.questionSummary.textContent = 'Off';
             return;
@@ -1590,6 +2005,11 @@ async function createSupportCourse(e) {
             selectedNewQQuestionTypes = [];
         }
 
+        if (key === 'announcements') {
+            if (announcementDelayToggle) announcementDelayToggle.checked = false;
+            if (announcementDelayInput) announcementDelayInput.value = '';
+        }
+
         setQuestionPanelVisibility(key, false);
         updateQuestionSummary(key);
     }
@@ -1613,6 +2033,11 @@ async function createSupportCourse(e) {
             }
             if (definition.key === 'newQuizzes' && selectedNewQQuestionTypes.length > 0) {
                 badges.push(`<span class="badge text-bg-info">${selectedNewQQuestionTypes.length} question type${selectedNewQQuestionTypes.length === 1 ? '' : 's'}</span>`);
+            }
+            if (definition.key === 'announcements') {
+                const delayEnabled = !!createSupportCourseForm.querySelector('#csc-delay-announcements')?.checked;
+                const delayValue = createSupportCourseForm.querySelector('#csc-announcement-delay-date')?.value || '';
+                badges.push(`<span class="badge ${delayEnabled && delayValue ? 'text-bg-info' : 'text-bg-light'}">${delayEnabled && delayValue ? 'Delayed' : 'Immediate'}</span>`);
             }
 
             items.push(`
@@ -1749,10 +2174,21 @@ async function createSupportCourse(e) {
     const newQQuestionsPanel = createSupportCourseForm.querySelector('#csc-newq-questions-panel');
     const selectAllNewQCheckbox = createSupportCourseForm.querySelector('#select-all-newq-questions');
     const newQQuestionTypeCheckboxes = createSupportCourseForm.querySelectorAll('.newq-question-type-checkbox');
+    const announcementDelayToggle = createSupportCourseForm.querySelector('#csc-delay-announcements');
+    const announcementDelayInput = createSupportCourseForm.querySelector('#csc-announcement-delay-date');
 
     // Track selected question types
     let selectedQuestionTypes = [];
     let selectedNewQQuestionTypes = [];
+
+    function formatAnnouncementDelaySummary(value) {
+        if (!value) return 'Choose a post date';
+
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return 'Choose a post date';
+
+        return `Posts ${parsed.toLocaleString()}`;
+    }
 
     function updateSelectedQuestionTypes() {
         selectedQuestionTypes = Array.from(questionTypeCheckboxes)
@@ -1789,6 +2225,14 @@ async function createSupportCourse(e) {
                 resetQuestionConfig('newQuizzes');
             }
             updateQuestionSummary('newQuizzes');
+            renderSummary();
+            if (typeof saveDefaultsDebounced === 'function') saveDefaultsDebounced();
+        });
+    }
+
+    if (announcementDelayInput) {
+        announcementDelayInput.addEventListener('input', () => {
+            updateQuestionSummary('announcements');
             renderSummary();
             if (typeof saveDefaultsDebounced === 'function') saveDefaultsDebounced();
         });
@@ -1951,6 +2395,10 @@ async function createSupportCourse(e) {
             newQuizQuestions: {
                 enabled: !!createSupportCourseForm.querySelector('#csc-add-newq-questions')?.checked,
                 selectedTypes: [...selectedNewQQuestionTypes]
+            },
+            announcementOptions: {
+                enabled: !!createSupportCourseForm.querySelector('#csc-delay-announcements')?.checked,
+                delayedPostAt: createSupportCourseForm.querySelector('#csc-announcement-delay-date')?.value || ''
             }
         };
         for (const definition of contentDefinitions) {
@@ -2058,6 +2506,24 @@ async function createSupportCourse(e) {
                     resetQuestionConfig('newQuizzes');
                 }
                 updateQuestionSummary('newQuizzes');
+            }
+
+            if (cfg.announcementOptions) {
+                const announcementToggle = createSupportCourseForm.querySelector('#csc-delay-announcements');
+                const announcementDateInput = createSupportCourseForm.querySelector('#csc-announcement-delay-date');
+
+                if (announcementToggle && cfg.announcementOptions.enabled) {
+                    announcementToggle.checked = true;
+                    setQuestionPanelVisibility('announcements', true);
+                } else {
+                    resetQuestionConfig('announcements');
+                }
+
+                if (announcementDateInput) {
+                    announcementDateInput.value = cfg.announcementOptions.delayedPostAt || '';
+                }
+
+                updateQuestionSummary('announcements');
             }
 
             renderSummary();
@@ -2257,6 +2723,7 @@ async function createSupportCourse(e) {
         const assignmentsConfig = contentState.assignments ?? { enabled: false, quantity: 0 };
         const classicQuizConfig = contentState.classicQuizzes ?? { enabled: false, quantity: 0 };
         const newQuizConfig = contentState.newQuizzes ?? { enabled: false, quantity: 0 };
+        const announcementsConfig = contentState.announcements ?? { enabled: false, quantity: 0 };
         const discussionsConfig = contentState.discussions ?? { enabled: false, quantity: 0 };
         const pagesConfig = contentState.pages ?? { enabled: false, quantity: 0 };
         const modulesConfig = contentState.modules ?? { enabled: false, quantity: 0 };
@@ -2267,6 +2734,11 @@ async function createSupportCourse(e) {
         const selectedQuestionTypesForAPI = addQuestionsEnabled ? [...selectedQuestionTypes] : [];
         const addNewQQuestionsEnabled = createSupportCourseForm.querySelector('#csc-add-newq-questions')?.checked || false;
         const selectedNewQQuestionTypesForAPI = addNewQQuestionsEnabled ? [...selectedNewQQuestionTypes] : [];
+        const announcementDelayEnabled = createSupportCourseForm.querySelector('#csc-delay-announcements')?.checked || false;
+        const announcementDelayValue = announcementDelayEnabled
+            ? createSupportCourseForm.querySelector('#csc-announcement-delay-date')?.value || ''
+            : '';
+        const announcementDelayedPostAt = announcementDelayValue ? new Date(announcementDelayValue).toISOString() : null;
 
         const contentPublish = contentDefinitions.reduce((acc, definition) => {
             acc[definition.key] = contentState[definition.key]?.publish ?? publishByType[definition.key] ?? true;
@@ -2307,6 +2779,12 @@ async function createSupportCourse(e) {
                 newQuizQuestions: {
                     addQuestions: addNewQQuestionsEnabled,
                     questionTypes: selectedNewQQuestionTypesForAPI
+                },
+                addAnnouncements: {
+                    state: announcementsConfig.enabled,
+                    number: announcementsConfig.quantity > 0 ? announcementsConfig.quantity : null,
+                    delayPosting: announcementDelayEnabled,
+                    delayed_post_at: announcementDelayedPostAt
                 },
                 addDiscussions: {
                     state: discussionsConfig.enabled,

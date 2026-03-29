@@ -228,6 +228,28 @@ async function getAssignments(domain, courseID, token) {
     return assignmentList;
 }
 
+async function updateAssignment(data) {
+    console.log('assignments.js > updateAssignment');
+
+    const url = `https://${data.domain}/api/v1/courses/${data.course_id}/assignments/${data.assignment_id}`;
+
+    try {
+        const request = async () => {
+            return await axios.put(url, data.payload, {
+                headers: {
+                    'Authorization': `Bearer ${data.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+        };
+
+        const response = await errorCheck(request);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
 async function getOldAssignmentsGraphQL(data) {
     let url = `https://${data.domain}/api/graphql`;
     const dateFilter = data.date_filter;
@@ -1260,5 +1282,5 @@ async function getAssignmentsInModules(data) {
 // }) ();
 
 module.exports = {
-    createAssignments, deleteAssignments, getAssignments, getNoSubmissionAssignments, getUnpublishedAssignments, deleteNoSubmissionAssignments, getNonModuleAssignments, getAssignmentsToMove, moveAssignmentToGroup, getOldAssignmentsGraphQL, getImportedAssignments, deleteAssignmentGroupWithAssignments, getAssignmentsInOtherGroups, getAssignmentsInGroup, getNoDueDateAssignments, getAssignmentsInModules, getAllAssignmentsForCombined
+    createAssignments, deleteAssignments, getAssignments, updateAssignment, getNoSubmissionAssignments, getUnpublishedAssignments, deleteNoSubmissionAssignments, getNonModuleAssignments, getAssignmentsToMove, moveAssignmentToGroup, getOldAssignmentsGraphQL, getImportedAssignments, deleteAssignmentGroupWithAssignments, getAssignmentsInOtherGroups, getAssignmentsInGroup, getNoDueDateAssignments, getAssignmentsInModules, getAllAssignmentsForCombined
 }

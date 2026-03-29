@@ -192,6 +192,58 @@ function registerAssignmentHandlers(ipcMain, logDebug, mainWindow, getBatchConfi
         return { ...batchResponse, cancelled: wasCancelled };
     });
 
+    ipcMain.handle('axios:getCourseAssignments', async (_event, data) => {
+        console.log('assignmentHandlers.js > getCourseAssignments');
+
+        try {
+            return await assignments.getAssignments(data.domain, data.course_id, data.token);
+        } catch (error) {
+            throw serializeErrorForIPC(error);
+        }
+    });
+
+    ipcMain.handle('axios:updateAssignmentsBulk', async (_event, data) => {
+        console.log('assignmentHandlers.js > updateAssignmentsBulk');
+
+        const assignmentIds = Array.isArray(data.assignment_ids) ? data.assignment_ids : [];
+        const totalRequests = assignmentIds.length || 1;
+        let completedRequests = 0;
+
+        const updateProgress = () => {
+            completedRequests++;
+            mainWindow.webContents.send('update-progress', {
+                mode: 'determinate',
+                label: `Updating assignments (${completedRequests}/${totalRequests})`,
+                processed: completedRequests,
+                total: totalRequests,
+                value: completedRequests / totalRequests
+            });
+        };
+
+        const requests = assignmentIds.map((assignmentId, index) => ({
+            id: index + 1,
+            request: async () => {
+                try {
+                    return await assignments.updateAssignment({
+                        domain: data.domain,
+                        token: data.token,
+                        course_id: data.course_id,
+                        assignment_id: assignmentId,
+                        payload: data.payload
+                    });
+                } finally {
+                    updateProgress();
+                }
+            }
+        }));
+
+        try {
+            return await batchHandler(requests, getBatchConfig());
+        } catch (error) {
+            throw serializeErrorForIPC(error);
+        }
+    });
+
     /**
      * Cancel delete operations for the current sender
      */

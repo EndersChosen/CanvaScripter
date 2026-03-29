@@ -7,7 +7,7 @@
  * - Course associations and blueprint syncing
  */
 
-const { restoreContent, resetCourse, getCourseInfo, createSupportCourse, editCourse, associateCourses, syncBPCourses, restoreCourseBatch, pollProgressOnce, cancelProgressJob, getCourseState } = require('../../shared/canvas-api/courses');
+const { restoreContent, resetCourse, getCourseInfo, createSupportCourse, editCourse, associateCourses, syncBPCourses, restoreCourseBatch, pollProgressOnce, cancelProgressJob, getCourseState, updateCoursePublishState } = require('../../shared/canvas-api/courses');
 const quizzes_classic = require('../../shared/canvas-api/quizzes_classic');
 const quizzes_nq = require('../../shared/canvas-api/quizzes_nq');
 const modules = require('../../shared/canvas-api/modules');
@@ -243,6 +243,72 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
         return { cancelled: true };
     });
 
+    // Per-renderer cancellation flags for publish/unpublish course operations
+    const updateCoursePublishStateCancelFlags = new Map();
+
+    /**
+     * Publish or unpublish multiple courses.
+     * PUT /api/v1/courses/:course_id with course[event]=offer|claim
+     */
+    ipcMain.handle('axios:updateCoursePublishState', async (event, data) => {
+        console.log('courseHandlers.js > updateCoursePublishState');
+
+        const rendererId = event.sender.id;
+        updateCoursePublishStateCancelFlags.set(rendererId, false);
+
+        let completedRequests = 0;
+        const totalRequests = data.courseIds.length;
+
+        const updateProgress = () => {
+            completedRequests++;
+            mainWindow.webContents.send('update-progress', (completedRequests / totalRequests) * 100);
+        };
+
+        const request = async (requestData) => {
+            try {
+                const response = await updateCoursePublishState(requestData);
+                return response;
+            } catch (error) {
+                throw error;
+            } finally {
+                updateProgress();
+            }
+        };
+
+        const requests = data.courseIds.map((courseId) => ({
+            id: String(courseId),
+            request: () => request({
+                domain: data.domain,
+                token: data.token,
+                course_id: courseId,
+                eventType: data.eventType
+            })
+        }));
+
+        const batchConfig = {
+            ...getBatchConfig(),
+            isCancelled: () => !!updateCoursePublishStateCancelFlags.get(rendererId)
+        };
+
+        try {
+            const batchResponse = await batchHandler(requests, batchConfig);
+            const cancelledByUser = !!updateCoursePublishStateCancelFlags.get(rendererId) && completedRequests < totalRequests;
+            return { ...batchResponse, cancelledByUser };
+        } finally {
+            updateCoursePublishStateCancelFlags.delete(rendererId);
+        }
+    });
+
+    /**
+     * Cancel an in-progress publish/unpublish operation.
+     */
+    ipcMain.handle('axios:cancelUpdateCoursePublishState', async (event) => {
+        const rendererId = event.sender.id;
+        logDebug('[axios:cancelUpdateCoursePublishState] Cancelling publish/unpublish courses', { rendererId });
+        updateCoursePublishStateCancelFlags.set(rendererId, true);
+        return { cancelled: true };
+    });
+
     // Per-renderer cancellation flags for restore-courses operations
     // Value shape: { cancel: boolean, currentProgressId: number|null }
     const restoreCoursesCancelFlags = new Map();
@@ -433,6 +499,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
                 assignments: courseConfig.addAssignments?.state ? toInt(courseConfig.addAssignments?.number) : 0,
                 classicQuizzes: courseConfig.addCQ?.state ? toInt(courseConfig.addCQ?.number) : 0,
                 newQuizzes: courseConfig.addNQ?.state ? toInt(courseConfig.addNQ?.number) : 0,
+                announcements: courseConfig.addAnnouncements?.state ? toInt(courseConfig.addAnnouncements?.number) : 0,
                 discussions: courseConfig.addDiscussions?.state ? toInt(courseConfig.addDiscussions?.number) : 0,
                 pages: courseConfig.addPages?.state ? toInt(courseConfig.addPages?.number) : 0,
                 modules: courseConfig.addModules?.state ? toInt(courseConfig.addModules?.number) : 0,
@@ -496,6 +563,7 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
                                 addCQ: { state: false, number: 0, addQuestions: false, questionTypes: [] },
                                 addNQ: { state: false, number: 0 },
                                 newQuizQuestions: { addQuestions: false, questionTypes: [] },
+                                addAnnouncements: { state: false, number: 0, delayPosting: false, delayed_post_at: null },
                                 addDiscussions: { state: false, number: 0 },
                                 addPages: { state: false, number: 0 },
                                 addModules: { state: false, number: 0 },
@@ -675,6 +743,43 @@ function registerCourseHandlers(ipcMain, logDebug, mainWindow, getBatchConfig) {
                     }
                     mainWindow.webContents.send('update-progress', { label: 'Adding new quiz items....done' });
                 }
+            }
+
+            if (courseConfig.addAnnouncements?.state && counts.announcements > 0) {
+                const defaultAnnouncementMessage = 'This is a default support course announcement.';
+                const delayedPostAt = courseConfig.addAnnouncements?.delayPosting && courseConfig.addAnnouncements?.delayed_post_at
+                    ? courseConfig.addAnnouncements.delayed_post_at
+                    : undefined;
+
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.announcements} announcements...` });
+                const requests = [];
+                for (let index = 0; index < counts.announcements; index++) {
+                    requests.push({
+                        id: index + 1,
+                        request: async () => {
+                            const announcementPayload = {
+                                domain: data.domain,
+                                token: data.token,
+                                course_id: data.course_id,
+                                title: `Announcement ${index + 1}`,
+                                message: defaultAnnouncementMessage,
+                                published: true,
+                                is_announcement: true
+                            };
+
+                            if (delayedPostAt) {
+                                announcementPayload.delayed_post_at = delayedPostAt;
+                            }
+
+                            const announcement = await createDiscussion(announcementPayload);
+                            processedOverallUnits++;
+                            sendOverall(`Creating announcements (${index + 1}/${counts.announcements})...`);
+                            return announcement;
+                        }
+                    });
+                }
+                await batchHandler(requests, getBatchConfig());
+                mainWindow.webContents.send('update-progress', { label: `Creating ${counts.announcements} announcements....done` });
             }
 
             if (courseConfig.addDiscussions?.state && counts.discussions > 0) {

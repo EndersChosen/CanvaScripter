@@ -15,9 +15,235 @@ function quizTemplate(e) {
         case 'create-new-quiz':
             createNewQuiz(e);
             break;
+        case 'get-nq-open-in-new-tab':
+            getNQOpenInNewTab(e);
+            break;
         default:
             break;
     }
+}
+
+async function getNQOpenInNewTab(e) {
+    hideEndpoints(e);
+
+    const eContent = document.querySelector('#endpoint-content');
+    let form = eContent.querySelector('#get-nq-open-in-new-tab-form');
+
+    if (!form) {
+        form = document.createElement('form');
+        form.id = 'get-nq-open-in-new-tab-form';
+        form.innerHTML = `
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-box-arrow-up-right me-1"></i>Get NQ Configured to Open in New Tab
+                    </h3>
+                    <small class="text-muted">Find New Quiz assignments using the quiz-lti launch URL where open in new tab is enabled, then disable that setting in bulk.</small>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-end">
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label" for="nq-open-tab-course-id">Course ID</label>
+                            <input id="nq-open-tab-course-id" type="text" class="form-control form-control-sm" placeholder="Enter course ID">
+                            <div id="nq-open-tab-course-feedback" class="form-text text-danger d-none">Course ID must be a positive number.</div>
+                        </div>
+                        <div class="col-auto mb-2">
+                            <button type="button" class="btn btn-sm btn-primary" id="nq-open-tab-find-btn" disabled>Find</button>
+                        </div>
+                    </div>
+                    <div id="nq-open-tab-progress" class="mt-2" hidden>
+                        <p id="nq-open-tab-progress-info" class="mb-1"></p>
+                        <div class="progress" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div id="nq-open-tab-results" class="mt-2"></div>
+                </div>
+            </div>`;
+
+        eContent.append(form);
+    }
+
+    form.hidden = false;
+    if (form.dataset.bound === 'true') return;
+    form.dataset.bound = 'true';
+
+    const courseInput = form.querySelector('#nq-open-tab-course-id');
+    const courseFeedback = form.querySelector('#nq-open-tab-course-feedback');
+    const findBtn = form.querySelector('#nq-open-tab-find-btn');
+    const progressWrap = form.querySelector('#nq-open-tab-progress');
+    const progressInfo = form.querySelector('#nq-open-tab-progress-info');
+    const progressBar = progressWrap.querySelector('.progress-bar');
+    const resultsContainer = form.querySelector('#nq-open-tab-results');
+
+    const isPositiveInt = (value) => /^\d+$/.test(String(value).trim()) && Number(value) > 0;
+    const escapeHtml = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    const resetProgress = () => {
+        progressWrap.hidden = true;
+        progressInfo.textContent = '';
+        progressBar.style.width = '0%';
+        progressBar.setAttribute('aria-valuenow', '0');
+    };
+    const setProgress = (percent, label) => {
+        progressWrap.hidden = false;
+        if (label) progressInfo.textContent = label;
+        const normalized = Math.max(0, Math.min(100, percent));
+        progressBar.style.width = `${normalized}%`;
+        progressBar.setAttribute('aria-valuenow', String(normalized));
+    };
+    const isMatchingAssignment = (assignment) => {
+        const tool = assignment?.external_tool_tag_attributes;
+        return Boolean(
+            tool &&
+            typeof tool.url === 'string' &&
+            tool.url.toLowerCase().includes('quiz-lti') &&
+            tool.new_tab === true
+        );
+    };
+
+    function updateFindButtonState() {
+        const validCourse = isPositiveInt(courseInput.value);
+        findBtn.disabled = !validCourse;
+        courseInput.classList.toggle('is-invalid', courseInput.value.trim() !== '' && !validCourse);
+        courseFeedback.classList.toggle('d-none', courseInput.value.trim() === '' || validCourse);
+    }
+
+    courseInput.addEventListener('input', updateFindButtonState);
+    updateFindButtonState();
+
+    findBtn.addEventListener('click', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const domain = document.querySelector('#domain').value.trim();
+        const token = document.querySelector('#token').value.trim();
+        const courseId = courseInput.value.trim();
+
+        if (!isPositiveInt(courseId)) {
+            updateFindButtonState();
+            return;
+        }
+
+        findBtn.disabled = true;
+        resultsContainer.innerHTML = '';
+        setProgress(5, 'Fetching course assignments...');
+
+        let matchingAssignments = [];
+        try {
+            const assignments = await window.axios.getCourseAssignments({ domain, token, course_id: courseId });
+            matchingAssignments = Array.isArray(assignments) ? assignments.filter(isMatchingAssignment) : [];
+        } catch (error) {
+            resetProgress();
+            errorHandler(error, resultsContainer);
+            findBtn.disabled = false;
+            return;
+        }
+
+        resetProgress();
+
+        if (matchingAssignments.length === 0) {
+            resultsContainer.innerHTML = `
+                <div class="alert alert-info mb-0">
+                    <strong>No matching assignments found.</strong> No New Quiz assignments in this course are currently configured to open in a new tab.
+                </div>`;
+            findBtn.disabled = false;
+            return;
+        }
+
+        resultsContainer.innerHTML = `
+            <div class="alert alert-warning mb-2">
+                Found <strong>${matchingAssignments.length}</strong> New Quiz assignment${matchingAssignments.length === 1 ? '' : 's'} configured to open in a new tab.
+                Do you want to disable that setting?
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-danger" id="nq-open-tab-disable-btn">Disable Open in New Tab</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="nq-open-tab-cancel-btn">Cancel</button>
+            </div>`;
+
+        const disableBtn = resultsContainer.querySelector('#nq-open-tab-disable-btn');
+        const cancelBtn = resultsContainer.querySelector('#nq-open-tab-cancel-btn');
+
+        cancelBtn.addEventListener('click', () => {
+            resultsContainer.innerHTML = '';
+            findBtn.disabled = false;
+        }, { once: true });
+
+        disableBtn.addEventListener('click', async () => {
+            disableBtn.disabled = true;
+            cancelBtn.disabled = true;
+
+            if (window.progressAPI?.removeAllProgressListeners) {
+                window.progressAPI.removeAllProgressListeners();
+            }
+            if (window.progressAPI?.onUpdateProgress) {
+                window.progressAPI.onUpdateProgress((payload) => {
+                    if (!payload || typeof payload !== 'object') return;
+                    const value = typeof payload.value === 'number' ? payload.value * 100 : 0;
+                    setProgress(value, payload.label || 'Updating assignments...');
+                });
+            }
+
+            setProgress(0, `Disabling open in new tab for ${matchingAssignments.length} assignments...`);
+
+            let updateResponse;
+            try {
+                updateResponse = await window.axios.updateAssignmentsBulk({
+                    domain,
+                    token,
+                    course_id: courseId,
+                    assignment_ids: matchingAssignments.map((assignment) => assignment.id),
+                    payload: {
+                        assignment: {
+                            external_tool_tag_attributes: {
+                                new_tab: false
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                resetProgress();
+                errorHandler(error, resultsContainer);
+                findBtn.disabled = false;
+                return;
+            }
+
+            setProgress(100, 'Finished updating assignments.');
+
+            const successfulCount = updateResponse?.successful?.length ?? 0;
+            const failedItems = updateResponse?.failed ?? [];
+            const failedCount = failedItems.length;
+            const failureMarkup = failedCount > 0
+                ? `<div class="card mt-2 border-danger">
+                        <div class="card-header bg-danger text-white py-2">Failures</div>
+                        <div class="card-body py-2">
+                            <ul class="mb-0">
+                                ${failedItems.map((item) => `<li><strong>${escapeHtml(String(item.id))}</strong>: ${escapeHtml(item.reason || 'Unknown error')}</li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>`
+                : '';
+
+            resultsContainer.innerHTML = `
+                <div class="card mb-0">
+                    <div class="card-header bg-secondary-subtle py-2">
+                        <h5 class="mb-0">Summary</h5>
+                    </div>
+                    <div class="card-body py-2">
+                        <p class="mb-2"><strong>Total matched:</strong> ${matchingAssignments.length}</p>
+                        <p class="mb-2 text-success"><strong>Successful:</strong> ${successfulCount}</p>
+                        <p class="mb-0 ${failedCount > 0 ? 'text-danger' : 'text-muted'}"><strong>Failed:</strong> ${failedCount}</p>
+                    </div>
+                </div>
+                ${failureMarkup}`;
+
+            findBtn.disabled = false;
+        }, { once: true });
+    });
 }
 
 async function createQuiz(e) {

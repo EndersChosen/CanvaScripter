@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { errorCheck } = require("../utilities");
+const { errorCheck, getNextPage } = require("../utilities");
 
 async function getModules(data) {
     const courseModules = [];
@@ -140,25 +140,31 @@ async function relockModule(data) {
 }
 
 async function getModulesSimple(data) {
-    let url = `https://${data.domain}/api/v1/courses/${data.course_id}/modules`;
+    const allModules = [];
+    let url = `https://${data.domain}/api/v1/courses/${data.course_id}/modules?per_page=100`;
 
-    const axiosConfig = {
-        method: 'get',
-        url: url,
-        headers: {
-            'Authorization': `Bearer ${data.token}`
-        }
-    };
+    while (url) {
+        const axiosConfig = {
+            method: 'get',
+            url: url,
+            headers: {
+                'Authorization': `Bearer ${data.token}`
+            }
+        };
 
-    try {
-        const request = async () => {
-            return await axios(axiosConfig);
+        try {
+            const request = async () => {
+                return await axios(axiosConfig);
+            }
+            const response = await errorCheck(request);
+            allModules.push(...response.data);
+            url = getNextPage(response.headers?.link || response.headers?.get?.('link'));
+        } catch (error) {
+            throw error;
         }
-        const response = await errorCheck(request);
-        return response.data;
-    } catch (error) {
-        throw error;
     }
+
+    return allModules;
 }
 
 /**

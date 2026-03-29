@@ -186,6 +186,14 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('preload > getAssignmentsInGroup');
         return await ipcRenderer.invoke('axios:getAssignmentsInGroup', data);
     },
+    getCourseAssignments: async (data) => {
+        console.log('preload > getCourseAssignments');
+        return await ipcRenderer.invoke('axios:getCourseAssignments', data);
+    },
+    updateAssignmentsBulk: async (data) => {
+        console.log('preload > updateAssignmentsBulk');
+        return await ipcRenderer.invoke('axios:updateAssignmentsBulk', data);
+    },
     deleteAssignmentsInGroup: async (data) => {
         console.log('preload > deleteAssignmentsInGroup');
 
@@ -289,6 +297,15 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('preload.js > resetCourses');
 
         return await ipcRenderer.invoke('axios:resetCourses', data);
+    },
+    updateCoursePublishState: async (data) => {
+        console.log('preload.js > updateCoursePublishState');
+
+        return await ipcRenderer.invoke('axios:updateCoursePublishState', data);
+    },
+    cancelUpdateCoursePublishState: async () => {
+        console.log('preload.js > cancelUpdateCoursePublishState');
+        return await ipcRenderer.invoke('axios:cancelUpdateCoursePublishState');
     },
     cancelResetCourses: async () => {
         console.log('preload.js > cancelResetCourses');
@@ -600,6 +617,9 @@ contextBridge.exposeInMainWorld('fileUpload', {
     },
     resetCourse: async () => {
         return await ipcRenderer.invoke('fileUpload:resetCourses');
+    },
+    publishStateCourses: async () => {
+        return await ipcRenderer.invoke('fileUpload:publishStateCourses');
     },
     restoreCoursesFile: async () => {
         return await ipcRenderer.invoke('fileUpload:restoreCourses');

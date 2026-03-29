@@ -259,6 +259,154 @@ header #sidebar-toggle {
     margin-bottom: 0.5rem !important;
 }
 
+#get-nq-open-in-new-tab-form .card-title {
+    font-size: 1.1rem;
+}
+
+#get-nq-open-in-new-tab-form .card-header small {
+    font-size: 0.7rem;
+}
+
+#get-nq-open-in-new-tab-form .form-label {
+    font-size: 0.85rem;
+}
+
+#get-nq-open-in-new-tab-form .form-text {
+    font-size: 0.7rem;
+}
+
+#get-nq-open-in-new-tab-form .card-body {
+    padding: 0.75rem;
+}
+
+#get-nq-open-in-new-tab-form .btn {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+}
+
+#get-nq-open-in-new-tab-form .form-control {
+    font-size: 0.85rem;
+    padding: 0.25rem 0.5rem;
+}
+
+#get-nq-open-in-new-tab-form .bi {
+    font-size: 0.9rem;
+}
+
+#get-nq-open-in-new-tab-form .mt-2,
+#get-nq-open-in-new-tab-form .mt-3 {
+    margin-top: 0.5rem !important;
+}
+
+#get-nq-open-in-new-tab-form .mb-2,
+#get-nq-open-in-new-tab-form .mb-3 {
+    margin-bottom: 0.5rem !important;
+}
+
+#get-nq-open-in-new-tab-form .progress {
+    height: 12px;
+}
+
+#get-nq-open-in-new-tab-form #nq-open-tab-progress .progress {
+    width: 75%;
+}
+
+#get-nq-open-in-new-tab-form .list-group-item {
+    font-size: 0.85rem;
+}
+
+#publish-course-form .card {
+    font-size: 0.875rem;
+}
+
+#publish-course-form .card-header h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+}
+
+#publish-course-form .card-header small {
+    font-size: 0.75rem;
+}
+
+#publish-course-form .card-body {
+    padding: 0.75rem;
+}
+
+#publish-course-form .form-label,
+#publish-course-form .form-check-label {
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
+}
+
+#publish-course-form .form-control {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+}
+
+#publish-course-form .btn {
+    font-size: 0.8rem;
+    padding: 0.35rem 0.75rem;
+}
+
+#publish-course-form .form-check {
+    margin-bottom: 0.5rem;
+}
+
+#publish-course-form .form-text {
+    font-size: 0.7rem;
+    margin-top: 0.15rem;
+}
+
+#publish-course-form .mt-2 {
+    margin-top: 0.5rem !important;
+}
+
+#publish-course-form .mt-3 {
+    margin-top: 0.75rem !important;
+}
+
+#publish-course-form .mb-2 {
+    margin-bottom: 0.5rem !important;
+}
+
+#publish-course-form .mb-3 {
+    margin-bottom: 0.75rem !important;
+}
+
+#publish-course-form .progress {
+    height: 12px !important;
+}
+
+#publish-course-form h5 {
+    font-size: 1rem;
+}
+
+#publish-course-form p {
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+}
+
+#publish-course-form .alert {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+#publish-course-form .badge {
+    font-size: 0.75rem;
+}
+
+#publish-course-form hr {
+    margin: 0.5rem 0;
+}
+
+#publish-courses-validation {
+    color: #dc3545;
+}
+
+.publish-state-confirm-alert {
+    font-size: 0.85rem;
+}
+
 #create-support-courses-form .mb-3 {
     margin-bottom: 0.5rem !important;
 }

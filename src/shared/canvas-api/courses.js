@@ -46,6 +46,35 @@ async function resetCourse(data) {
     }
 }
 
+async function updateCoursePublishState(data) {
+    const eventType = data?.eventType === 'claim' ? 'claim' : 'offer';
+    const params = new URLSearchParams();
+    params.append('course[event]', eventType);
+
+    const axiosConfig = {
+        method: 'put',
+        url: `https://${data.domain}/api/v1/courses/${data.course_id}`,
+        headers: {
+            'Authorization': `Bearer ${data.token}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        data: params.toString()
+    };
+
+    try {
+        const request = async () => axios(axiosConfig);
+        const response = await errorCheck(request);
+        return {
+            id: String(data.course_id),
+            workflow_state: response.data?.workflow_state,
+            name: response.data?.name,
+            eventType
+        };
+    } catch (error) {
+        throw error;
+    }
+}
+
 async function createSupportCourse(data) {
     console.log('inside createSupportCourse');
 
@@ -340,5 +369,5 @@ async function cancelProgressJob(domain, token, progressId, message) {
 
 module.exports = {
     resetCourse, createSupportCourse, editCourse, getCourseInfo, associateCourses, syncBPCourses, restoreContent, searchCourses,
-    restoreCourseBatch, pollProgressOnce, cancelProgressJob, getCourseState
+    restoreCourseBatch, pollProgressOnce, cancelProgressJob, getCourseState, updateCoursePublishState
 };
