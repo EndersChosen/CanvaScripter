@@ -142,6 +142,9 @@ function assignmentTemplate(e) {
         case 'keep-assignments-in-group':
             keepAssignmentsInGroup(e);
             break;
+        case 'export-assignments':
+            exportAssignments(e);
+            break;
         case 'move-assignments':
             moveAssignmentsToSingleGroup(e);
             break;
@@ -1716,6 +1719,179 @@ function deleteAssignmentsCombined(e) {
             return { deletedCount: 0, failedCount: 0 };
         }
     }
+}
+
+function exportAssignments(e) {
+    hideEndpoints(e);
+
+    const eContent = document.querySelector('#endpoint-content');
+    let form = eContent.querySelector('#export-assignments-form');
+
+    if (!form) {
+        form = document.createElement('form');
+        form.id = 'export-assignments-form';
+        form.innerHTML = `
+            <style>
+                #export-assignments-form .card-title { font-size: 1.1rem; }
+                #export-assignments-form .form-label { font-size: 0.85rem; font-weight: 600; }
+                #export-assignments-form .form-control { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+                #export-assignments-form .btn { font-size: 0.85rem; padding: 0.35rem 0.75rem; }
+                #export-assignments-form .alert { font-size: 0.85rem; padding: 0.5rem 0.75rem; }
+                #export-assignments-form .card-body { padding: 0.75rem; }
+            </style>
+            <div class="card">
+                <div class="card-header bg-secondary-subtle">
+                    <h3 class="card-title mb-0 text-dark">
+                        <i class="bi bi-download me-1"></i>Export Assignments
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-end mb-2">
+                        <div class="col-md-4">
+                            <label for="ea-course-id" class="form-label">
+                                <i class="bi bi-book me-1"></i>Course ID
+                            </label>
+                            <input id="ea-course-id" type="text" class="form-control form-control-sm"
+                                   inputmode="numeric" placeholder="Enter course ID" />
+                        </div>
+                        <div class="col-md-8 d-flex align-items-end gap-2">
+                            <button id="ea-check-btn" type="button" class="btn btn-sm btn-primary">
+                                <i class="bi bi-search me-1"></i>Check Assignments
+                            </button>
+                        </div>
+                    </div>
+                    <div hidden id="ea-progress-div">
+                        <p id="ea-progress-info" class="mb-1"></p>
+                    </div>
+                    <div id="ea-response-container" class="mt-2"></div>
+                </div>
+            </div>
+        `;
+        eContent.append(form);
+    }
+    form.hidden = false;
+
+    if (form.dataset.bound === 'true') return;
+    form.dataset.bound = 'true';
+
+    const courseID = form.querySelector('#ea-course-id');
+    courseID.addEventListener('change', () => {
+        checkCourseID(courseID, eContent);
+    });
+
+    const checkBtn = form.querySelector('#ea-check-btn');
+    checkBtn.addEventListener('click', async function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+
+        const courseVal = courseID.value.trim();
+        if (!courseVal || isNaN(courseVal)) {
+            courseID.classList.add('is-invalid');
+            return;
+        }
+        courseID.classList.remove('is-invalid');
+
+        checkBtn.disabled = true;
+        const domain = document.querySelector('#domain').value.trim();
+        const apiToken = document.querySelector('#token').value.trim();
+
+        const progressDiv = form.querySelector('#ea-progress-div');
+        const progressInfo = form.querySelector('#ea-progress-info');
+        const responseContainer = form.querySelector('#ea-response-container');
+
+        progressDiv.hidden = false;
+        progressInfo.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Fetching assignments...';
+        responseContainer.innerHTML = '';
+
+        let assignments = [];
+        let hasError = false;
+
+        try {
+            assignments = await window.axios.getCourseAssignments({
+                domain: domain,
+                token: apiToken,
+                course_id: courseVal
+            });
+            progressInfo.innerHTML = '';
+        } catch (error) {
+            errorHandler(error, progressInfo);
+            hasError = true;
+        } finally {
+            checkBtn.disabled = false;
+        }
+
+        if (hasError) return;
+
+        if (!assignments || assignments.length === 0) {
+            responseContainer.innerHTML = `
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle me-1"></i>No assignments found in this course.
+                </div>
+            `;
+            return;
+        }
+
+        responseContainer.innerHTML = `
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle me-1"></i>
+                Found <strong>${assignments.length}</strong> assignment(s) in this course.
+            </div>
+            <div class="d-flex gap-2">
+                <button id="ea-export-btn" type="button" class="btn btn-sm btn-success">
+                    <i class="bi bi-file-earmark-text me-1"></i>Export as TXT
+                </button>
+                <button id="ea-cancel-btn" type="button" class="btn btn-sm btn-secondary">
+                    <i class="bi bi-x-circle me-1"></i>Cancel
+                </button>
+            </div>
+        `;
+
+        responseContainer.querySelector('#ea-cancel-btn').addEventListener('click', (ev) => {
+            ev.preventDefault();
+            responseContainer.innerHTML = '';
+            progressDiv.hidden = true;
+        });
+
+        responseContainer.querySelector('#ea-export-btn').addEventListener('click', async (ev) => {
+            ev.preventDefault();
+
+            if (!window.electronAPI?.showSaveDialog || !window.electronAPI?.writeFile) {
+                responseContainer.innerHTML = `
+                    <div class="alert alert-danger mb-0">File export is not available in this environment.</div>
+                `;
+                return;
+            }
+
+            const assignmentIds = assignments.map(a => a.id);
+            const fileContent = assignmentIds.join('\n');
+            const fileName = `assignment_ids_course_${courseVal}_${Date.now()}.txt`;
+
+            try {
+                const saveResult = await window.electronAPI.showSaveDialog({
+                    defaultPath: fileName,
+                    filters: [{ name: 'Text Files', extensions: ['txt'] }]
+                });
+
+                if (!saveResult || !saveResult.filePath) return;
+
+                await window.electronAPI.writeFile(saveResult.filePath, fileContent);
+
+                responseContainer.innerHTML = `
+                    <div class="alert alert-success mb-0">
+                        <i class="bi bi-check-circle me-1"></i>
+                        Exported <strong>${assignmentIds.length}</strong> assignment ID(s) successfully.
+                    </div>
+                `;
+            } catch (error) {
+                responseContainer.innerHTML = `
+                    <div class="alert alert-danger mb-0">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        Export failed: ${error.message || 'Unknown error'}
+                    </div>
+                `;
+            }
+        });
+    });
 }
 
 function noSubmissionAssignments(e) {
