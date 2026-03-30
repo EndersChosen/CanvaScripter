@@ -76,11 +76,48 @@
                     </div>
                 </div>
                 <div class="col-12 col-md-8 col-lg-8">
-                    <div class="form-floating mt-2 mb-3">
-                        <input type=" text" class="form-control" placeholder="Token" id="token" value="">
-                        <label for="token">Token</label>
+                    <!-- Hidden token field used by all existing API calls -->
+                    <input type="hidden" id="token" value="">
+                    <div class="d-flex align-items-center gap-2 mt-2 mb-3">
+                        <!-- Token dropdown -->
+                        <div class="form-floating flex-grow-1">
+                            <select class="form-select" id="token-select">
+                                <option value="">-- No token selected --</option>
+                            </select>
+                            <label for="token-select">API Token</label>
+                        </div>
+                        <!-- Add / Manage tokens button -->
+                        <button id="token-add-btn" class="btn btn-outline-primary" type="button" title="Add new token"
+                            style="white-space:nowrap;">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                        <button id="token-delete-btn" class="btn btn-outline-danger" type="button"
+                            title="Delete selected token" style="white-space:nowrap; display:none;">
+                            <i class="bi bi-trash"></i>
+                        </button>
                     </div>
 
+                    <!-- Collapsible add-token form -->
+                    <div id="token-add-form" class="collapse mb-2">
+                        <div class="card card-body py-2 px-3">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-auto">
+                                    <label for="new-token-name" class="form-label mb-0 small">Name</label>
+                                    <input type="text" class="form-control form-control-sm" id="new-token-name"
+                                        placeholder="e.g. Production Admin">
+                                </div>
+                                <div class="col">
+                                    <label for="new-token-value" class="form-label mb-0 small">Token</label>
+                                    <input type="password" class="form-control form-control-sm" id="new-token-value"
+                                        placeholder="Paste Canvas API token">
+                                </div>
+                                <div class="col-auto">
+                                    <button id="token-save-btn" class="btn btn-sm btn-primary">Save</button>
+                                    <button id="token-cancel-btn" class="btn btn-sm btn-secondary ms-1">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

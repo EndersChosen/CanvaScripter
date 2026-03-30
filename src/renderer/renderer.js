@@ -221,9 +221,73 @@ function showErrorState(container, error, operation = 'operation') {
     }
 }
 
+/**
+ * Show a Bootstrap toast notification at the top-right of the window.
+ * @param {string} message - The message to display
+ * @param {'success'|'warning'|'danger'|'info'} type - Toast style
+ */
+function showAppToast(message, type = 'info') {
+    // Ensure toast container exists
+    let container = document.getElementById('app-toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'app-toast-container';
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+    }
+
+    const iconMap = {
+        success: 'bi-check-circle-fill text-success',
+        warning: 'bi-exclamation-triangle-fill text-warning',
+        danger: 'bi-x-circle-fill text-danger',
+        info: 'bi-info-circle-fill text-info'
+    };
+    const iconClass = iconMap[type] || iconMap.info;
+
+    const toastEl = document.createElement('div');
+    toastEl.className = 'toast align-items-center border-0';
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'd-flex';
+
+    const body = document.createElement('div');
+    body.className = 'toast-body';
+
+    const icon = document.createElement('i');
+    icon.className = `bi ${iconClass} me-2`;
+    body.appendChild(icon);
+    body.appendChild(document.createTextNode(message));
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-close me-2 m-auto';
+    closeBtn.setAttribute('data-bs-dismiss', 'toast');
+    closeBtn.setAttribute('aria-label', 'Close');
+
+    wrapper.appendChild(body);
+    wrapper.appendChild(closeBtn);
+    toastEl.appendChild(wrapper);
+
+    container.appendChild(toastEl);
+    const bsToast = new bootstrap.Toast(toastEl, { autohide: true, delay: 8000 });
+    bsToast.show();
+    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+}
+
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', function () {
     console.log('DOM Content Loaded');
+
+    // Listen for toast notifications from main process
+    if (window.ipcRenderer && window.ipcRenderer.on) {
+        window.ipcRenderer.on('show-toast', (_event, { message, type }) => {
+            showAppToast(message, type);
+        });
+    }
 
     // Initialize sidebar functionality
     initializeSidebar();
@@ -233,6 +297,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Initialize domain validation
     initializeDomainValidation();
+
+    // Initialize token manager (dropdown, add form, etc.)
+    initializeTokenManager();
 
     // Initialize context menu functionality
     initializeContextMenu();
@@ -472,7 +539,7 @@ function sortCategoriesAlphabetically() {
 
 function initializeDomainValidation() {
     const domainInput = document.getElementById('domain');
-    const tokenInput = document.getElementById('token');
+    const tokenSelect = document.getElementById('token-select');
 
     if (domainInput) {
         // Only validate on input (no cleaning while typing)
@@ -480,13 +547,10 @@ function initializeDomainValidation() {
 
         // Clean and validate ONLY when user leaves the field
         domainInput.addEventListener('blur', validateAndCleanDomain);
-
-        // Remove the paste event handler - let paste show as-is until blur
     }
 
-    if (tokenInput) {
-        tokenInput.addEventListener('input', validateDomainAndToken);
-        tokenInput.addEventListener('blur', validateDomainAndToken);
+    if (tokenSelect) {
+        tokenSelect.addEventListener('change', validateDomainAndToken);
     }
 }
 
@@ -494,16 +558,16 @@ function validateDomainOnly() {
     // Just validate without cleaning - allows typing anything
     const domainInput = document.getElementById('domain');
     const tokenInput = document.getElementById('token');
+    const tokenSelect = document.getElementById('token-select');
 
     if (!domainInput || !tokenInput) return;
 
     const domain = domainInput.value.trim();
     const token = tokenInput.value.trim();
+    const tokenValid = token.length > 0;
 
     // For live validation while typing, be more lenient
-    // Allow slashes and other URL characters while typing
     const domainValid = domain.length > 0;
-    const tokenValid = token.length > 0;
 
     // Only show invalid styling if it's clearly not a valid format
     const definitelyInvalid = domain.length > 0 && (
@@ -515,8 +579,10 @@ function validateDomainOnly() {
     domainInput.classList.toggle('is-invalid', definitelyInvalid);
     domainInput.classList.remove('is-valid'); // Don't show valid while typing
 
-    tokenInput.classList.toggle('is-invalid', token.length > 0 && !tokenValid);
-    tokenInput.classList.toggle('is-valid', tokenValid);
+    if (tokenSelect) {
+        tokenSelect.classList.toggle('is-invalid', !tokenValid);
+        tokenSelect.classList.toggle('is-valid', tokenValid);
+    }
 
     // Store the validation state
     window.formValidation = { domainValid, tokenValid, allValid: domainValid && tokenValid };
@@ -547,6 +613,7 @@ function validateAndCleanDomain() {
 function validateDomainAndToken() {
     const domainInput = document.getElementById('domain');
     const tokenInput = document.getElementById('token');
+    const tokenSelect = document.getElementById('token-select');
 
     if (!domainInput || !tokenInput) return;
 
@@ -570,8 +637,10 @@ function validateDomainAndToken() {
     domainInput.classList.toggle('is-invalid', domain.length > 0 && !domainValid);
     domainInput.classList.toggle('is-valid', domainValid);
 
-    tokenInput.classList.toggle('is-invalid', token.length > 0 && !tokenValid);
-    tokenInput.classList.toggle('is-valid', tokenValid);
+    if (tokenSelect) {
+        tokenSelect.classList.toggle('is-invalid', !tokenValid && tokenSelect.value === '');
+        tokenSelect.classList.toggle('is-valid', tokenValid);
+    }
 
     // Enable/disable form elements based on validation
     const allValid = domainValid && tokenValid;
@@ -677,3 +746,139 @@ window.addEventListener('error', function (e) {
 window.addEventListener('unhandledrejection', function (e) {
     console.error('Unhandled promise rejection:', e.reason);
 });
+
+// ─── Token Manager ──────────────────────────────────────────
+
+async function initializeTokenManager() {
+    const tokenSelect = document.getElementById('token-select');
+    const tokenAddBtn = document.getElementById('token-add-btn');
+    const tokenDeleteBtn = document.getElementById('token-delete-btn');
+    const tokenAddForm = document.getElementById('token-add-form');
+    const tokenSaveBtn = document.getElementById('token-save-btn');
+    const tokenCancelBtn = document.getElementById('token-cancel-btn');
+
+    if (!tokenSelect || !window.tokenManager) return;
+
+    // Load saved tokens into dropdown
+    await refreshTokenDropdown();
+
+    // When user selects a token from dropdown, decrypt it into hidden #token field
+    tokenSelect.addEventListener('change', async () => {
+        const selectedId = tokenSelect.value;
+        const hiddenToken = document.getElementById('token');
+        const deleteBtn = document.getElementById('token-delete-btn');
+
+        if (selectedId) {
+            const decrypted = await window.tokenManager.getDecrypted(selectedId);
+            hiddenToken.value = decrypted || '';
+            await window.tokenManager.setDefault(selectedId);
+            if (deleteBtn) deleteBtn.style.display = '';
+        } else {
+            hiddenToken.value = '';
+            if (deleteBtn) deleteBtn.style.display = 'none';
+        }
+        // Dispatch input event so other listeners (e.g. form validators) detect the change
+        hiddenToken.dispatchEvent(new Event('input', { bubbles: true }));
+        validateDomainAndToken();
+    });
+
+    // Toggle add-token form
+    if (tokenAddBtn && tokenAddForm) {
+        tokenAddBtn.addEventListener('click', () => {
+            const bsCollapse = new bootstrap.Collapse(tokenAddForm, { toggle: true });
+        });
+    }
+
+    // Save new token
+    if (tokenSaveBtn) {
+        tokenSaveBtn.addEventListener('click', async () => {
+            const nameInput = document.getElementById('new-token-name');
+            const valueInput = document.getElementById('new-token-value');
+            const name = nameInput.value.trim();
+            const value = valueInput.value.trim();
+
+            if (!name || !value) {
+                nameInput.classList.toggle('is-invalid', !name);
+                valueInput.classList.toggle('is-invalid', !value);
+                return;
+            }
+
+            const result = await window.tokenManager.save(name, value);
+            if (result.success) {
+                nameInput.value = '';
+                valueInput.value = '';
+                nameInput.classList.remove('is-invalid');
+                valueInput.classList.remove('is-invalid');
+                // Collapse the form
+                const bsCollapse = bootstrap.Collapse.getInstance(tokenAddForm);
+                if (bsCollapse) bsCollapse.hide();
+                // Refresh and select the new token
+                await refreshTokenDropdown(result.id);
+            } else {
+                console.error('Failed to save token:', result.error);
+            }
+        });
+    }
+
+    // Cancel add form
+    if (tokenCancelBtn && tokenAddForm) {
+        tokenCancelBtn.addEventListener('click', () => {
+            const nameInput = document.getElementById('new-token-name');
+            const valueInput = document.getElementById('new-token-value');
+            if (nameInput) { nameInput.value = ''; nameInput.classList.remove('is-invalid'); }
+            if (valueInput) { valueInput.value = ''; valueInput.classList.remove('is-invalid'); }
+            const bsCollapse = bootstrap.Collapse.getInstance(tokenAddForm);
+            if (bsCollapse) bsCollapse.hide();
+        });
+    }
+
+    // Delete selected token
+    if (tokenDeleteBtn) {
+        tokenDeleteBtn.addEventListener('click', async () => {
+            const selectedId = tokenSelect.value;
+            if (!selectedId) return;
+            const selectedOption = tokenSelect.options[tokenSelect.selectedIndex];
+            const tokenName = selectedOption ? selectedOption.textContent : 'this token';
+            if (!confirm(`Delete "${tokenName}"?`)) return;
+
+            const result = await window.tokenManager.delete(selectedId);
+            if (result.success) {
+                await refreshTokenDropdown();
+            }
+        });
+    }
+}
+
+async function refreshTokenDropdown(selectId) {
+    const tokenSelect = document.getElementById('token-select');
+    const hiddenToken = document.getElementById('token');
+    const deleteBtn = document.getElementById('token-delete-btn');
+    if (!tokenSelect || !window.tokenManager) return;
+
+    const tokens = await window.tokenManager.getAll();
+    const defaultId = selectId || await window.tokenManager.getDefault();
+
+    // Rebuild options
+    tokenSelect.innerHTML = '<option value="">-- No token selected --</option>';
+    tokens.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = `${t.name}  (${t.preview})`;
+        if (t.id === defaultId) opt.selected = true;
+        tokenSelect.appendChild(opt);
+    });
+
+    // Populate hidden #token with the selected token's decrypted value
+    if (defaultId && tokens.some(t => t.id === defaultId)) {
+        const decrypted = await window.tokenManager.getDecrypted(defaultId);
+        hiddenToken.value = decrypted || '';
+        if (deleteBtn) deleteBtn.style.display = '';
+    } else {
+        hiddenToken.value = '';
+        if (deleteBtn) deleteBtn.style.display = 'none';
+    }
+
+    // Dispatch input event so other listeners detect the change
+    hiddenToken.dispatchEvent(new Event('input', { bubbles: true }));
+    validateDomainAndToken();
+}

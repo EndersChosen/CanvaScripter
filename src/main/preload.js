@@ -700,6 +700,30 @@ contextBridge.exposeInMainWorld('shell', {
     }
 });
 
+contextBridge.exposeInMainWorld('tokenManager', {
+    getAll: async () => {
+        return await ipcRenderer.invoke('tokens:getAll');
+    },
+    save: async (name, tokenValue) => {
+        return await ipcRenderer.invoke('tokens:save', name, tokenValue);
+    },
+    delete: async (id) => {
+        return await ipcRenderer.invoke('tokens:delete', id);
+    },
+    setDefault: async (id) => {
+        return await ipcRenderer.invoke('tokens:setDefault', id);
+    },
+    getDefault: async () => {
+        return await ipcRenderer.invoke('tokens:getDefault');
+    },
+    getDecrypted: async (id) => {
+        return await ipcRenderer.invoke('tokens:getDecrypted', id);
+    },
+    rename: async (id, newName) => {
+        return await ipcRenderer.invoke('tokens:rename', id, newName);
+    }
+});
+
 contextBridge.exposeInMainWorld('electronAPI', {
     selectFolder: async () => {
         return await ipcRenderer.invoke('sis:selectFolder');
@@ -840,7 +864,34 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
 
     // Enrollment concluded course override
     'enrollment:overrideConcluded',
-    'enrollment:cancelOverrideConcluded'
+    'enrollment:cancelOverrideConcluded',
+
+    // Agent (Agentic AI Assistant)
+    'agent:chat',
+    'agent:confirmTool',
+    'agent:confirmDomain',
+    'agent:cancel',
+    'agent:newSession',
+    'agent:getHistory',
+
+    // Canvas Token Management
+    'tokens:getAll',
+    'tokens:save',
+    'tokens:delete',
+    'tokens:setDefault',
+    'tokens:getDefault',
+    'tokens:getDecrypted',
+    'tokens:rename',
+
+    // Canvas API Spec (reference documentation)
+    'apiSpec:scan',
+    'apiSpec:getStatus',
+    'apiSpec:search',
+
+    // Canvas GraphQL Schema
+    'graphql:scan',
+    'graphql:getStatus',
+    'graphql:search'
 ]);
 
 contextBridge.exposeInMainWorld('ipcRenderer', {
@@ -852,7 +903,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     },
     on: (channel, callback) => {
         // Allow specific receive channels
-        const allowedReceiveChannels = ['open-ai-settings'];
+        const allowedReceiveChannels = ['open-ai-settings', 'agent:update', 'agent:confirmRequest', 'agent:domainConfirmRequest', 'show-toast'];
         if (!allowedReceiveChannels.includes(channel)) {
             throw new Error(`Blocked IPC receive channel: ${channel}`);
         }

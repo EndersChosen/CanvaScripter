@@ -31,9 +31,14 @@ const { registerAssignmentHandlers, cleanupAssignmentState } = require('./ipc/as
 const { registerCourseHandlers, cleanupCourseState } = require('./ipc/courseHandlers');
 const { registerContentHandlers, cleanupContentState } = require('./ipc/contentHandlers');
 const { registerSettingsHandlers } = require('./ipc/settingsHandlers');
+const { registerTokenHandlers, getDefaultToken } = require('./ipc/tokenHandlers');
 const { registerAIAssistantHandlers } = require('./ipc/aiAssistantHandlers');
 const { registerEnrollmentHandlers, cleanupEnrollmentState } = require('./ipc/enrollmentHandlers');
 const { registerPermissionsHandlers, cleanupPermissionsState } = require('./ipc/permissionsHandlers');
+const { registerAgentHandlers } = require('./ipc/agentHandlers');
+const { registerApiSpecHandlers } = require('./ipc/apiSpecHandlers');
+const { scanAndCacheSpec, getSpecMeta } = require('./canvasApiSpec');
+const { scanAndCacheGraphQLSchema, getGraphQLSchemaMeta } = require('./canvasGraphQL');
 
 // Import security and state management
 const {
@@ -344,6 +349,49 @@ function createMenu() {
                     accelerator: 'CmdOrCtrl+,',
                     click: () => openAISettingsWindow()
                 },
+                {
+                    label: 'Re-scan Canvas API...',
+                    click: async () => {
+                        const messages = [];
+                        try {
+                            // 1. REST API spec (public, no auth needed)
+                            const restResult = await scanAndCacheSpec();
+                            if (restResult.success) {
+                                messages.push(`REST API: ${restResult.endpointCount} endpoints loaded.`);
+                            } else {
+                                messages.push(`REST API: scan failed — ${restResult.error}`);
+                            }
+
+                            // 2. GraphQL schema (needs auth)
+                            const token = getDefaultToken();
+                            const domain = appStore.get('canvasDefaultDomain', '') || 'canvas.instructure.com';
+                            if (token) {
+                                const gqlResult = await scanAndCacheGraphQLSchema(domain, token);
+                                if (gqlResult.success) {
+                                    messages.push(`GraphQL: ${gqlResult.queryCount} queries, ${gqlResult.mutationCount} mutations, ${gqlResult.typeCount} types loaded.`);
+                                } else {
+                                    messages.push(`GraphQL: introspection failed — ${gqlResult.error}`);
+                                }
+                            } else {
+                                messages.push('GraphQL: skipped — no API token is configured. Select a token from the dropdown first.');
+                            }
+
+                            dialog.showMessageBox(mainWindow, {
+                                type: 'info',
+                                title: 'Canvas API Scan Complete',
+                                message: messages.join('\n\n'),
+                                buttons: ['OK']
+                            });
+                        } catch (err) {
+                            dialog.showMessageBox(mainWindow, {
+                                type: 'error',
+                                title: 'Canvas API Scan Failed',
+                                message: err.message,
+                                buttons: ['OK']
+                            });
+                        }
+                    }
+                },
                 { type: 'separator' },
                 {
                     label: 'Reload',
@@ -476,6 +524,9 @@ app.whenReady().then(async () => {
     // Settings
     registerSettingsHandlers();
 
+    // Canvas Token Management
+    registerTokenHandlers();
+
     // AI Assistant
     registerAIAssistantHandlers();
 
@@ -500,7 +551,66 @@ app.whenReady().then(async () => {
     // Permissions handlers
     registerPermissionsHandlers(ipcMain, logDebug, getBatchConfig);
 
+    // Agent (MCP-based AI chat) handlers
+    registerAgentHandlers();
+
+    // API Spec handlers (Canvas REST API reference)
+    registerApiSpecHandlers();
+
     logDebug('All IPC handlers registered successfully');
+
+    // Background scan of Canvas API spec on launch (if not already cached)
+    if (!getSpecMeta()) {
+        logDebug('No cached Canvas REST API spec found, scanning in background...');
+        scanAndCacheSpec().then(result => {
+            if (result.success) {
+                logDebug(`REST API spec loaded: ${result.endpointCount} endpoints from ${result.domain}`);
+            } else {
+                logDebug(`REST API spec scan failed: ${result.error}`);
+            }
+        }).catch(err => {
+            logDebug(`REST API spec scan error: ${err.message}`);
+        });
+    } else {
+        logDebug('REST API spec already cached, skipping scan');
+    }
+
+    // Background scan of GraphQL schema on launch (needs auth)
+    if (!getGraphQLSchemaMeta()) {
+        const token = getDefaultToken();
+        const domain = appStore.get('canvasDefaultDomain', '') || 'canvas.instructure.com';
+        if (token) {
+            logDebug(`No cached GraphQL schema found, introspecting in background (domain: ${domain})...`);
+            scanAndCacheGraphQLSchema(domain, token).then(result => {
+                if (result.success) {
+                    logDebug(`GraphQL schema loaded: ${result.queryCount} queries, ${result.mutationCount} mutations, ${result.typeCount} types`);
+                } else {
+                    logDebug(`GraphQL schema introspection failed: ${result.error}`);
+                }
+            }).catch(err => {
+                logDebug(`GraphQL schema introspection error: ${err.message}`);
+            });
+        } else {
+            logDebug('GraphQL schema scan skipped (no API token available)');
+            // Send toast to renderer once window is ready
+            if (mainWindow && mainWindow.webContents) {
+                const sendToast = () => {
+                    mainWindow.webContents.send('show-toast', {
+                        message: 'GraphQL schema scan was skipped because no API token is configured. Select a token from the dropdown to enable GraphQL features.',
+                        type: 'warning'
+                    });
+                };
+                // If the page already finished loading, send immediately; otherwise wait
+                if (!mainWindow.webContents.isLoading()) {
+                    sendToast();
+                } else {
+                    mainWindow.webContents.once('did-finish-load', sendToast);
+                }
+            }
+        }
+    } else {
+        logDebug('GraphQL schema already cached, skipping introspection');
+    }
     console.log('✓ Phase 2 Migration Complete: All 88 handlers registered via modular system');
 
     // Open external URL handler

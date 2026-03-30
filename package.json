@@ -18,7 +18,8 @@
     "make": "electron-forge make",
     "build": "electron-builder",
     "audit": "npm audit --audit-level=moderate",
-    "audit:prod": "npm audit --omit=dev --audit-level=moderate"
+    "audit:prod": "npm audit --omit=dev --audit-level=moderate",
+    "mcp:start": "node src/mcp/server.js"
   },
   "build": {
     "appId": "com.canvatools.canvascripter",
@@ -66,6 +67,7 @@
     "dmg-license": "^1.0.11"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "archiver": "^7.0.1",
     "axios": "^1.7.0",
     "bootstrap": "^5.3.0",
@@ -77,7 +79,8 @@
     "exceljs": "^4.4.0",
     "fast-xml-parser": "^4.5.3",
     "jszip": "^3.10.1",
-    "openai": "^4.77.3"
+    "openai": "^4.77.3",
+    "zod": "^3.25.76"
   },
   "overrides": {
     "form-data": "^4.0.4",
