@@ -372,7 +372,7 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow, getBatchCon
         const messages = Array.isArray(data.messages) ? data.messages : [];
         const requests = messages.map((msg, i) => ({
             id: msg?.id || i + 1,
-            request: async () => convos.deleteForAll({ domain: data.domain, token: data.token, message: msg.id })
+            request: async () => convos.deleteForAll({ domain: data.domain, token: data.token, message: msg.id, participants: msg.participants || [] })
         }));
 
         const response = await canvasRateLimitedHandler(requests, {

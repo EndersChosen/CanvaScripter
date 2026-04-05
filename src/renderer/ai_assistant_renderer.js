@@ -12,6 +12,7 @@
 let agentChatInitialized = false;
 let agentIsProcessing = false;
 let agentListenersAttached = false;
+let agentAttachedFile = null; // { path, name }
 
 function aiAssistantTemplate(e) {
     if (typeof hideEndpoints === 'function') {
@@ -115,6 +116,13 @@ function showAgentChatUI() {
 
                 <!-- Input Area -->
                 <div class="border rounded p-2 bg-light">
+                    <div id="agent-file-badge" class="d-none mb-1">
+                        <span class="badge bg-secondary d-inline-flex align-items-center gap-1">
+                            <i class="bi bi-paperclip"></i>
+                            <span id="agent-file-name"></span>
+                            <button id="agent-file-remove" type="button" class="btn-close btn-close-white" style="font-size: 0.5rem;" aria-label="Remove"></button>
+                        </span>
+                    </div>
                     <div class="d-flex gap-2">
                         <textarea id="agent-input" class="form-control border-0 bg-light" rows="2" 
                             placeholder="Ask me to manage your Canvas course..."
@@ -122,6 +130,9 @@ function showAgentChatUI() {
                         <div class="d-flex flex-column gap-1 justify-content-end">
                             <button id="agent-send" class="btn btn-primary" title="Send" style="height: 40px; width: 40px;">
                                 <i class="bi bi-send"></i>
+                            </button>
+                            <button id="agent-attach-file" class="btn btn-outline-secondary btn-sm" title="Attach file" style="height: 30px; width: 40px;">
+                                <i class="bi bi-paperclip"></i>
                             </button>
                             <button id="agent-cancel" class="btn btn-outline-danger btn-sm d-none" title="Cancel" style="height: 30px; width: 40px;">
                                 <i class="bi bi-x"></i>
@@ -143,6 +154,33 @@ function setupAgentListeners() {
     const cancelBtn = document.getElementById('agent-cancel');
     const newSessionBtn = document.getElementById('agent-new-session');
     const examplesToggle = document.getElementById('agent-examples-toggle');
+    const attachBtn = document.getElementById('agent-attach-file');
+    const fileRemoveBtn = document.getElementById('agent-file-remove');
+
+    // Attach file
+    attachBtn.addEventListener('click', async () => {
+        try {
+            const result = await window.ipcRenderer.invoke('agent:selectFile');
+            if (!result.canceled && result.filePath) {
+                agentAttachedFile = { path: result.filePath, name: result.fileName };
+                const badge = document.getElementById('agent-file-badge');
+                const nameEl = document.getElementById('agent-file-name');
+                if (badge && nameEl) {
+                    nameEl.textContent = result.fileName;
+                    badge.classList.remove('d-none');
+                }
+            }
+        } catch (err) {
+            appendAgentError('Failed to select file: ' + err.message);
+        }
+    });
+
+    // Remove attached file
+    fileRemoveBtn.addEventListener('click', () => {
+        agentAttachedFile = null;
+        const badge = document.getElementById('agent-file-badge');
+        if (badge) badge.classList.add('d-none');
+    });
 
     // Send message on button click
     sendBtn.addEventListener('click', () => sendAgentMessage());
@@ -218,7 +256,14 @@ async function sendAgentMessage() {
     const welcome = document.getElementById('agent-welcome');
     if (welcome) welcome.remove();
 
-    appendUserMessage(message);
+    // Capture and clear attached file before sending
+    const attachedFile = agentAttachedFile;
+    agentAttachedFile = null;
+    const fileBadge = document.getElementById('agent-file-badge');
+    if (fileBadge) fileBadge.classList.add('d-none');
+
+    const displayMsg = attachedFile ? message + '\n📎 ' + attachedFile.name : message;
+    appendUserMessage(displayMsg);
     input.value = '';
     input.focus();
 
@@ -232,7 +277,9 @@ async function sendAgentMessage() {
     var token = tokenEl ? tokenEl.value.trim() : '';
 
     try {
-        const result = await window.ipcRenderer.invoke('agent:chat', { message, domain, token });
+        const chatPayload = { message, domain, token };
+        if (attachedFile) chatPayload.filePath = attachedFile.path;
+        const result = await window.ipcRenderer.invoke('agent:chat', chatPayload);
 
         removeThinkingIndicator();
 

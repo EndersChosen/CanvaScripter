@@ -956,6 +956,8 @@ async function getDeletedConversations(e) {
                         if (key === 'attachments' && Array.isArray(val)) {
                             const pairs = val.map(att => `${att.id}:${att.url}`).join('; ');
                             row[key] = pairs;
+                        } else if (key === 'participating_user_ids' && Array.isArray(val)) {
+                            row[key] = val.join('; ');
                         } else if (val !== null && typeof val === 'object') {
                             row[key] = JSON.stringify(val);
                         } else {
@@ -1272,9 +1274,21 @@ async function deleteConvos(e) {
                     <h3 class="card-title mb-0 text-dark">
                         <i class="bi bi-trash me-1"></i>Delete User Conversations
                     </h3>
-                    <small class="text-muted">Provide a Canvas user ID and an exact subject. This will search sent conversations for that subject and delete them for all recipients.</small>
+                    <small class="text-muted">Delete conversations by subject search or by uploading a file with conversation IDs and participants.</small>
                 </div>
                 <div class="card-body">
+                    <!-- Tabs -->
+                    <ul class="nav nav-tabs mb-3" id="dcs-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="dcs-tab-subject" type="button" role="tab">By Subject</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="dcs-tab-file" type="button" role="tab">By File</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="dcs-tab-content">
+                        <!-- By Subject tab -->
+                        <div class="tab-pane fade show active" id="dcs-panel-subject" role="tabpanel" aria-labelledby="dcs-tab-subject">
                     <div class="row ">
                         <div class="col-auto"><label for="dcs-user-id" class="form-label">User ID</label></div>
                         <div class="col-2">
@@ -1293,9 +1307,10 @@ async function deleteConvos(e) {
                         <div class="col-auto"><label for="dcs-sent-on-or-after" class="form-label">Message sent on/after</label></div>
                         <div class="col-auto">
                             <input id="dcs-sent-on-or-after" type="date" class="form-control form-control-sm">
-                        <div class="form-text">Optional.</div>
-                        <div class="form-text">Only includes conversations updated on or after this date.</div>
-                        <div class="form-text">Use the same date shown on the message in the user's inbox.</div>
+                            <div class="form-text">Optional.</div>
+                            <div class="form-text">Only includes conversations updated on or after this date.</div>
+                            <div class="form-text">Use the same date shown on the message in the user's inbox.</div>
+                        </div>
                     </div>
                     <div class="row mt-2">
                         <div class="col-auto"><button id="dcs-search" type="button" class="btn btn-sm btn-primary" disabled>Search</button></div>
@@ -1315,10 +1330,56 @@ async function deleteConvos(e) {
                             <div class="progress-bar" style="width: 0%"></div>
                         </div>
                     </div>
+                        </div>
+                        <!-- By File tab -->
+                        <div class="tab-pane fade" id="dcs-panel-file" role="tabpanel" aria-labelledby="dcs-tab-file">
+                            <p class="form-text mb-2">Upload a CSV or TXT file containing conversation IDs and participant IDs. The file must have columns: <code>conversation_id</code> and <code>participating_user_ids</code> (semicolon or comma-separated list of user IDs).</p>
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <button id="dcs-file-upload-btn" type="button" class="btn btn-sm btn-outline-primary"><i class="bi bi-upload me-1"></i>Upload File</button>
+                                </div>
+                                <div class="col-auto">
+                                    <span id="dcs-file-name" class="form-text text-muted">No file selected</span>
+                                </div>
+                            </div>
+                            <div id="dcs-file-parse-result" class="mt-2"></div>
+                            <hr class="my-3" />
+                            <div class="row mt-2" id="dcs-file-delete-section" hidden>
+                                <div class="col-auto"><button id="dcs-file-delete" type="button" class="btn btn-sm btn-danger" disabled>Delete Conversations</button></div>
+                                <div class="col-auto"><button id="dcs-file-cancel-delete" type="button" class="btn btn-sm btn-outline-danger" disabled>Cancel</button></div>
+                            </div>
+                            <div hidden id="dcs-file-delete-progress-div" class="mt-2">
+                                <p id="dcs-file-delete-progress-info"></p>
+                                <div class="progress mt-1" style="width: 75%; height: 12px;" role="progressbar" aria-label="progress bar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                    <div class="progress-bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <div id="dcs-file-delete-result" class="mt-2"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
         eContent.append(form);
+
+        // Manual tab switching
+        const tabSubjectBtn = form.querySelector('#dcs-tab-subject');
+        const tabFileBtn = form.querySelector('#dcs-tab-file');
+        const panelSubject = form.querySelector('#dcs-panel-subject');
+        const panelFile = form.querySelector('#dcs-panel-file');
+
+        tabSubjectBtn.addEventListener('click', () => {
+            tabSubjectBtn.classList.add('active');
+            tabFileBtn.classList.remove('active');
+            panelSubject.classList.add('show', 'active');
+            panelFile.classList.remove('show', 'active');
+        });
+        tabFileBtn.addEventListener('click', () => {
+            tabFileBtn.classList.add('active');
+            tabSubjectBtn.classList.remove('active');
+            panelFile.classList.add('show', 'active');
+            panelSubject.classList.remove('show', 'active');
+        });
     }
     form.hidden = false;
 
@@ -1494,7 +1555,7 @@ async function deleteConvos(e) {
                             <div class="form-text mt-2">Click "Delete Found" below to delete these conversations for all recipients.</div>
                             <div class="mt-2 d-flex gap-2">
                                 <button id="dcs-download-csv" type="button" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-download me-1"></i>Download Conversation IDs (CSV)
+                                    <i class="bi bi-download me-1"></i>Download Conversations (CSV)
                                 </button>
                                 ${totalAttachments > 0 ? `
                                 <button id="dcs-download-files-csv" type="button" class="btn btn-sm btn-outline-secondary">
@@ -1531,13 +1592,30 @@ async function deleteConvos(e) {
                         csvDownloadBtn.addEventListener('click', async (e) => {
                             e.preventDefault();
                             try {
-                                // Create CSV content with conversation IDs
-                                const csvContent = 'conversation_id\n' + foundMessages.map(msg => msg.id).join('\n');
+                                // Helper to escape a value for CSV (handles commas, quotes, newlines)
+                                const csvEscape = (val) => {
+                                    const str = val == null ? '' : String(val);
+                                    if (/[,"\r\n]/.test(str)) {
+                                        return '"' + str.replace(/"/g, '""') + '"';
+                                    }
+                                    return str;
+                                };
+                                const header = 'conversation_id,participant_ids,subject,body';
+                                const rows = foundMessages.map(msg => {
+                                    const participants = Array.isArray(msg.participants) ? msg.participants.join(';') : '';
+                                    return [
+                                        csvEscape(msg.id),
+                                        csvEscape(participants),
+                                        csvEscape(msg.subject),
+                                        csvEscape(msg.body || '')
+                                    ].join(',');
+                                });
+                                const csvContent = header + '\n' + rows.join('\n');
                                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                                 const url = URL.createObjectURL(blob);
                                 const link = document.createElement('a');
                                 link.href = url;
-                                link.download = `conversation_ids_${subject.replace(/[^a-z0-9]/gi, '_').substring(0, 30)}_${Date.now()}.csv`;
+                                link.download = `conversations_${subject.replace(/[^a-z0-9]/gi, '_').substring(0, 30)}_${Date.now()}.csv`;
                                 link.click();
                                 URL.revokeObjectURL(url);
                             } catch (err) {
@@ -1773,6 +1851,223 @@ async function deleteConvos(e) {
                 deleteBtn.disabled = false;
             }
         });
+
+        // ── By File tab logic ──
+        const fileUploadBtn = form.querySelector('#dcs-file-upload-btn');
+        const fileNameSpan = form.querySelector('#dcs-file-name');
+        const fileParseResult = form.querySelector('#dcs-file-parse-result');
+        const fileDeleteSection = form.querySelector('#dcs-file-delete-section');
+        const fileDeleteBtn = form.querySelector('#dcs-file-delete');
+        const fileCancelDeleteBtn = form.querySelector('#dcs-file-cancel-delete');
+        const fileDeleteProgressDiv = form.querySelector('#dcs-file-delete-progress-div');
+        const fileDeleteProgressBar = fileDeleteProgressDiv.querySelector('.progress-bar');
+        const fileDeleteProgressInfo = form.querySelector('#dcs-file-delete-progress-info');
+        const fileDeleteResult = form.querySelector('#dcs-file-delete-result');
+
+        let fileConversations = []; // parsed from uploaded file: [{ id, participants }]
+
+        // RFC 4180 CSV parser (handles quoted fields with commas, newlines, escaped quotes)
+        function parseFileCSVRows(text) {
+            const rows = [];
+            let row = [];
+            let current = '';
+            let inQuotes = false;
+            for (let i = 0; i < text.length; i++) {
+                const ch = text[i];
+                if (ch === '\r') continue;
+                if (ch === '"') {
+                    if (inQuotes && text[i + 1] === '"') { current += '"'; i++; }
+                    else { inQuotes = !inQuotes; }
+                } else if (ch === ',' && !inQuotes) {
+                    row.push(current.trim());
+                    current = '';
+                } else if (ch === '\n' && !inQuotes) {
+                    row.push(current.trim());
+                    rows.push(row);
+                    row = [];
+                    current = '';
+                } else {
+                    current += ch;
+                }
+            }
+            if (current.length > 0 || row.length > 0) {
+                row.push(current.trim());
+                rows.push(row);
+            }
+            return rows;
+        }
+
+        function parseFileCSV(text) {
+            const rows = parseFileCSVRows(text);
+            if (rows.length === 0) return [];
+            const headers = rows[0].map(h => h.trim().toLowerCase().replace(/[^a-z0-9_]/g, ''));
+            const convoIdx = headers.findIndex(h => h === 'conversation_id' || h === 'conversationid' || h === 'convo_id');
+            const partIdx = headers.findIndex(h => h === 'participating_user_ids' || h === 'participatinguserids' || h === 'participants' || h === 'participant_ids');
+            if (convoIdx === -1 || partIdx === -1) return null;
+            const out = [];
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                if (!row || row.every(c => !c.trim())) continue;
+                const convoId = row[convoIdx] ? row[convoIdx].trim() : '';
+                const partRaw = row[partIdx] ? row[partIdx].trim() : '';
+                if (!convoId) continue;
+                const participants = partRaw.split(/[;\s]+/).map(s => s.trim()).filter(s => s && !isNaN(Number(s)));
+                out.push({ id: convoId, participants });
+            }
+            return out;
+        }
+
+        function parseFileTXT(text) {
+            // Try CSV-style parsing first (may be .txt with CSV content)
+            const csvResult = parseFileCSV(text);
+            if (csvResult !== null) return csvResult;
+            return null;
+        }
+
+        fileUploadBtn.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.csv,.txt,text/csv,text/plain';
+            input.onchange = async () => {
+                const file = input.files && input.files[0];
+                if (!file) return;
+                fileNameSpan.textContent = file.name;
+                fileParseResult.innerHTML = '';
+                fileDeleteSection.hidden = true;
+                fileDeleteResult.innerHTML = '';
+                fileConversations = [];
+
+                try {
+                    const text = await file.text();
+                    let parsed = null;
+                    if (file.name.toLowerCase().endsWith('.csv')) {
+                        parsed = parseFileCSV(text);
+                    } else {
+                        parsed = parseFileTXT(text);
+                    }
+
+                    if (parsed === null || parsed.length === 0) {
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-warning';
+                        if (parsed === null) {
+                            alertDiv.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Could not find <strong>conversation_id</strong> and <strong>participating_user_ids</strong> columns in the file. Please ensure your file has headers: <code>conversation_id</code>, <code>participating_user_ids</code>.';
+                        } else {
+                            alertDiv.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>No valid rows found in the file. Each row must have a conversation_id and at least the column for participating_user_ids.';
+                        }
+                        fileParseResult.appendChild(alertDiv);
+                        return;
+                    }
+
+                    fileConversations = parsed;
+                    const noParticipants = parsed.filter(c => c.participants.length === 0).length;
+                    const withParticipants = parsed.length - noParticipants;
+
+                    const card = document.createElement('div');
+                    card.className = 'card border-primary';
+                    card.innerHTML = `
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="card-title mb-0" style="font-size: 1rem;">
+                                <i class="bi bi-file-earmark-check me-1"></i>File Parsed
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-1">Found <strong>${parsed.length}</strong> conversation(s) in <em>${file.name}</em>.</p>
+                            <ul style="font-size: 0.85rem;" class="mb-1">
+                                <li>${withParticipants} conversation(s) with participant IDs</li>
+                                ${noParticipants > 0 ? `<li class="text-warning">${noParticipants} conversation(s) without participant IDs (will delete for the API user only)</li>` : ''}
+                            </ul>
+                            <div class="form-text">Click "Delete Conversations" to delete these for all listed participants.</div>
+                        </div>
+                    `;
+                    fileParseResult.appendChild(card);
+
+                    fileDeleteSection.hidden = false;
+                    fileDeleteBtn.disabled = false;
+                } catch (err) {
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-danger';
+                    alertDiv.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>Error reading file: ${err.message}`;
+                    fileParseResult.appendChild(alertDiv);
+                }
+            };
+            input.click();
+        });
+
+        fileDeleteBtn.addEventListener('click', async (evt) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+            if (!fileConversations || fileConversations.length === 0) return;
+
+            const domain = document.querySelector('#domain').value.trim();
+            const token = document.querySelector('#token').value.trim();
+
+            fileDeleteBtn.disabled = true;
+            fileCancelDeleteBtn.disabled = false;
+            fileDeleteProgressDiv.hidden = false;
+            fileDeleteProgressBar.style.width = '0%';
+            fileDeleteProgressInfo.textContent = `Deleting ${fileConversations.length} conversation(s)...`;
+            fileDeleteResult.innerHTML = '';
+
+            if (window.progressAPI) {
+                window.progressAPI.onUpdateProgress((progress) => {
+                    if (progress && typeof progress.value === 'number') {
+                        fileDeleteProgressBar.style.width = `${Math.round(progress.value * 100)}%`;
+                    } else if (typeof progress === 'number') {
+                        fileDeleteProgressBar.style.width = `${Math.round(progress)}%`;
+                    }
+                });
+            }
+
+            const onCancel = async () => {
+                fileCancelDeleteBtn.disabled = true;
+                try { await window.axios.cancelDeleteConvos(); } catch { }
+                fileDeleteProgressInfo.textContent = 'Cancelling...';
+            };
+            fileCancelDeleteBtn.addEventListener('click', onCancel, { once: true });
+
+            try {
+                const res = await window.axios.deleteConvos({ domain, token, messages: fileConversations });
+                const success = res?.successful?.length || 0;
+                const failed = res?.failed?.length || 0;
+                const cancelled = res?.cancelled || false;
+
+                fileDeleteProgressDiv.hidden = true;
+
+                const summaryCard = document.createElement('div');
+                summaryCard.className = `card mt-2 border-${failed > 0 ? 'warning' : 'success'}`;
+                summaryCard.innerHTML = `
+                    <div class="card-header ${failed > 0 ? 'bg-warning' : 'bg-success'} text-white">
+                        <h5 class="card-title mb-0" style="font-size: 1rem;">
+                            <i class="bi bi-${failed > 0 ? 'exclamation-triangle' : 'check-circle'} me-1"></i>Deletion ${cancelled ? 'Cancelled' : 'Complete'}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <ul style="font-size: 0.85rem;">
+                            <li><strong>Total:</strong> <span class="badge bg-primary">${fileConversations.length}</span></li>
+                            <li><strong>Successfully Deleted:</strong> <span class="badge bg-success">${success}</span></li>
+                            ${failed > 0 ? `<li><strong>Failed:</strong> <span class="badge bg-danger">${failed}</span></li>` : ''}
+                        </ul>
+                        ${(failed === 0 && !cancelled) ? '<p class="text-success mb-0"><i class="bi bi-check-circle me-1"></i>All conversations deleted successfully!</p>' : ''}
+                    </div>
+                `;
+                fileDeleteResult.innerHTML = '';
+                fileDeleteResult.appendChild(summaryCard);
+            } catch (err) {
+                fileDeleteProgressDiv.hidden = true;
+                const errorCard = document.createElement('div');
+                errorCard.className = 'alert alert-danger mt-2';
+                errorCard.innerHTML = `<strong>Error:</strong> ${err.message || 'An error occurred while deleting conversations'}`;
+                fileDeleteResult.innerHTML = '';
+                fileDeleteResult.appendChild(errorCard);
+            } finally {
+                fileDeleteBtn.disabled = false;
+                fileCancelDeleteBtn.disabled = true;
+                if (window.progressAPI?.removeAllProgressListeners) {
+                    window.progressAPI.removeAllProgressListeners();
+                }
+            }
+        });
+
         form.dataset.bound = 'true';
     }
 }

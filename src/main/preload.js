@@ -873,6 +873,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
     'agent:cancel',
     'agent:newSession',
     'agent:getHistory',
+    'agent:selectFile',
 
     // Canvas Token Management
     'tokens:getAll',

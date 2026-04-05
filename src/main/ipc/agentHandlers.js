@@ -9,11 +9,13 @@
  *   agent:getHistory     - Get conversation history
  */
 
-const { ipcMain } = require('electron');
+const { ipcMain, dialog, BrowserWindow } = require('electron');
 const { AgentLoop } = require('../agent/agentLoop');
 const { getAIClientConfig } = require('../security/aiProviders');
 const { getDecryptedKey, store } = require('./settingsHandlers');
 const { getDefaultToken } = require('./tokenHandlers');
+const fs = require('fs');
+const path = require('path');
 
 /** @type {AgentLoop|null} */
 let agentInstance = null;
@@ -131,8 +133,23 @@ function getAgent(sender) {
 }
 
 function registerAgentHandlers() {
+    // File selection for chat attachments
+    ipcMain.handle('agent:selectFile', async () => {
+        const win = BrowserWindow.getFocusedWindow();
+        const result = await dialog.showOpenDialog(win, {
+            properties: ['openFile'],
+            filters: [
+                { name: 'Supported Files', extensions: ['xml', 'zip', 'json', 'csv', 'txt', 'har', 'html', 'htm', 'md'] },
+                { name: 'QTI Files', extensions: ['xml', 'zip'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        });
+        if (result.canceled) return { canceled: true };
+        return { canceled: false, filePath: result.filePaths[0], fileName: path.basename(result.filePaths[0]) };
+    });
+
     // Main chat handler - sends a message and returns the response
-    ipcMain.handle('agent:chat', async (event, { message, domain, token }) => {
+    ipcMain.handle('agent:chat', async (event, { message, domain, token, filePath }) => {
         try {
             // Update credentials from the renderer's form fields
             if (domain) canvasCredentials.domain = domain;
@@ -150,8 +167,45 @@ function registerAgentHandlers() {
             // Persist domain so background services (GraphQL scan) can use it
             if (domain) store.set('canvasDefaultDomain', domain);
 
+            // If a file was attached, read it and augment the message
+            let augmentedMessage = message;
+            if (filePath) {
+                try {
+                    const ext = path.extname(filePath).toLowerCase();
+                    const fileName = path.basename(filePath);
+                    const MAX_FILE_SIZE = 500 * 1024; // 500KB text limit
+
+                    if (ext === '.zip') {
+                        // For ZIP files, try QTI analysis
+                        try {
+                            const { QTIAnalyzer } = require('../../shared/qtiAnalyzer');
+                            const zipBuffer = fs.readFileSync(filePath);
+                            const qtiData = await QTIAnalyzer.analyzePackage(zipBuffer);
+                            augmentedMessage += '\n\n--- Attached File: ' + fileName + ' ---\n'
+                                + 'QTI Analysis Results:\n'
+                                + JSON.stringify(qtiData, null, 2).substring(0, 30000);
+                        } catch (qtiErr) {
+                            augmentedMessage += '\n\n--- Attached File: ' + fileName + ' (ZIP) ---\n'
+                                + 'Could not analyze as QTI package: ' + qtiErr.message;
+                        }
+                    } else {
+                        // Text-based files
+                        const stats = fs.statSync(filePath);
+                        if (stats.size > MAX_FILE_SIZE) {
+                            augmentedMessage += '\n\n--- Attached File: ' + fileName + ' (truncated, ' + Math.round(stats.size / 1024) + 'KB) ---\n'
+                                + fs.readFileSync(filePath, 'utf8').substring(0, MAX_FILE_SIZE);
+                        } else {
+                            augmentedMessage += '\n\n--- Attached File: ' + fileName + ' ---\n'
+                                + fs.readFileSync(filePath, 'utf8');
+                        }
+                    }
+                } catch (fileErr) {
+                    augmentedMessage += '\n\n[Failed to read attached file: ' + fileErr.message + ']';
+                }
+            }
+
             const agent = getAgent(event.sender);
-            const result = await agent.chat(message);
+            const result = await agent.chat(augmentedMessage);
             return { success: true, ...result };
         } catch (error) {
             console.error('Agent chat error:', error);

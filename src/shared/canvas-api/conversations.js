@@ -74,12 +74,12 @@ async function getConversationsGraphQL(data) {
     const onProgress = data.onProgress; // Progress callback
 
     const query = `
-            query getMessages($userID: ID!, $nextPage: String) {
+            query getMessages($userID: ID!, $messageNextPage: String, $participantNextPage: String) {
                 legacyNode(_id: $userID, type: User) {
                     ... on User {
                         id
                         email
-                        conversationsConnection(scope: "sent", first: 200, after: $nextPage) {
+                        conversationsConnection(scope: "sent", first: 200, after: $messageNextPage) {
                             pageInfo {
                                 hasNextPage
                                 endCursor
@@ -90,6 +90,15 @@ async function getConversationsGraphQL(data) {
                                     subject
                                     _id
                                     updatedAt
+                                    conversationParticipantsConnection(first: 50, after: $participantNextPage) {
+                                        nodes {
+                                            userId
+                                        }
+                                        pageInfo {
+                                            endCursor
+                                            hasNextPage
+                                        }
+                                    }
                                 }
                                 messages(first: 5) {
                                     nodes {
@@ -97,6 +106,7 @@ async function getConversationsGraphQL(data) {
                                             _id
                                             displayName
                                         }
+                                        body
                                     }
                                     pageInfo {
                                         hasNextPage
@@ -111,9 +121,27 @@ async function getConversationsGraphQL(data) {
             }
         `;
 
+    const participantPaginationQuery = `
+            query getMoreParticipants($conversationId: ID!, $cursor: String) {
+                legacyNode(_id: $conversationId, type: Conversation) {
+                    ... on Conversation {
+                        conversationParticipantsConnection(first: 50, after: $cursor) {
+                            nodes {
+                                userId
+                            }
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                        }
+                    }
+                }
+            }
+        `;
+
     const variables = {
         "userID": user,
-        "nextPage": ""
+        "messageNextPage": ""
     };
 
     const axiosConfig = {
@@ -205,7 +233,7 @@ async function getConversationsGraphQL(data) {
                 throw new Error('Unexpected GraphQL response format while fetching conversations.');
             }
 
-            sentMessages.push(...data.nodes.map((node) => {
+            const processedNodes = await Promise.all(data.nodes.map(async (node) => {
                 // Extract attachments from messages
                 const attachments = [];
                 if (node.messages && node.messages.nodes) {
@@ -219,14 +247,52 @@ async function getConversationsGraphQL(data) {
                     }
                 }
 
+                // Collect participants with pagination
+                const participantConn = node.conversation.conversationParticipantsConnection;
+                const participantNodes = participantConn?.nodes ? [...participantConn.nodes] : [];
+                let participantPageInfo = participantConn?.pageInfo;
+
+                while (participantPageInfo?.hasNextPage) {
+                    const pResponse = await axios({
+                        method: 'post',
+                        url: `https://${domain}/api/graphql?as_user_id=${user}`,
+                        headers: { 'Authorization': `Bearer ${token}` },
+                        signal,
+                        data: {
+                            query: participantPaginationQuery,
+                            variables: { conversationId: node.conversation._id, cursor: participantPageInfo.endCursor }
+                        }
+                    });
+                    const pConn = pResponse?.data?.data?.legacyNode?.conversationParticipantsConnection;
+                    if (!pConn) break;
+                    participantNodes.push(...pConn.nodes);
+                    participantPageInfo = pConn.pageInfo;
+                }
+
+                const participants = participantNodes.map(p => p.userId);
+
+                // Extract message bodies
+                const bodies = [];
+                if (node.messages && node.messages.nodes) {
+                    for (const message of node.messages.nodes) {
+                        if (message.body) {
+                            bodies.push(message.body);
+                        }
+                    }
+                }
+
                 return {
                     subject: node.conversation.subject,
                     id: node.conversation._id,
                     updatedAt: node.conversation.updatedAt,
                     users: [],
+                    participants: participants,
+                    body: bodies.join('\n---\n'),
                     attachments: attachments
                 };
-            }).filter((message) => {
+            }));
+
+            sentMessages.push(...processedNodes.filter((message) => {
                 if (message.subject !== subject) return false;
                 if (!hasDateFilter) return true;
 
@@ -240,7 +306,7 @@ async function getConversationsGraphQL(data) {
             if (!data.pageInfo.hasNextPage) {
                 nextPage = false;
             } else {
-                variables.nextPage = data.pageInfo.endCursor;
+                variables.messageNextPage = data.pageInfo.endCursor;
             }
         } catch (error) {
             throw error
@@ -337,26 +403,45 @@ async function deleteForAll(data) {
 
     const domain = data.domain;
     const token = data.token;
-    const messageID = data.message;
+    const conversationID = data.message;
+    const participants = data.participants || [];
+    const headers = { 'Authorization': `Bearer ${token}` };
 
-    const axiosConfig = {
-        method: 'delete',
-        url: `https://${domain}/api/v1/conversations/${messageID}/delete_for_all`,
-        headers: {
-            'Authorization': `Bearer ${token}`
+    if (participants.length === 0) {
+        // Fallback: single delete without per-participant iteration
+        const axiosConfig = {
+            method: 'delete',
+            url: `https://${domain}/api/v1/conversations/${conversationID}`,
+            headers
+        };
+
+        try {
+            const request = async () => await axios(axiosConfig);
+            const response = await errorCheck(request);
+            return `${response.status} - ${response.statusText}`;
+        } catch (error) {
+            throw error;
         }
-    };
-
-    try {
-        const request = async () => {
-            return await axios(axiosConfig);
-        }
-
-        const response = await errorCheck(request);
-        return `${response.status} - ${response.statusText}`;
-    } catch (error) {
-        throw error
     }
+
+    const results = [];
+    for (const participantId of participants) {
+        const axiosConfig = {
+            method: 'delete',
+            url: `https://${domain}/api/v1/conversations/${conversationID}?as_user_id=${participantId}`,
+            headers
+        };
+
+        try {
+            const request = async () => await axios(axiosConfig);
+            const response = await errorCheck(request);
+            results.push({ participantId, status: response.status, statusText: response.statusText });
+        } catch (error) {
+            results.push({ participantId, error: error.message });
+        }
+    }
+
+    return results;
     // console.log('Deleting Conversation....');
 
 
