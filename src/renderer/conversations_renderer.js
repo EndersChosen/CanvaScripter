@@ -914,7 +914,17 @@ async function getDeletedConversations(e) {
 
                 const results = await window.axios.getDeletedConversations(params);
                 const count = results.length;
-                singleProgressInfo.innerHTML = cancelled ? `Cancelled.` : `<i class="bi bi-check-circle text-success"></i> Found ${count} deleted conversation(s).`;
+
+                // Count unique attachments
+                const uniqueAttIds = new Set();
+                results.forEach(msg => {
+                    if (msg.attachments && Array.isArray(msg.attachments)) {
+                        msg.attachments.forEach(att => uniqueAttIds.add(att.id));
+                    }
+                });
+                const totalAtts = uniqueAttIds.size;
+                const attSummary = totalAtts > 0 ? ` and ${totalAtts} attachment(s)` : '';
+                singleProgressInfo.innerHTML = cancelled ? `Cancelled.` : `<i class="bi bi-check-circle text-success"></i> Found ${count} deleted conversation(s)${attSummary}.`;
                 singleProgressBar.style.width = '100%';
 
                 if (count > 0) {
@@ -956,6 +966,8 @@ async function getDeletedConversations(e) {
                         if (key === 'attachments' && Array.isArray(val)) {
                             const pairs = val.map(att => `${att.id}:${att.url}`).join('; ');
                             row[key] = pairs;
+                            row['file_id'] = val.map(att => att.id).join('; ');
+                            row['file_name'] = val.map(att => att.display_name || att.filename || '').join('; ');
                         } else if (key === 'participating_user_ids' && Array.isArray(val)) {
                             row[key] = val.join('; ');
                         } else if (val !== null && typeof val === 'object') {
@@ -963,7 +975,9 @@ async function getDeletedConversations(e) {
                         } else {
                             row[key] = val;
                         }
-                    } return row;
+                    }
+                    if (!('file_id' in row)) { row['file_id'] = ''; row['file_name'] = ''; }
+                    return row;
                 });
 
                 const allKeys = Array.from(new Set(sanitized.flatMap(obj => Object.keys(obj))));
@@ -993,7 +1007,14 @@ async function getDeletedConversations(e) {
 
                     // Show success message if file was saved
                     if (result && result.filePath) {
-                        singleProgressInfo.innerHTML = `Found ${lastResultsForCsv.length} deleted conversation(s). Exported to: ${result.filePath}`;
+                        const expAttIds = new Set();
+                        lastResultsForCsv.forEach(msg => {
+                            if (msg.attachments && Array.isArray(msg.attachments)) {
+                                msg.attachments.forEach(att => expAttIds.add(att.id));
+                            }
+                        });
+                        const expAttSummary = expAttIds.size > 0 ? ` and ${expAttIds.size} attachment(s)` : '';
+                        singleProgressInfo.innerHTML = `Found ${lastResultsForCsv.length} deleted conversation(s)${expAttSummary}. Exported to: ${result.filePath}`;
                     }
                 }
             } catch (error) {
@@ -1090,6 +1111,7 @@ async function getDeletedConversations(e) {
             let completed = 0;
             let exported = 0;
             let skipped = 0;
+            let totalBulkAttachments = 0;
             let cancelled = false;
             const skippedDetails = []; // Track details about skipped requests
 
@@ -1118,12 +1140,15 @@ async function getDeletedConversations(e) {
                                 if (key === 'attachments' && Array.isArray(val)) {
                                     const pairs = val.map(att => `${att.id}:${att.url}`).join('; ');
                                     row[key] = pairs;
+                                    row['file_id'] = val.map(att => att.id).join('; ');
+                                    row['file_name'] = val.map(att => att.display_name || att.filename || '').join('; ');
                                 } else if (val !== null && typeof val === 'object') {
                                     row[key] = JSON.stringify(val);
                                 } else {
                                     row[key] = val;
                                 }
                             }
+                            if (!('file_id' in row)) { row['file_id'] = ''; row['file_name'] = ''; }
                             return row;
                         });
 
@@ -1142,6 +1167,14 @@ async function getDeletedConversations(e) {
                         const fullPath = `${outputFolder.replace(/[\\/]+$/, '')}\\${fileName}`;
                         await window.csv.writeAtPath(fullPath, data);
                         exported++;
+                        // Count unique attachments for this user
+                        const bulkAttIds = new Set();
+                        results.forEach(msg => {
+                            if (msg.attachments && Array.isArray(msg.attachments)) {
+                                msg.attachments.forEach(att => bulkAttIds.add(att.id));
+                            }
+                        });
+                        totalBulkAttachments += bulkAttIds.size;
                     } else {
                         skipped++;
                         const requestUrl = `${domain}/api/v1/users/${uid}/deleted_conversations`;
@@ -1162,7 +1195,8 @@ async function getDeletedConversations(e) {
                     const pct = Math.round((completed / bulkUserIds.length) * 100);
                     bulkProgressBar.style.width = `${pct}%`;
                     if (!cancelled) {
-                        bulkProgressInfo.innerHTML = `Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}/${bulkUserIds.length}. Skipped: ${skipped}/${bulkUserIds.length}.`;
+                        const attNote = totalBulkAttachments > 0 ? ` Attachments: ${totalBulkAttachments}.` : '';
+                        bulkProgressInfo.innerHTML = `Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}/${bulkUserIds.length}. Skipped: ${skipped}/${bulkUserIds.length}.${attNote}`;
                     } else {
                         bulkProgressInfo.innerHTML = `Cancelling... Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}/${bulkUserIds.length}. Skipped: ${skipped}/${bulkUserIds.length}.`;
                     }
@@ -1171,9 +1205,10 @@ async function getDeletedConversations(e) {
             exportMultiBtn.disabled = false; cancelBulkBtn.disabled = true;
 
             // Build final summary with skipped details
+            const bulkAttNote = totalBulkAttachments > 0 ? ` Attachments: ${totalBulkAttachments}.` : '';
             let summaryHTML = cancelled
-                ? `Cancelled. Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}/${bulkUserIds.length}. Skipped: ${skipped}/${bulkUserIds.length}.`
-                : `Done. Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}/${bulkUserIds.length}. Skipped: ${skipped}/${bulkUserIds.length}.`;
+                ? `Cancelled. Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}/${bulkUserIds.length}. Skipped: ${skipped}/${bulkUserIds.length}.${bulkAttNote}`
+                : `Done. Processed ${completed}/${bulkUserIds.length}. Exported: ${exported}/${bulkUserIds.length}. Skipped: ${skipped}/${bulkUserIds.length}.${bulkAttNote}`;
 
             if (skippedDetails.length > 0) {
                 const maxDisplay = 5;
@@ -1557,11 +1592,6 @@ async function deleteConvos(e) {
                                 <button id="dcs-download-csv" type="button" class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-download me-1"></i>Download Conversations (CSV)
                                 </button>
-                                ${totalAttachments > 0 ? `
-                                <button id="dcs-download-files-csv" type="button" class="btn btn-sm btn-outline-secondary">
-                                    <i class="bi bi-file-earmark-arrow-down me-1"></i>Download File IDs (CSV)
-                                </button>
-                                ` : ''}
                             </div>
                         </div>
                     `;
@@ -1600,14 +1630,18 @@ async function deleteConvos(e) {
                                     }
                                     return str;
                                 };
-                                const header = 'conversation_id,participant_ids,subject,body';
+                                const header = 'conversation_id,participant_ids,subject,body,file_id,file_name';
                                 const rows = foundMessages.map(msg => {
                                     const participants = Array.isArray(msg.participants) ? msg.participants.join(';') : '';
+                                    const fileIds = (msg.attachments && Array.isArray(msg.attachments)) ? msg.attachments.map(att => att.id).join('; ') : '';
+                                    const fileNames = (msg.attachments && Array.isArray(msg.attachments)) ? msg.attachments.map(att => att.displayName || att.display_name || att.filename || '').join('; ') : '';
                                     return [
                                         csvEscape(msg.id),
                                         csvEscape(participants),
                                         csvEscape(msg.subject),
-                                        csvEscape(msg.body || '')
+                                        csvEscape(msg.body || ''),
+                                        csvEscape(fileIds),
+                                        csvEscape(fileNames)
                                     ].join(',');
                                 });
                                 const csvContent = header + '\n' + rows.join('\n');
@@ -1630,49 +1664,6 @@ async function deleteConvos(e) {
                                     btn.classList.remove('btn-danger');
                                     btn.classList.add('btn-outline-primary');
                                 }, 4000);
-                            }
-                        });
-                    }
-
-                    // Set up File IDs CSV download button
-                    const filesCsvDownloadBtn = resultCard.querySelector('#dcs-download-files-csv');
-                    if (filesCsvDownloadBtn && totalAttachments > 0) {
-                        filesCsvDownloadBtn.addEventListener('click', async (e) => {
-                            e.preventDefault();
-                            try {
-                                // Collect all file attachments and deduplicate by file ID
-                                const fileMap = new Map();
-                                foundMessages.forEach(msg => {
-                                    if (msg.attachments && Array.isArray(msg.attachments)) {
-                                        msg.attachments.forEach(att => {
-                                            // Only add if we haven't seen this file ID before
-                                            if (!fileMap.has(att.id)) {
-                                                fileMap.set(att.id, { id: att.id, name: att.displayName });
-                                            }
-                                        });
-                                    }
-                                });
-
-                                const allFiles = Array.from(fileMap.values());
-
-                                // Create CSV content with file IDs and names
-                                const rows = allFiles.map(file => {
-                                    // Escape quotes in file name and wrap in quotes if needed
-                                    const fileName = String(file.name || '').replace(/"/g, '""');
-                                    const needsQuotes = fileName.includes(',') || fileName.includes('\n') || fileName.includes('"');
-                                    return `${file.id},${needsQuotes || fileName.includes(' ') ? `"${fileName}"` : fileName}`;
-                                });
-                                const csvContent = 'file_id,file_name\n' + rows.join('\n');
-
-                                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                                const url = URL.createObjectURL(blob);
-                                const link = document.createElement('a');
-                                link.href = url;
-                                link.download = `file_ids_${subject.replace(/[^a-z0-9]/gi, '_').substring(0, 30)}_${Date.now()}.csv`;
-                                link.click();
-                                URL.revokeObjectURL(url);
-                            } catch (err) {
-                                alert('Error downloading file IDs CSV: ' + err.message);
                             }
                         });
                     }

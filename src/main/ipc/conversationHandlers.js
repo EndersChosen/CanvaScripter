@@ -407,45 +407,67 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow, getBatchCon
         }
     });
 
-    // Delete files
+    // Delete files — batch with cancellation and progress
+    const deleteFilesCancelFlags = new Map();
+
     ipcMain.handle('axios:deleteFiles', async (event, data) => {
         logDebug('[axios:deleteFiles] Starting file deletion', { count: data.files?.length });
         const senderId = event.sender.id;
+        deleteFilesCancelFlags.set(senderId, false);
 
         const axios = require('axios');
         const files = Array.isArray(data.files) ? data.files : [];
 
-        const deleteFile = async (fileId) => {
-            const url = `https://${data.domain}/api/v1/files/${fileId}?replace=true`;
-            const response = await axios.delete(url, {
-                headers: { 'Authorization': `Bearer ${data.token}` }
-            });
-            return response.data;
-        };
+        const batchConfig = typeof getBatchConfig === 'function'
+            ? getBatchConfig()
+            : { batchSize: 35, timeDelay: 2000 };
 
-        const successful = [];
-        const failed = [];
+        const maxConcurrent = Math.max(1, Number(batchConfig.batchSize) || 35);
+        const baseDelayMs = Math.max(50, Number(batchConfig.timeDelay) || 2000);
+        const jitterMs = 200;
+        const maxRetries = 3;
 
-        for (const file of files) {
-            try {
-                const result = await deleteFile(file.id);
-                successful.push({ id: file.id, name: file.name, value: result });
-            } catch (err) {
-                failed.push({
-                    id: file.id,
-                    name: file.name,
-                    reason: err?.response?.data?.message || err?.message || 'Unknown error',
-                    status: err?.response?.status
+        const requests = files.map((file) => ({
+            id: file.id,
+            request: async () => {
+                const url = `https://${data.domain}/api/v1/files/${encodeURIComponent(file.id)}`;
+                const response = await axios.delete(url, {
+                    headers: { 'Authorization': `Bearer ${data.token}` },
+                    data: { replace: true }
                 });
+                return response.data;
             }
-        }
+        }));
+
+        const response = await canvasRateLimitedHandler(requests, {
+            maxConcurrent,
+            baseDelayMs,
+            jitterMs,
+            maxRetries,
+            isCancelled: () => deleteFilesCancelFlags.get(senderId) === true
+        }, mainWindow);
+
+        const cancelled = deleteFilesCancelFlags.get(senderId) === true;
+        deleteFilesCancelFlags.delete(senderId);
 
         logDebug('[axios:deleteFiles] Complete', {
-            successful: successful.length,
-            failed: failed.length
+            successful: response.successful.length,
+            failed: response.failed.length,
+            cancelled
         });
 
-        return { successful, failed };
+        return { ...response, cancelled };
+    });
+
+    ipcMain.handle('axios:cancelDeleteFiles', async (event) => {
+        const senderId = event.sender.id;
+        logDebug('[axios:cancelDeleteFiles] Cancelling file deletion', { senderId });
+        try {
+            deleteFilesCancelFlags.set(senderId, true);
+            return { cancelled: true };
+        } catch {
+            return { cancelled: false };
+        }
     });
 
     logDebug('[conversationHandlers] 10 conversation handlers registered');

@@ -58,6 +58,10 @@ contextBridge.exposeInMainWorld('axios', {
         console.log('inside deleteFiles');
         return await ipcRenderer.invoke('axios:deleteFiles', data);
     },
+    cancelDeleteFiles: async () => {
+        console.log('inside cancelDeleteFiles');
+        return await ipcRenderer.invoke('axios:cancelDeleteFiles');
+    },
     checkCommChannel: async (data) => {
         console.log('inside preload checkCommChannel');
         return await ipcRenderer.invoke('axios:checkCommChannel', data);

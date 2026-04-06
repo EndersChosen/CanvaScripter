@@ -466,6 +466,11 @@ function routeEndpointRequest(e, category) {
                 aiAssistantTemplate(e);
             }
             break;
+        case 'files':
+            if (typeof filesTemplate === 'function') {
+                filesTemplate(e);
+            }
+            break;
         default:
             console.warn('No template function found for category:', normalizedCategory);
             break;
