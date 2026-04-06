@@ -2275,6 +2275,481 @@ const graphqlTools = [
 ];
 
 // ============================================================================
+// Search Tools
+// ============================================================================
+
+const searchTools = [
+    {
+        name: 'canvas_search_accounts',
+        description: 'Search for a Canvas account by its ID. Returns the account name, SIS ID, parent account SIS ID, and status. Useful for looking up account details before creating courses or SIS imports.',
+        destructive: false,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                accountId: { type: 'string', description: 'The Canvas account ID to look up' }
+            },
+            required: ['domain', 'accountId']
+        },
+        execute: async ({ domain, token, accountId }) => {
+            const axios = require('axios');
+            const prevBaseURL = axios.defaults.baseURL;
+            const prevAuth = axios.defaults.headers.common['Authorization'];
+            try {
+                axios.defaults.baseURL = `https://${domain}/api/v1`;
+                axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+                const { searchAccounts } = require(path.join(CANVAS_API, 'accounts'));
+                return await searchAccounts(accountId);
+            } finally {
+                axios.defaults.baseURL = prevBaseURL;
+                if (prevAuth) { axios.defaults.headers.common['Authorization'] = prevAuth; }
+                else { delete axios.defaults.headers.common['Authorization']; }
+            }
+        }
+    },
+    {
+        name: 'canvas_search_courses_sis',
+        description: 'Search for a Canvas course by its ID and return SIS-formatted data including SIS ID, short name, long name, account SIS ID, term SIS ID, and status. Useful for auditing SIS data or verifying course setup.',
+        destructive: false,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                courseId: { type: 'string', description: 'The Canvas course ID to look up' }
+            },
+            required: ['domain', 'courseId']
+        },
+        execute: async ({ domain, token, courseId }) => {
+            const axios = require('axios');
+            const prevBaseURL = axios.defaults.baseURL;
+            const prevAuth = axios.defaults.headers.common['Authorization'];
+            try {
+                axios.defaults.baseURL = `https://${domain}/api/v1`;
+                axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+                const { searchCourses } = require(path.join(CANVAS_API, 'courses'));
+                return await searchCourses(courseId);
+            } finally {
+                axios.defaults.baseURL = prevBaseURL;
+                if (prevAuth) { axios.defaults.headers.common['Authorization'] = prevAuth; }
+                else { delete axios.defaults.headers.common['Authorization']; }
+            }
+        }
+    },
+    {
+        name: 'canvas_search_terms',
+        description: 'Search for a Canvas enrollment term by its ID. Returns term details including name, dates, and SIS ID.',
+        destructive: false,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                termId: { type: 'string', description: 'The enrollment term ID to look up' }
+            },
+            required: ['domain', 'termId']
+        },
+        execute: async ({ domain, token, termId }) => {
+            const axios = require('axios');
+            const prevBaseURL = axios.defaults.baseURL;
+            const prevAuth = axios.defaults.headers.common['Authorization'];
+            try {
+                axios.defaults.baseURL = `https://${domain}/api/v1`;
+                axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+                const { searchTerms } = require(path.join(CANVAS_API, 'terms'));
+                return await searchTerms(termId);
+            } finally {
+                axios.defaults.baseURL = prevBaseURL;
+                if (prevAuth) { axios.defaults.headers.common['Authorization'] = prevAuth; }
+                else { delete axios.defaults.headers.common['Authorization']; }
+            }
+        }
+    },
+    {
+        name: 'canvas_search_user_logins',
+        description: 'Get login records for a Canvas user by Canvas user ID or SIS user ID. Returns login unique IDs, SIS user IDs, and authentication provider IDs. Useful for auditing user authentication setup.',
+        destructive: false,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                userId: { type: 'string', description: 'The user ID to look up logins for' },
+                idType: { type: 'string', enum: ['canvas_id', 'sis_user_id'], description: 'Type of user ID provided (default: canvas_id)' }
+            },
+            required: ['domain', 'userId']
+        },
+        execute: async ({ domain, token, userId, idType }) => {
+            const { searchUserLogins } = require(path.join(CANVAS_API, 'logins'));
+            return await searchUserLogins(domain, token, userId, idType || 'canvas_id');
+        }
+    },
+];
+
+// ============================================================================
+// Blueprint Course Tools
+// ============================================================================
+
+const blueprintTools = [
+    {
+        name: 'canvas_associate_blueprint_courses',
+        description: 'Associate one or more courses with a blueprint course. The blueprint course must already be configured as a blueprint. Associated courses will receive content syncs from the blueprint.',
+        destructive: true,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                blueprintCourseId: { type: 'string', description: 'The blueprint course ID' },
+                courseIds: { type: 'array', items: { type: 'string' }, description: 'Array of course IDs to associate with the blueprint' }
+            },
+            required: ['domain', 'blueprintCourseId', 'courseIds']
+        },
+        execute: async ({ domain, token, blueprintCourseId, courseIds }) => {
+            const { associateCourses } = require(path.join(CANVAS_API, 'courses'));
+            return await associateCourses({ domain, token, bpCourseID: blueprintCourseId, associated_course_ids: courseIds });
+        }
+    },
+    {
+        name: 'canvas_sync_blueprint',
+        description: 'Trigger a blueprint sync to push content from a blueprint course to all associated courses. Returns the migration/sync job details.',
+        destructive: true,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                blueprintCourseId: { type: 'string', description: 'The blueprint course ID to sync from' }
+            },
+            required: ['domain', 'blueprintCourseId']
+        },
+        execute: async ({ domain, token, blueprintCourseId }) => {
+            const { syncBPCourses } = require(path.join(CANVAS_API, 'courses'));
+            return await syncBPCourses({ domain, token, bpCourseID: blueprintCourseId });
+        }
+    },
+    {
+        name: 'canvas_get_course_state',
+        description: 'Check the workflow state of a Canvas course (e.g., available, unpublished, completed, deleted). Useful for verifying course status before performing operations.',
+        destructive: false,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                courseId: { type: 'string', description: 'The Canvas course ID' }
+            },
+            required: ['domain', 'courseId']
+        },
+        execute: async ({ domain, token, courseId }) => {
+            const { getCourseState } = require(path.join(CANVAS_API, 'courses'));
+            return await getCourseState(domain, token, courseId);
+        }
+    },
+];
+
+// ============================================================================
+// Quiz Question Tools
+// ============================================================================
+
+const quizQuestionTools = [
+    {
+        name: 'canvas_create_classic_quiz_questions',
+        description: 'Add sample questions to an existing classic quiz. Creates questions of specified types with pre-built content. Supported types: calculated_question, essay_question, file_upload_question, fill_in_multiple_blanks_question, matching_question, multiple_answers_question, multiple_choice_question, multiple_dropdowns_question, numerical_question, short_answer_question, text_only_question, true_false_question. Use canvas_list_classic_quizzes first to find the quiz ID.',
+        destructive: true,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                courseId: { type: 'string', description: 'The Canvas course ID' },
+                quizId: { type: 'string', description: 'The classic quiz ID to add questions to' },
+                questions: {
+                    type: 'object',
+                    description: 'Object mapping question type keys to { enabled: true, number: N, name: "type_name" }. Example: { "0": { "enabled": true, "number": 2, "name": "multiple_choice_question" }, "1": { "enabled": true, "number": 1, "name": "essay_question" } }',
+                    additionalProperties: true
+                }
+            },
+            required: ['domain', 'courseId', 'quizId', 'questions']
+        },
+        execute: async ({ domain, token, courseId, quizId, questions }) => {
+            const { createQuestions } = require(path.join(CANVAS_API, 'quizzes_classic'));
+            await createQuestions({
+                domain, token,
+                course_id: courseId,
+                quiz_id: quizId,
+                question_data: questions
+            });
+            return { success: true, quizId, message: 'Questions added to classic quiz.' };
+        }
+    },
+    {
+        name: 'canvas_create_new_quiz_questions',
+        description: 'Add sample questions to an existing New Quiz. Creates questions of specified types with pre-built content. Supported types: multiple_choice, multi_answer, true_false, essay, numeric, fill_in_blank, matching, categorization, file_upload, formula, ordering, stimulus. Use canvas_create_new_quiz first to create the quiz, then add questions.',
+        destructive: true,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                courseId: { type: 'string', description: 'The Canvas course ID' },
+                quizId: { type: 'string', description: 'The New Quiz assignment ID' },
+                questionTypes: {
+                    type: 'array',
+                    items: { type: 'string', enum: ['multiple_choice', 'multi_answer', 'true_false', 'essay', 'numeric', 'fill_in_blank', 'matching', 'categorization', 'file_upload', 'formula', 'ordering', 'stimulus'] },
+                    description: 'Array of question types to add (one question per type entry, repeat for multiples)'
+                }
+            },
+            required: ['domain', 'courseId', 'quizId', 'questionTypes']
+        },
+        execute: async ({ domain, token, courseId, quizId, questionTypes }) => {
+            const { addItemsToNewQuiz } = require(path.join(CANVAS_API, 'quizzes_nq'));
+            const created = await addItemsToNewQuiz({ domain, token, course_id: courseId, quiz_id: quizId, questionTypes });
+            return { success: true, quizId, questionsCreated: created.length, items: created };
+        }
+    },
+];
+
+// ============================================================================
+// Advanced Enrollment Tools
+// ============================================================================
+
+const advancedEnrollmentTools = [
+    {
+        name: 'canvas_get_section_enrollments',
+        description: 'Get all enrollments in a specific course section. Returns user details, roles, and enrollment status for each enrollment in the section.',
+        destructive: false,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                sectionId: { type: 'string', description: 'The Canvas section ID' }
+            },
+            required: ['domain', 'sectionId']
+        },
+        execute: async ({ domain, token, sectionId }) => {
+            const { getSectionEnrollments } = require(path.join(CANVAS_API, 'enrollments'));
+            return await getSectionEnrollments(domain, token, sectionId);
+        }
+    },
+    {
+        name: 'canvas_get_user_enrollments',
+        description: 'Get all enrollments for a specific Canvas user across all courses. Returns course IDs, roles, section IDs, and enrollment status.',
+        destructive: false,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                userId: { type: 'string', description: 'The Canvas user ID' }
+            },
+            required: ['domain', 'userId']
+        },
+        execute: async ({ domain, token, userId }) => {
+            const { getUserEnrollments } = require(path.join(CANVAS_API, 'enrollments'));
+            return await getUserEnrollments(domain, token, userId);
+        }
+    },
+];
+
+// ============================================================================
+// User Management Tools
+// ============================================================================
+
+const userManagementTools = [
+    {
+        name: 'canvas_get_user_comm_channels',
+        description: 'Get all communication channels (email, SMS, push) for a Canvas user. Returns channel type, address, position, and workflow state. Useful for auditing or debugging notification delivery issues.',
+        destructive: false,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                userId: { type: 'string', description: 'The Canvas user ID' }
+            },
+            required: ['domain', 'userId']
+        },
+        execute: async ({ domain, token, userId }) => {
+            const { getCommChannels } = require(path.join(CANVAS_API, 'users'));
+            return await getCommChannels(domain, userId, token);
+        }
+    },
+    {
+        name: 'canvas_update_notifications',
+        description: 'Update notification preferences for a user on a specific communication channel. Sets the frequency for all notification categories (e.g., due dates, grading, discussions, announcements). Frequency options: immediately, daily, weekly, never.',
+        destructive: true,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                userId: { type: 'string', description: 'The Canvas user ID' },
+                commChannelId: { type: 'string', description: 'The communication channel ID (get from canvas_get_user_comm_channels)' },
+                frequency: { type: 'string', enum: ['immediately', 'daily', 'weekly', 'never'], description: 'Notification frequency to set for all categories' }
+            },
+            required: ['domain', 'userId', 'commChannelId', 'frequency']
+        },
+        execute: async ({ domain, token, userId, commChannelId, frequency }) => {
+            const { updateNotifications } = require(path.join(CANVAS_API, 'users'));
+            return await updateNotifications(frequency, domain, userId, commChannelId, token);
+        }
+    },
+];
+
+// ============================================================================
+// File & Folder Tools
+// ============================================================================
+
+const fileTools = [
+    {
+        name: 'canvas_delete_file',
+        description: 'Delete a file from Canvas by its file ID. This permanently removes the file.',
+        destructive: true,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                fileId: { type: 'string', description: 'The Canvas file ID to delete' }
+            },
+            required: ['domain', 'fileId']
+        },
+        execute: async ({ domain, token, fileId }) => {
+            const { deleteFile } = require(path.join(CANVAS_API, 'files'));
+            const result = await deleteFile({ domain, token, id: fileId });
+            return { success: true, deletedFileId: result };
+        }
+    },
+    {
+        name: 'canvas_get_folder',
+        description: 'Get metadata for a Canvas folder by its ID. Returns folder name, full path, parent folder ID, files count, and folders count.',
+        destructive: false,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                folderId: { type: 'string', description: 'The Canvas folder ID' }
+            },
+            required: ['domain', 'folderId']
+        },
+        execute: async ({ domain, token, folderId }) => {
+            const { getFolder } = require(path.join(CANVAS_API, 'folders'));
+            return await getFolder({ domain, token, id: folderId });
+        }
+    },
+    {
+        name: 'canvas_delete_folder',
+        description: 'Delete a Canvas folder by its ID. This permanently removes the folder and may affect files within it.',
+        destructive: true,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                folderId: { type: 'string', description: 'The Canvas folder ID to delete' }
+            },
+            required: ['domain', 'folderId']
+        },
+        execute: async ({ domain, token, folderId }) => {
+            const { deleteFolder } = require(path.join(CANVAS_API, 'folders'));
+            const result = await deleteFolder({ domain, token, id: folderId });
+            return { success: true, deletedFolderId: result };
+        }
+    },
+];
+
+// ============================================================================
+// SIS Import Tools
+// ============================================================================
+
+const sisImportTools = [
+    {
+        name: 'canvas_generate_sis_csv',
+        description: 'Generate SIS-formatted CSV data for Canvas. Returns the CSV content as a string. Supported file types: users, accounts, terms, courses, sections, enrollments, group_categories, groups, group_memberships, admins, logins, xlists (cross-listings), user_observers, change_sis_ids, differentiation_tag_sets, differentiation_tags, differentiation_tag_memberships. Use this for creating test data or preparing SIS imports.',
+        destructive: false,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                fileType: {
+                    type: 'string',
+                    enum: ['users', 'accounts', 'terms', 'courses', 'sections', 'enrollments', 'group_categories', 'groups', 'group_memberships', 'admins', 'logins', 'xlists', 'user_observers', 'change_sis_ids', 'differentiation_tag_sets', 'differentiation_tags', 'differentiation_tag_memberships'],
+                    description: 'Type of SIS data to generate'
+                },
+                rowCount: { type: 'number', description: 'Number of rows to generate (default: 10)' },
+                emailDomain: { type: 'string', description: 'Email domain for generated users (default: @school.edu)' },
+                options: { type: 'object', description: 'Type-specific options (e.g., for enrollments: { courseId, sectionId, role })', additionalProperties: true }
+            },
+            required: ['fileType']
+        },
+        execute: async ({ fileType, rowCount, emailDomain, options }) => {
+            const sis = require(path.join(CANVAS_API, 'sis_imports'));
+            const count = rowCount || 10;
+            const domain = emailDomain || '@school.edu';
+
+            const generators = {
+                users: () => sis.generateUsersCSV(count, { emailDomain: domain, ...options }),
+                accounts: () => sis.generateAccountsCSV(count, options || {}),
+                terms: () => sis.generateTermsCSV(count, options || {}),
+                courses: () => sis.generateCoursesCSV(count, options || {}),
+                sections: () => sis.generateSectionsCSV(count, options || {}),
+                enrollments: () => sis.generateEnrollmentsCSV(count, options || {}),
+                group_categories: () => sis.generateGroupCategoriesCSV(count, options || {}),
+                groups: () => sis.generateGroupsCSV(count, options || {}),
+                group_memberships: () => sis.generateGroupMembershipsCSV(count, options || {}),
+                admins: () => sis.generateAdminsCSV(count, options || {}),
+                logins: () => sis.generateLoginsCSV(count, options || {}),
+                xlists: () => sis.generateXlistsCSV(count, options || {}),
+                user_observers: () => sis.generateUserObserversCSV(count, options || {}),
+                change_sis_ids: () => sis.generateChangeSisIdCSV(count, options || {}),
+                differentiation_tag_sets: () => sis.generateDifferentiationTagSetsCSV(count, options || {}),
+                differentiation_tags: () => sis.generateDifferentiationTagsCSV(count, options || {}),
+                differentiation_tag_memberships: () => sis.generateDifferentiationTagMembershipCSV(count, options || {}),
+            };
+
+            const generator = generators[fileType];
+            if (!generator) throw new Error(`Unsupported SIS file type: ${fileType}`);
+
+            const csv = generator();
+            return { fileType, rowCount: count, csv };
+        }
+    },
+];
+
+// ============================================================================
+// Grading Standard & Group Category Tools
+// ============================================================================
+
+const gradingGroupTools = [
+    {
+        name: 'canvas_delete_grading_standards',
+        description: 'Delete grading standards from a Canvas course by their IDs.',
+        destructive: true,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                courseId: { type: 'string', description: 'The Canvas course ID' },
+                gradingStandardIds: { type: 'array', items: { type: 'string' }, description: 'Array of grading standard IDs to delete' }
+            },
+            required: ['domain', 'courseId', 'gradingStandardIds']
+        },
+        execute: async ({ domain, token, courseId, gradingStandardIds }) => {
+            const { deleteGradingStandards } = require(path.join(CANVAS_API, 'grading_standards'));
+            return await deleteGradingStandards({
+                domain, token, course_id: courseId,
+                grading_standards: gradingStandardIds.map(id => ({ id }))
+            });
+        }
+    },
+    {
+        name: 'canvas_delete_group_category',
+        description: 'Delete a group category from Canvas by its ID.',
+        destructive: true,
+        inputSchema: {
+            type: 'object',
+            properties: {
+                domain: { type: 'string', description: 'Canvas instance domain' },
+                groupCategoryId: { type: 'string', description: 'The group category ID to delete' }
+            },
+            required: ['domain', 'groupCategoryId']
+        },
+        execute: async ({ domain, token, groupCategoryId }) => {
+            const { deleteGroupCategory } = require(path.join(CANVAS_API, 'group_categories'));
+            const result = await deleteGroupCategory({ domain, token, id: groupCategoryId });
+            return { success: true, deletedGroupCategoryId: result };
+        }
+    },
+];
+
+// ============================================================================
 // Canvas REST API Call Tool (generic write access)
 // ============================================================================
 
@@ -2338,6 +2813,14 @@ const ALL_TOOLS = [
     ...permissionTools,
     ...contentMigrationTools,
     ...pageViewTools,
+    ...searchTools,
+    ...blueprintTools,
+    ...quizQuestionTools,
+    ...advancedEnrollmentTools,
+    ...userManagementTools,
+    ...fileTools,
+    ...sisImportTools,
+    ...gradingGroupTools,
     ...graphqlTools,
     ...apiRefTools,
     ...restCallTools,
@@ -2399,4 +2882,12 @@ module.exports = {
     permissionTools,
     contentMigrationTools,
     pageViewTools,
+    searchTools,
+    blueprintTools,
+    quizQuestionTools,
+    advancedEnrollmentTools,
+    userManagementTools,
+    fileTools,
+    sisImportTools,
+    gradingGroupTools,
 };
