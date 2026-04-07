@@ -2103,7 +2103,7 @@ async function deleteConvos(e) {
                             skippedHTML = `
                                 <div class="alert alert-warning mt-2 mb-0 py-1 px-2" style="font-size: 0.85rem;">
                                     <i class="bi bi-exclamation-triangle me-1"></i><strong>${fileSkippedRows.length}</strong> row(s) skipped (missing subject or invalid user ID).
-                                    <button id="dcs-file-download-skipped" type="button" class="btn btn-sm btn-outline-warning ms-2 py-0 px-2" style="font-size: 0.8rem;">
+                                    <button id="dcs-file-download-skipped" type="button" class="btn btn-sm btn-outline-dark ms-2 py-0 px-2" style="font-size: 0.8rem;">
                                         <i class="bi bi-download me-1"></i>Download Skipped Rows (CSV)
                                     </button>
                                 </div>
@@ -2164,6 +2164,7 @@ async function deleteConvos(e) {
                         fileDeleteBtn.hidden = true;
                         filePermDeleteBtn.hidden = true;
                         fileDeleteSection.hidden = false;
+                        fileCancelDeleteBtn.disabled = false;
                     } else {
                         // convo mode - existing behavior
                         fileConversations = parsed.data;
@@ -2196,6 +2197,7 @@ async function deleteConvos(e) {
                         fileDeleteSection.hidden = false;
                         fileDeleteBtn.disabled = false;
                         filePermDeleteBtn.disabled = false;
+                        fileCancelDeleteBtn.disabled = false;
                     }
                 } catch (err) {
                     const alertDiv = document.createElement('div');
@@ -2205,6 +2207,35 @@ async function deleteConvos(e) {
                 }
             };
             input.click();
+        });
+
+        // ── Cancel/Reset button (clears file data and restores default state) ──
+        fileCancelDeleteBtn.addEventListener('click', () => {
+            // If an operation is in progress, let the once-handler for that operation handle it
+            if (!fileDeleteProgressDiv.hidden) return;
+            // Reset all file state
+            fileConversations = [];
+            fileSubjectPairs = [];
+            fileSkippedRows = [];
+            fileMode = null;
+            fileFoundMessages = [];
+            // Reset UI to default
+            fileNameSpan.textContent = 'No file selected';
+            fileParseResult.innerHTML = '';
+            fileDateFilterRow.hidden = true;
+            fileSentOnOrAfterInput.value = '';
+            fileDeleteSection.hidden = true;
+            fileSearchBtn.hidden = true;
+            fileSearchBtn.disabled = true;
+            fileDeleteBtn.hidden = false;
+            fileDeleteBtn.disabled = true;
+            filePermDeleteBtn.hidden = false;
+            filePermDeleteBtn.disabled = true;
+            fileCancelDeleteBtn.disabled = true;
+            fileDeleteProgressDiv.hidden = true;
+            fileDeleteProgressBar.style.width = '0%';
+            fileDeleteProgressInfo.textContent = '';
+            fileDeleteResult.innerHTML = '';
         });
 
         // ── Subject mode: Search button ──
