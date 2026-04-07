@@ -407,6 +407,74 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow, getBatchCon
         }
     });
 
+    // Permanently delete conversations (delete_for_all) — one call per conversation ID
+    const permDeleteCancelFlags = new Map();
+
+    ipcMain.handle('axios:permanentlyDeleteConvos', async (event, data) => {
+        logDebug('[axios:permanentlyDeleteConvos] Starting permanent deletion', { count: data.messages?.length });
+        const senderId = event.sender.id;
+        permDeleteCancelFlags.set(senderId, false);
+
+        const batchConfig = typeof getBatchConfig === 'function'
+            ? getBatchConfig()
+            : { batchSize: 35, timeDelay: 2000 };
+
+        const maxConcurrent = Math.max(1, Number(batchConfig.batchSize) || 35);
+        const baseDelayMs = Math.max(50, Number(batchConfig.timeDelay) || 2000);
+        const jitterMs = Math.max(50, Number(process.env.CANVAS_DELETE_JITTER_MS) || 200);
+        const maxRetries = Math.max(0, Number(process.env.CANVAS_DELETE_MAX_RETRIES) || 3);
+
+        const messages = Array.isArray(data.messages) ? data.messages : [];
+        // Deduplicate by conversation id — only one call per conversation
+        const seenIds = new Set();
+        const uniqueMessages = messages.filter(msg => {
+            const id = String(msg?.id);
+            if (seenIds.has(id)) return false;
+            seenIds.add(id);
+            return true;
+        });
+
+        const requests = uniqueMessages.map((msg, i) => ({
+            id: msg?.id || i + 1,
+            request: async () => convos.permanentlyDeleteConversation({
+                domain: data.domain,
+                token: data.token,
+                conversation_id: msg.id
+            })
+        }));
+
+        const response = await canvasRateLimitedHandler(requests, {
+            maxConcurrent,
+            baseDelayMs,
+            jitterMs,
+            maxRetries,
+            isCancelled: () => permDeleteCancelFlags.get(senderId) === true
+        }, mainWindow);
+
+        const cancelled = permDeleteCancelFlags.get(senderId) === true;
+        permDeleteCancelFlags.delete(senderId);
+
+        logDebug('[axios:permanentlyDeleteConvos] Complete', {
+            successful: response.successful.length,
+            failed: response.failed.length,
+            cancelled
+        });
+
+        return { ...response, cancelled };
+    });
+
+    // Cancel permanent conversation deletion
+    ipcMain.handle('axios:cancelPermanentlyDeleteConvos', async (event) => {
+        const senderId = event.sender.id;
+        logDebug('[axios:cancelPermanentlyDeleteConvos] Cancelling', { senderId });
+        try {
+            permDeleteCancelFlags.set(senderId, true);
+            return { cancelled: true };
+        } catch {
+            return { cancelled: false };
+        }
+    });
+
     // Delete files — batch with cancellation and progress
     const deleteFilesCancelFlags = new Map();
 
@@ -470,7 +538,19 @@ function registerConversationHandlers(ipcMain, logDebug, mainWindow, getBatchCon
         }
     });
 
-    logDebug('[conversationHandlers] 10 conversation handlers registered');
+    // Get a single conversation by ID (for looking up details like subject/participants)
+    ipcMain.handle('axios:getConversationById', async (event, data) => {
+        logDebug('[axios:getConversationById] Fetching conversation', { conversation_id: data.conversation_id, user_id: data.user_id });
+        try {
+            const result = await convos.getConversationById(data);
+            return result;
+        } catch (error) {
+            logDebug('[axios:getConversationById] Error', { error: error.message });
+            throw serializeErrorForIPC(error);
+        }
+    });
+
+    logDebug('[conversationHandlers] 11 conversation handlers registered');
 }
 
 /**

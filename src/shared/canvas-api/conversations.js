@@ -449,6 +449,25 @@ async function deleteForAll(data) {
     // await axios.delete(myURL);
 }
 
+async function permanentlyDeleteConversation(data) {
+    console.log('conversations.js > permanentlyDeleteConversation');
+
+    const domain = data.domain;
+    const token = data.token;
+    const conversationID = data.conversation_id;
+    const headers = { 'Authorization': `Bearer ${token}` };
+
+    const axiosConfig = {
+        method: 'delete',
+        url: `https://${domain}/api/v1/conversations/${conversationID}/delete_for_all`,
+        headers
+    };
+
+    const request = async () => await axios(axiosConfig);
+    const response = await errorCheck(request);
+    return `${response.status} - ${response.statusText}`;
+}
+
 async function bulkDelete(userID, messageFilter) {
     let allConversations = [];
 
@@ -938,6 +957,20 @@ async function restoreConversationById({ domain, token, conversation_id }) {
 }
 
 
+async function getConversationById(data) {
+    const { domain, token, conversation_id, user_id } = data;
+    const url = `https://${domain}/api/v1/conversations/${encodeURIComponent(conversation_id)}?as_user_id=${encodeURIComponent(user_id)}`;
+    const headers = { 'Authorization': `Bearer ${token}` };
+
+    try {
+        const request = async () => await axios.get(url, { headers });
+        const response = await errorCheck(request);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
 module.exports = {
-    getConversations, getConversationsGraphQL, bulkDelete, bulkDeleteNew, deleteForAll, getDeletedConversations, restoreConversation, restoreConversationById
+    getConversations, getConversationsGraphQL, bulkDelete, bulkDeleteNew, deleteForAll, permanentlyDeleteConversation, getDeletedConversations, restoreConversation, restoreConversationById, getConversationById
 };

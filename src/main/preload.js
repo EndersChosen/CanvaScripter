@@ -54,6 +54,16 @@ contextBridge.exposeInMainWorld('axios', {
     cancelDeleteConvos: async () => {
         return await ipcRenderer.invoke('axios:cancelDeleteConvos');
     },
+    permanentlyDeleteConvos: async (data) => {
+        console.log('inside permanentlyDeleteConvos');
+        return await ipcRenderer.invoke('axios:permanentlyDeleteConvos', data);
+    },
+    cancelPermanentlyDeleteConvos: async () => {
+        return await ipcRenderer.invoke('axios:cancelPermanentlyDeleteConvos');
+    },
+    getConversationById: async (data) => {
+        return await ipcRenderer.invoke('axios:getConversationById', data);
+    },
     deleteFiles: async (data) => {
         console.log('inside deleteFiles');
         return await ipcRenderer.invoke('axios:deleteFiles', data);
